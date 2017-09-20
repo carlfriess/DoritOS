@@ -1,0 +1,169 @@
+--------------------------------------------------------------------------
+-- Copyright (c) 2007-2016, ETH Zurich.
+-- Copyright (c) 2015-2016, Hewlett Packard Enterprise Development LP.
+-- All rights reserved.
+--
+-- This file is distributed under the terms in the attached LICENSE file.
+-- If you do not find this file, copies can be found by writing to:
+-- ETH Zurich D-INFK, CAB F.78, Universitaetstr. 6, CH-8092 Zurich.
+-- Attn: Systems Group.
+--
+-- Hakefile for Barrelfish CPU drivers
+--
+--------------------------------------------------------------------------
+
+--
+-- Missing from this new Hakefile is the rule to build kernel debug
+-- symbols, since this requires some thinking about naming
+-- conventions.  Here is the rule we need:
+--
+--                Rule ( [ Str "OBJDUMP=objdump",
+--                         In SrcTree "src" "/tools/gen-gdbscript.sh",
+--                         In SrcTree "src" "/tools/debug.gdb.in",
+--                         In BuildTree arch "../sbin/cpu",
+--                         Str ">", Out arch "/debug.gdb"
+--                        ] )
+
+let
+  scheduler = case Config.scheduler of
+      Config.RR   -> "schedule_rr.c"
+      Config.RBED -> "schedule_rbed.c"
+  common_c = [ "gdb_stub.c",
+               "capabilities.c",
+               "cap_delete.c",
+               "dispatch.c",
+               scheduler,
+               "kcb.c",
+               "logging.c",
+               "memset.c",
+               "memmove.c",
+               "monitor.c",
+               "paging_generic.c",
+               "printf.c",
+               "startup.c",
+               "stdlib.c",
+               "string.c",
+               "sys_debug.c",
+               "syscall.c",
+               "wakeup.c",
+               "useraccess.c",
+               "coreboot.c",
+               "systime.c" ]
+             ++ (if Config.microbenchmarks then ["microbenchmarks.c"] else [])
+             ++ (if Config.oneshot_timer then ["timer.c"] else [])
+  common_libs = [ "getopt", "mdb_kernel" ]
+  boot_c = [ "memset.c",
+             "printf.c",
+             "stdlib.c",
+             "string.c" ]
+
+  link_cpudriver arg = linkKernel opts name objs libs "cpu"
+    where
+      opts = kernelOptions $ head $ Args.architectures arg
+      suffix = if "cpu" == Args.target arg
+             then ""
+             else "_" ++ (Args.target arg)
+      name = "cpu" ++ suffix
+      objs = [ objectFilePath opts f
+             | f <- (Args.assemblyFiles arg) ++ (Args.cFiles arg) ++ common_c ]
+      libs = (Args.addLibraries arg) ++ common_libs
+
+  link_bootdriver arg = linkKernel opts name objs libs "boot"
+    where
+      opts = kernelOptions $ head $ Args.architectures arg
+      name = "boot_" ++ Args.target arg
+      objs = [ objectFilePath opts f
+             | f <- (Args.assemblyFiles arg) ++(Args.cFiles arg) ]
+      libs = (Args.addLibraries arg) ++ common_libs
+
+  link_aos_m0 arg = linkKernel opts name objs libs "cpu"
+    where
+      opts = kernelOptions $ head $ Args.architectures arg
+      name = "cpu_" ++ Args.target arg
+      objs = [ objectFilePath opts f
+             | f <- (Args.assemblyFiles arg) ++ (Args.cFiles arg) ]
+      libs = (Args.addLibraries arg) ++ common_libs
+
+  cpudrivers arglist =
+    let
+      cafiles = Data.List.nub $ concat [ [ [ arch, cfile ]
+                                         | arch <- Args.architectures arg,
+                                           cfile <- common_c ++ (Args.cFiles arg) ]
+                                       | arg <- arglist ]
+      safiles = Data.List.nub $ concat [ [ [ arch, sfile ]
+                                         | arch <- Args.architectures arg,
+                                           sfile <- Args.assemblyFiles arg ]
+                                       | arg <- arglist ]
+      mafiles = Data.List.nub $ concat [ [ [ arch, mfile ]
+                                         | arch <- Args.architectures arg,
+                                           mfile <- Args.mackerelDevices arg ]
+                                       | arg <- arglist ]
+    in
+     ( [ compileCFile (kernelOptions a) f | [a,f] <- cafiles ]
+       ++
+       [ assembleSFile (kernelOptions a) f | [a,f] <- safiles ]
+       ++
+       [ mackerelDependencies (kernelOptions a) f [ c | [a,c] <- cafiles]
+       | [a,f] <- mafiles ]
+       ++
+       [ (case Args.driverType arg of
+             "boot" -> link_bootdriver arg
+             "aos" -> link_aos_m0 arg
+             _ ->  link_cpudriver arg) | arg <- arglist ]
+     )
+
+  --
+  -- CPU and boot drivers to build
+  --
+
+  in cpudrivers [
+
+  --
+  -- TI OMAP44xx-series dual-core Cortex-A9 SoC
+  --
+  bootDriver {
+     target = "omap44xx",
+     architectures = [ "armv7" ],
+     assemblyFiles = [ "arch/armv7/boot.S" ],
+     cFiles = [
+               "logging.c",
+                "arch/armv7/boot_driver.c",
+                "arch/armv7/gdb_arch.c",
+                "arch/armv7/paging_init.c",
+                "arch/armv7/plat_omap44xx_boot.c",
+                "arch/armv7/plat_omap44xx_consts.c",
+                "arch/arm/gdb_arch.c",
+                "arch/arm/kputchar.c",
+                "arch/arm/misc.c",
+                "arch/arm/multiboot.c",
+                "arch/arm/omap_uart.c"
+                ] ++ boot_c,
+     mackerelDevices = [ "arm",
+                         "cpuid_arm",
+                         "omap/omap44xx_cortexa9_wugen",
+                         "omap/omap44xx_uart3"
+                       ],
+     addLibraries = [ ]
+     },
+  cpuDriver {
+     target = "aos_m0",
+     driverType = "aos",
+     architectures = [ "armv7" ],
+     assemblyFiles = [ "arch/armv7/bsp_start.S",
+                       "arch/armv7/aos/exceptions.S" ],
+     cFiles = [ "logging.c",
+                "arch/armv7/aos/init.c",
+                "arch/armv7/aos/paging.c",
+                "arch/armv7/aos/plat_omap44xx.c",
+                "arch/arm/kputchar.c",
+                "arch/arm/misc.c"
+                ] ++ boot_c,
+     mackerelDevices = [ "arm",
+                         "cpuid_arm",
+                         "omap/omap44xx_uart3",
+                         "omap/omap44xx_gpio",
+                         "omap/omap44xx_sysctrl_padconf_core"
+                         ],
+     addLibraries = []
+     }
+  ]

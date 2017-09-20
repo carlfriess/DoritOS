@@ -1,0 +1,522 @@
+/*
+ * Copyright (c) 2014 ETH Zurich. All rights reserved.
+ *
+ * This file is distributed under the terms in the attached LICENSE file.
+ * If you do not find this file, copies can be found by writing to:
+ * ETH Zurich D-INFK, CAB F.78, Universitaetstr. 6, CH-8092 Zurich,
+ * Attn: Systems Group.
+ */
+
+/*
+ * omap44xx_smda.dev
+ *
+ * DESCRIPTION: OMAP44xx SMDA module registers.
+ *
+ * This file has been partly automatically generated based on the
+ * XML files extracted from the TI RDT v1.0.0.4p Tool.
+ *
+ * See also:
+ *
+ * OMAP4460 Multimedia Device Silicon Revision 1.x Technical Reference
+ * Manual Version AA, in particular Section 16.6
+ *
+ */
+
+device omap44xx_sdma msbfirst ( addr base ) "OMAP44xx SDMA module" {
+
+    register dma4_revision ro addr(base, 0x0) "This register contains the DMA revision code" type(uint32);
+
+    regarray dma4_irqstatus_line rw addr(base, 0x8) [ 4 ]
+    "The interrupt status register regroups all the status of the DMA4 channels that can generate an interrupt over line Lj"
+    type(uint32);
+
+    regarray dma4_irqenable rw addr(base, 0x18) [ 4 ]
+    "The interrupt enable register allows to mask/unmask the module internal sources of interrupt, on line Lj"
+    type(uint32);
+
+    constants resetdone width(1) "" {
+        RESETDONE_ONGOING   = 0 "Internal module reset is on-going";
+        RESETDONE_COMPLETED = 1 "Reset completed";
+    };
+
+    register dma4_sysstatus addr(base, 0x28)
+    "The register provides status information about the module excluding the interrupt status information (see interrupt status register)" {
+        _ 31 mbz;
+        resetdone 1 ro type(resetdone) "Internal reset monitoring";
+    };
+
+    constants midlemode width(2) "Read write power management, standby/wait control" {
+        MIDLEMODE_FORCESB  = 0 "Force-standby: MStandby is asserted only when all the DMA channels are disabled";
+        MIDLEMODE_NOSB     = 1 "No-Standby: MStandby is never asserted";
+        MIDLEMODE_SMARTSB  = 2 "Smart-Standby: MStandby is asserted if at least one of the following two conditions is satisfied: 1. All the channels are disabled, OR 2. There is no non-synchronized channel enabled AND [if hardware synchronized channel is enabled, then no DMA request input is asserted and no requests are pending to be serviced].";
+        MIDLEMODE_RESERVED = 3 "Reserved";
+    };
+
+    constants emufree width(1) "Sensitivity to MSuspend" {
+        EMUFREE_FREEZE = 0 "DMA4 freezes its internal logic upon MSuspend assertion";
+        EMUFREE_IGNORE = 1 "DMA4 ignores the MSuspend input";
+    };
+
+    constants sidlemode width(2) "Configuration port power management, Idle req/ack control" {
+        SIDLEMODE_FORCEIDLE = 0 "Force-idle. An idle request is acknowledged unconditionally";
+        SIDLEMODE_NOIDLE    = 1 "No-idle. An idle request is never acknowledged";
+        SIDLEMODE_SMARTIDLE = 2 "Smart-idle. Idle acknowledge is given by DMA4 if all of the conditions are true: 1. All the channels are disabled. 2. If hardware synchronized channel is enabled, then no DMA request input is asserted and no requests are pending to be serviced. 3. All transactions are completed on all the DMA ports. 4.No interrupts are pending to be serviced.";
+        SIDLEMODE_RESERVED  = 3 "Reserved";
+    };
+
+    constants autoidle width(1) "Internal interface clock gating strategy" {
+        AUTOIDLE_FREE = 0 "Interface clock is free running";
+        AUTOIDLE_AUTO = 1 "Automatic interface clock gating strategy is applied, based on the interface activity.";
+    };
+
+    register dma4_ocp_sysconfig addr(base, 0x2C) "DMA system configuration register" {
+        _ 18 mbz;
+        midlemode       2 rw type(midlemode) "Read write power management, standby/wait control";
+        _ 2 mbz;
+        clockactivity   2 ro "Clocks activities during wake-up Bit 8: Interface clock 0x0: Interface clock can be switched-off Bit 9: Functional clock 0x0: Functional clock can be switched-off";
+        _ 2 mbz;
+        emufree         1 rw type(emufree) "Enable sensitivity to MSuspend";
+        sidlemode       2 rw type(sidlemode) "Configuration port power management, Idle req/ack control";
+        _ 1 mbz;
+        _ 1 mbz;
+        autoidle        1 rw type(autoidle) "Internal interface clock gating strategy";
+    };
+
+    register dma4_caps_0 ro addr(base, 0x64) "DMA Capabilities Register 0 LSW" {
+        _ 10 mbz;
+        link_list_cpblty_type4      1 "Link List capability for type4 descriptor capability";
+        link_list_cpblty_type123    1 "Link List capability for type123 descriptor capability";
+        const_fill_cpblty           1 "Constant Fill Capability";
+        transparent_blt_cpblty      1 "Transparent BLT Capability";
+        _ 18 mbz;
+    };
+
+    register dma4_caps_2 ro addr(base, 0x6C) "DMA Capabilities Register 2" {
+        _ 23 mbz;
+        separate_src_and_dst_index_cpblty    1  "Separate_source/destination_index_capability";
+        dst_double_index_adrs_cpblty         1  "Destination double index address capability";
+        dst_single_index_adrs_cpblty         1  "Destination single index address capability";
+        dst_post_incrmnt_adrs_cpblty         1  "Destination post increment address capability";
+        dst_const_adrs_cpblty                1  "Destination constant address capability";
+        src_double_index_adrs_cpblty         1  "Source double index address capability";
+        src_single_index_adrs_cpblty         1  "Source single index address capability";
+        src_post_increment_adrs_cpblty       1  "Source post increment address capability";
+        src_const_adrs_cpblty                1  "Source constant address capability";
+    };
+
+    register dma4_caps_3 ro addr(base, 0x70) "DMA Capabilities Register 3" {
+        _ 24 mbz;
+        block_synchr_cpblty              1  "Block synchronization capability ";
+        pkt_synchr_cpblty                1  "Packet synchronization capability";
+        channel_chaninig_cpblty          1  "Channel chaninig capability";
+        channel_interleave_cpblty        1  "Channel interleave capability";
+        _ 2 mbz;
+        frame_synchr_cpblty              1  "Frame synchronization capability";
+        elmnt_synchr_cpblty              1  "Element synchronization capability";
+    };
+
+    register dma4_caps_4 ro addr(base, 0x74) "DMA Capabilities Register 4" {
+        _ 17 mbz;
+        eosb_interrupt_cpblty                1 "End of Super Block detection capability.";
+        _ 1 rsvd;
+        drain_end_interrupt_cpblty           1 "Drain End detection capability.";
+        misaligned_adrs_err_interrupt_cpblty 1 "Misaligned error detection capability.";
+        supervisor_err_interrupt_cpblty      1 "Supervisor error detection capability.";
+        _ 1 rsvd;
+        trans_err_interrupt_cpblty           1 "Transaction error detection capability.";
+        pkt_interrupt_cpblty                 1 "End of Packet detection capability.";
+        sync_status_cpblty                   1 "Sync status capability";
+        block_interrupt_cpblty               1 "End of block detection capability.";
+        last_frame_interrupt_cpblty          1 "Start of last frame detection capability.";
+        frame_interrupt_cpblty               1 "End of frame detection capability.";
+        half_frame_interrupt_cpblty          1 "Detection capability of the half of frame end.";
+        event_drop_interrupt_cpblty          1 "Request collision detection capability.";
+        _ 1 mbz;
+    };
+
+    constants hi_lo_fifo_budget width(2) "FIFO Budget" {
+        HI_LO_FIFO_BUDGET_NO   = 0 "No fixed budget for neither higher nor lower priority channel";
+        HI_LO_FIFO_BUDGET_75LO = 1 "75% of FIFO for low priority and 25% for high priority channels";
+        HI_LO_FIFO_BUDGET_25LO = 2 "25% of FIFO for low priority and 75% for high priority channels";
+        HI_LO_FIFO_BUDGET_50LO = 3 "50% of FIFO for low priority and 50% for high priority channels";
+    };
+
+    constants hi_thread_reserved width(2) "Thread Reservation" {
+        HI_THREAD_RESERVED_NO   = 0 "No ThreadID is reserved on the Read Port for high priority channels. No ThreadID is reserved on the Write Port for high priority channels.";
+        HI_THREAD_RESERVED_T0   = 1 "Read Port ThreadID 0 is reserved for high priority channels. Write Port ThreadID 0 is reserved for high priority channels.";
+        HI_THREAD_RESERVED_T01  = 2 "Read port ThreadID 0 and ThreadID 1 are reserved for high priority channels. Write Port ThreadID 0 is reserved for high priority channels.";
+        HI_THREAD_RESERVED_T012 = 3 "Read PortThreadID 0, ThreadID 1 and ThreadID 2 are reserved for high priority channels. Write Port ThreadID 0 is reserved for high priority channels.";
+    };
+
+    register dma4_gcr rw addr(base, 0x78) "DMA Global Control Register" {
+        _ 7 mbz;
+        channel_id_gate         1 "Gates the Channel ID bus monitoring on both Read and Write ports 0x0: Gates the Channel ID qualifiers on both Read and Write Ports 0x1: Does not gate the Channel ID qualifiers on both Read and Write Ports";
+        arbitration_rate        8 "Arbitration switching rate between prioritized and regular channel queues";
+        hi_lo_fifo_budget       2 type(hi_lo_fifo_budget) "Allow to have a separate Global FIFO budget for high and low priority channels. For Hi priority Channel: (Per_channel_Maximum FIFO depth + 1) x Number of active High priority Channel &amp;lt;= High Budget FIFO For Low priority channel: (Per_channel_Maximum FIFO depth + 1) x Number of active Low priority Channel &amp;lt;= Low Budget FIFO";
+        hi_thread_reserved      2 type(hi_thread_reserved) "Allow thread reservation for high priority channel on both read and write ports.";
+        _ 4 mbz;
+        max_channel_fifo_depth  8 "Maximum FIFO depth allocated to one logical channel. Maximum FIFO depth can not be 0x0. It should be at least 0x1 or greater. Note that If channel limit is less than destination burst size enough data will not be accumulated in the data FIFO and it will never be sent out on the WR port. The burst size should be less than the FIFO limit specified in this bit field.";
+    };
+
+    constants port_priority width(1) "Port Priority" {
+        PORT_PRIORITY_LOW  = 0 "Low Priority";
+        PORT_PRIORITY_HIGH = 1 "High Priority";
+    };
+
+    constants sel_src_dst_sync width(1) "Transfer Trigger" {
+        SEL_SRC_DST_SYNC_DST = 0 "Transfer is triggered by the destination. If synchronized on packet the packet element number is specified in the CDFI register.";
+        SEL_SRC_DST_SYNC_SRC = 1 "Transfer is triggered by the source. If synchronized on packet the packet element number is specified in the CSFI register.";
+    };
+
+    constants prefetch width(1) "Prefetch Mode Status" {
+        PREFETCH_DISABLE = 0 "Prefetch mode is disabled. When Sel_Src_Dst_Sync=1 transfers are buffered and pipelined between DMA requests.";
+        PREFETCH_ENABLE  = 1 "Prefetch mode is enabled. Prefetch mode is active only when destination is synchronized. It is software user responsibility not to have at the same time Prefetch=1 when Sel_Src_Dst_Sync=1. This mode is not supported.";
+    };
+
+    constants supervisor width(1) "Supervisor Mode Status" {
+        SUPERVISOR_DISABLE = 0 "Supervisor mode is disabled.";
+        SUPERVISOR_ENABLE  = 1 "Supervisor mode is enabled.";
+    };
+
+    constants transparent_copy width(1) "Transparent Copy Status" {
+        TRANSPARENT_COPY_DISABLE = 0 "Transparent copy mode is disabled.";
+        TRANSPARENT_COPY_ENABLE  = 1 "Transparent copy mode is enabled.";
+    };
+
+    constants const_fill width(1) "Constant Fill Status" {
+        CONST_FILL_DISABLE = 0 "Constant fill mode is disabled.";
+        CONST_FILL_ENABLE  = 1 "Constant fill mode is enabled.";
+    };
+
+    constants addr_mode width(2) "Addressing Mode" {
+        ADDR_MODE_CONST      = 0 "Constant address mode";
+        ADDR_MODE_POST_INCR  = 1 "Post-incremented address mode";
+        ADDR_MODE_SINGLE_IDX = 2 "Single index address mode";
+        ADDR_MODE_DOUBLE_IDX = 3 "Double index address mode";
+    };
+
+    constants rd width(1) "Read Context" {
+        RD_ACTIVE   = 0 "Channel is not active on the read port.";
+        RD_INACTIVE = 1 "Channel is currently active on the read port.";
+    };
+
+    constants suspend width(1) "Suspend Sensitivity" {
+        SUSPEND_IGNORE    = 0 "The channel ignores the MSuspend even if EMUFree is set to 0.";
+        SUSPEND_SENSITIVE = 1 "If EMUFree is set to 0 and MSuspend comes in then all current OCP services (single transaction or burst transaction as specified in the corresponding CSDP register) have to be completed before stopping processing any more transactions.";
+    };
+
+    regarray dma4_ccr rw addr(base, 0x80) [ 32; 0x60 ] "DMA Channel Control Register" {
+        _ 2 mbz;
+        _ 3 mbz;
+        write_priority          1 type(port_priority) "Channel priority on the write side";
+        buffering_disable       1 "This bit allows to disable the default buffering functionality when transfer is source synchronized.";
+        sel_src_dst_sync        1 type(sel_src_dst_sync) "Specifies that element, packet, frame or block transfer (depending on CCR.bs and CCR.fs) is triggered by the source or the destination on the DMA request";
+        prefetch                1 type(prefetch) "Enables the prefetch mode";
+        supervisor              1 type(supervisor) "Enables the supervisor mode";
+        _ 1 mbz;
+        synchro_control_upper   2 "Channel Synchronization control upper. Used in conjunction, as 2 MSB, with the 5 bits of the synchro channel bit field.";
+        bs                      1 "Block synchronization. Used in conjunction with the fs to see how the DMA request is serviced in a synchronized transfer.";
+        transparent_copy_enable 1 type(transparent_copy) "Transparent copy enable";
+        const_fill_enable       1 type(const_fill) "Constant fill enable";
+        dst_amode               2 type(addr_mode) "Selects the addressing mode on the Write Port of a channel.";
+        src_amode               2 type(addr_mode) "Selects the addressing mode on the Read Port of a channel.";
+        _ 1 mbz;
+        wr_active               1 "Indicates if the channel write context is active or not";
+        rd_active               1 type(rd) "Indicates if the channel read context is active or not";
+        suspend_sensitive       1 type(suspend) "Logical channel suspend enable bit";
+        enable                  1 "Logical channel enable. It is SW responsibility to clear the CSR register and the IRQSTATUS bit for the different interrupt lines before enabling the channel.";
+        read_priority           1 type(port_priority) "Channel priority on the read side";
+        fs                      1 "Frame synchronization. This bit used in conjunction with the BS to see how the DMA request is serviced in a synchronized transfer FS = 0 and BS = 0: An element is transferred once a DMA request is made. FS = 0 and BS = 1: An entire block is transferred once a DMA request is made. FS = 1 and BS = 0: An entire frame is transferred once a DMA request is made. FS = 1 and BS = 1: A packet is transferred once a DMA request is made. All these different transfers can be interleaved on the port with other DMA requests.";
+        synchro_control         5 "Channel synchronization control This bit field used in conjunction with the second_level_ synchro_control_upper (as 2 MSB) 0000000 : Is reserved for non synchronized LCH transfer xxxxxxx (from 1 to 127)There are 127 possible DMA request to assign to any LCH. The channel synchronization control registers are 1-based. For example, to enable the S_DMA_1 request, DMA4_CCR[4:0] SYNCHRO_CONTROL must be set to 0x2 (DMA request number + 1).";
+    };
+
+    regarray dma4_clnk_ctrl rw addr(base, 0x84) [ 32; 0x60 ] "Channel Link Control Register" {
+        _ 16 mbz;
+        enable_lnk 1 "Enables or disable the channel linking.";
+        _ 10 mbz;
+        nextlch_id 5 "Defines the NextLCh_ID, which is used to build logical channel chaining queue.";
+    };
+
+    regarray dma4_cicr rw addr(base, 0x88) [ 32; 0x60 ] "Channel Interrupt Control Register" {
+        _ 17 mbz;
+        super_block_ie      1 "Enables the end of super block interrupt";
+        _ 1 rsvd;
+        drain_ie            1 "Enables the end of draining interrupt";
+        misaligned_err_ie   1 "Enables the address misaligned error event interrupt";
+        supervisor_err_ie   1 "Enables the supervisor transaction error event interrupt";
+        _ 1 rsvd;
+        trans_err_ie        1 "Enables the transaction error event interrupt";
+        pkt_ie              1 "Enables the end of Packet interrupt";
+        _ 1 mbz;
+        block_ie            1 "Enables the end of block interrupt";
+        last_ie             1 "Last frame interrupt enable (start of last frame)";
+        frame_ie            1 "Frame interrupt enable (end of frame)";
+        half_ie             1 "Enables or disables the half frame interrupt.";
+        drop_ie             1 "Synchronization event drop interrupt enable (request collision)";
+        _ 1 mbz;
+    };
+
+    regarray dma4_csr rw addr(base, 0x8C) [ 32; 0x60] "Channel Status Register" {
+        _ 15 mbz;
+        _ 2 mbz;
+        super_block         1 "End of Super block event";
+        _ 1 mbz;
+        drain_end           1 "End of channel draining";
+        misaligned_adrs_err 1 "Misaligned address error event";
+        supervisor_err      1 "Supervisor transaction error event";
+        _ 1 mbz;
+        trans_err           1 "Transaction error event";
+        pkt                 1 "End of Packet transfer";
+        sync                1 "Synchronization status of a channel.";
+        block               1 "End of block event";
+        last                1 "Last frame (start of last frame)";
+        frame               1 "End of frame event";
+        half                1 "Half of frame event.";
+        drop                1 "Synchronization event drop occured during the transfer";
+        _ 1 mbz;
+    };
+
+    constants endian_type width(1) "Endian Type" {
+        ENDIAN_LITTLE = 0 "Little Endian";
+        ENDIAN_BIG    = 1 "Big Endian";
+    };
+
+    constants endian_lock width(1) "Endianness Lock" {
+        ENDIAN_LOCK_ADAPT = 0 "Endianness adapt";
+        ENDIAN_LOCK_LOCK  = 1 "Endianness lock";
+    };
+
+    constants write_mode width(2) "Write Mode" {
+        WRITE_MODE_NONE_POSTED       = 0 "Write None Posted (WRNP)";
+        WRITE_MODE_ALL_POSTED        = 1 "Write (Posted)";
+        WRITE_MODE_LAST_NON_POSTED  = 2 "All transaction are mapped on the Write command as posted except for the last transaction in the transfer mapped on a Write None Posted";
+        WRITE_MODE_UNDEFINED         = 3 "Undefined";
+    };
+
+    constants burst_en width(2) "Burst Mode" {
+        BURST_EN_SINGLE = 0 "single access";
+        BURST_EN_16BYTE = 1 "16 bytes or 4x32-bit / 2x64-bit burst access";
+        BURST_EN_32BYTE = 2 "32 bytes or 8x32-bit / 4x64-bit burst access";
+        BURST_EN_64BYTE = 3 "64 bytes or 16x32-bit / 8x64-bit burst access";
+    };
+
+    constants dst_packed width(1) "Destination Packed Mode" {
+        DST_PACKED_DISABLE = 0 "The destination target is non packed";
+        DST_PACKED_ENABLE  = 1 "The destination target is packed";
+    };
+
+    constants src_packed width(1) "Source Packed Mode" {
+        SRC_PACKED_DISABLE = 0 "The source target is non packed";
+        SRC_PACKED_ENABLE  = 1 "The source target is packed";
+    };
+
+    constants data_type width(2) "Data Type" {
+        DATA_TYPE_8BIT    = 0 "8 bits scalar";
+        DATA_TYPE_16BIT   = 1 "16 bits scalar";
+        DATA_TYPE_32BIT   = 2 "32 bits scalar";
+        DATA_TYPE_RESEVED = 3 "Reserved";
+    };
+
+    regarray dma4_csdp rw addr(base, 0x90) [ 32; 0x60] "Channel Source Destination Parameters" {
+        _ 10 mbz;
+        src_endian      1 type(endian_type) "Channel source endianness control";
+        src_endian_lock 1 type(endian_lock) "Endianness Lock";
+        dst_endian      1 type(endian_type) "Channel Destination endianness control";
+        dst_endian_lock 1 type(endian_lock) "Endianness Lock";
+        write_mode      2 type(write_mode) "Used to enable writing mode without posting or with posting";
+        dst_burst_en    2 type(burst_en) "Used to enable bursting on the Write Port. Smaller burst size than the programmed burst size is also allowed";
+        dst_packed      1 type(dst_packed) "Destination receives packed data.";
+        _ 4 rsvd;
+        src_burst_en    2 type(burst_en) "Used to enable bursting on the Read Port. Smaller burst size than the programmed burst size is also allowed";
+        src_packed      1 type(src_packed) "Source provides packed data.";
+        _ 4 rsvd;
+        data_type       2 type(data_type) "Defines the type of the data moved in the channel.";
+    };
+
+    regarray dma4_cen rw addr(base, 0x94) [ 32; 0x60 ] "Channel Element Number" {
+        _ 8 mbz;
+        channel_elmnt_nbr 24 "Number of elements within a frame (unsigned) to transfer";
+    };
+
+    regarray dma4_cfn rw addr(base, 0x98) [ 32; 0x60 ] "Channel Frame Number" {
+        _ 16 mbz;
+        channel_frame_nbr 16 "Number of frames within the block to be transferred (unsigned)";
+    };
+
+    regarray dma4_cssa rw addr(base, 0x9C) [ 32; 0x60 ] "Channel Source Start Address" type(uint32);
+
+    regarray dma4_cdsa rw addr(base, 0xA0) [ 32; 0x60 ] "Channel Destination Start Address" type(uint32);
+
+    regarray dma4_csei rw addr(base, 0xA4) [ 32; 0x60 ] "Channel Source Element Index (Signed)" {
+        _ 16 mbz;
+        channel_src_elmnt_index 16 "Channel source element index";
+    };
+
+    regarray dma4_csfi rw addr(base, 0xA8) [ 32; 0x60 ] "Channel Source Frame Index (Signed) or 16-bit Packet size" type(uint32);
+
+    regarray dma4_cdei rw addr(base, 0xAC) [ 32; 0x60 ] "Channel Destination Element Index (Signed)" {
+        _ 16 mbz;
+        channel_dst_elmnt_index 16 "Channel destination element index";
+    };
+
+    regarray dma4_cdfi rw addr(base, 0xB0) [ 32; 0x60 ] "Channel Destination Frame Index (Signed) or 16-bit Packet size" type(uint32);
+
+    regarray dma4_csac ro addr(base, 0xB4) [ 32; 0x60 ] "Channel Source Address Value. User has to access this register only in 32-bit access. If accessed in 8-bit or 16bit data may be corrupted." type(uint32);
+
+    regarray dma4_cdac rw addr(base, 0xB8) [ 32; 0x60 ] "Channel Destination Address Value. User has to access this register only in 32-bit access. If accessed in 8-bit or 16bit data may be corrupted." type(uint32);
+
+    regarray dma4_ccen rw addr(base, 0xBC) [ 32; 0x60 ] "Channel Current Transferred Element Number in the current frame. User has to access this register only in 32-bit access. If accessed in 8-bit or 16bit data may be corrupted." {
+        _ 8 mbz;
+        current_elmnt_nbr 24 "Channel current transferred element number in the current frame";
+    };
+
+    regarray dma4_ccfn rw addr(base, 0xC0) [ 32; 0x60 ] "Channel Current Transferred Frame Number in the current transfer. User has to access this register only in 32-bit access. If accessed in 8-bit or 16bit data may be corrupted." {
+        _ 16 mbz;
+        current_frame_nbr 16 "Channel current transferred frame number in the current transfer";
+    };
+
+    regarray dma4_color rw addr(base, 0xC4) [ 32; 0x60 ] "Channel DMA COLOR KEY/SOLID COLOR" {
+        _ 8 rsvd;
+        color_key_pattern 24 "Color key or solid color pattern: The pattern is replicated according to the data type. If the data-type is 8-bit the pattern is replicated 4 times to fill the register in order to enhance processing when data is packed at the graphic module input. The same reasoning for 16-bit data-type.";
+    };
+
+    constants fast_start_mode width(1) "Fast-Start Mode" {
+        FAST_START_DISABLE = 0 "No fast-start mode";
+        FAST_START_ENABLE  = 1 "Fast-start mode is enabled.";
+    };
+
+    constants transfer_mode width(2) "Transfer Mode" {
+        TRANSFER_MODE_NORMAL      = 0 "Normal transfer mode is used.";
+        TRANSFER_MODE_LINKED_LIST = 1 "Linked-list channel mode for type 1, 2, or 3 descriptor is used.";
+        TRANSFER_MODE_UNDEF2      = 2 "Undefined";
+        TRANSFER_MODE_UNDEF3      = 3 "Undefined";
+    };
+
+    constants pause_link_list width(1) "Linked List Transfer Suspend" {
+        PAUSE_LINK_LIST_ACTIVE  = 0 "Linked list is active.";
+        PAUSE_LINK_LIST_SUSPEND = 1 "Linked list is suspended at the boundary of next descriptor loading.";
+    };
+
+    constants next_descriptor_type width(3) "Next Descriptor Type" {
+        NEXT_DESCRIPTOR_TYPE_UNDEF0 = 0 "Undefined";
+        NEXT_DESCRIPTOR_TYPE_1 = 1 "Next descriptor is of type 1.";
+        NEXT_DESCRIPTOR_TYPE_2 = 2 "Next descriptor is of type 2.";
+        NEXT_DESCRIPTOR_TYPE_3 = 3 "Next descriptor is of type 3.";
+        NEXT_DESCRIPTOR_TYPE_UNDEF4 = 4 "Undefined";
+        NEXT_DESCRIPTOR_TYPE_UNDEF5 = 5 "Undefined";
+        NEXT_DESCRIPTOR_TYPE_UNDEF6 = 6 "Undefined";
+        NEXT_DESCRIPTOR_TYPE_UNDEF7 = 7 "Undefined";
+    };
+
+    constants addr_valid width(2) "Address Validity" {
+        ADDR_VALID_INCREMENT = 0 "The address is not present in the next descriptor and continuous incrementing is enabled.";
+        ADDR_VALID_RELOAD = 1 "The address must be reloaded in the next descriptor transfer.";
+        ADDR_VALID_RELOAD_PREV = 2 "The start address is not present in the next descriptor. But will reload the one from configuration memory which belongs to the previous descriptor.";
+        ADDR_VALID_UNDEFINED = 3 "Undefined addressing mode";
+    };
+
+    regarray dma4_cdp rw addr(base, 0xD0) [ 32; 0x60 ] "This register controls the various parameters of the link list mechanism" {
+        _ 21 mbz;
+        fast                 1 type(fast_start_mode) "Sets the fast-start mode for linked list descriptor types 1, 2 and 3";
+        transfer_mode        2 type(transfer_mode) "Enable linked-list transfer mode";
+        pause_link_list      1 type(pause_link_list) "Suspend the linked-list transfer at completion of the current block transfer.";
+        next_descriptor_type 3 type(next_descriptor_type) "Next Descriptor Type";
+        src_valid            2 type(addr_valid) "Source address valid";
+        dest_valid           2 type(addr_valid) "Destination address valid";
+    };
+
+    regarray dma4_cndp rw addr(base, 0xD4) [ 32; 0x60 ] "This register contains the Next descriptor Address Pointer for the link list Mechanism" {
+        next_descriptor_pointer 30 "This register contains the Next descriptor Address Pointer for the link list Mechanism";
+        _ 2 mbz;
+    };
+
+    regarray dma4_ccdn rw addr(base, 0xD8) [ 32; 0x60 ] "Channel Current Descriptor Number" {
+        _ 16 mbz;
+        current_descriptor_nbr 16 "This register when read contains the current active descriptor number in the link list. This register is Read/write to allow user initialization.";
+    };
+
+    datatype dma4_type1 msbfirst(32) "Link-List Type 1 Descriptor" {
+        ccr                     32 "Channel Control Register";
+        clnk_ctrl               32 "Channel Link Control Register";
+        csdp                    32 "Channel Source Destination Parameters";
+        color                   32 "Channel DMA Color Key/Solid Color";
+        csfi                    32 "Channel Source Frame Index";
+        cdfi                    32 "Channel Destination Frame Index";
+        csei                    16 "Channel Source Element Index";
+        cdei                    16 "Channel Destination Element Index";
+        cicr                    16 "Channel Interrupt Control Register";
+        cfn                     16 "Channel Frame Number";
+        cssa                    32 "Channel Source Start Address";
+        cdsa                    32 "Channel Destination Start Address";
+        next_descriptor_type    3 type(next_descriptor_type) "Next Descriptor Type";
+        block_ie                1 "End-of-Block Interrupt Enable";
+        next_src_valid          2 type(addr_valid) "Next Source Address Valid";
+        next_dst_valid          2 type(addr_valid) "Next Destination Address Valid";
+        cen                     24 "Channel Element Number";
+        next_descriptor_pointer 30 "Next Descriptor Address Pointer";
+        _                       1 rsvd;
+        pause_link_list         1 type(pause_link_list) "Pause Linked-List Transfer";
+    };
+
+    datatype dma4_type2a msbfirst(32) "Link-List Type 2 Descriptor With Source and Destination Address Updates" {
+        csfi                    32 "Channel Source Frame Index";
+        cdfi                    32 "Channel Destination Frame Index";
+        csei                    16 "Channel Source Element Index";
+        cdei                    16 "Channel Destination Element Index";
+        cicr                    16 "Channel Interrupt Control Register";
+        cfn                     16 "Channel Frame Number";
+        cssa                    32 "Channel Source Start Address";
+        cdsa                    32 "Channel Destination Start Address";
+        next_descriptor_type    3 type(next_descriptor_type) "Next Descriptor Type";
+        block_ie                1 "End-of-Block Interrupt Enable";
+        next_src_valid          2 type(addr_valid) "Next Source Address Valid";
+        next_dst_valid          2 type(addr_valid) "Next Destination Address Valid";
+        cen                     24 "Channel Element Number";
+        next_descriptor_pointer 30 "Next Descriptor Address Pointer";
+        _                       1 rsvd;
+        pause_link_list         1 type(pause_link_list) "Pause Linked-List Transfer";
+    };
+
+    datatype dma4_type2b msbfirst(32) "Link-List Type 2 Descriptor With Source or Destination Address Updates" {
+        csfi                    32 "Channel Source Frame Index";
+        cdfi                    32 "Channel Destination Frame Index";
+        csei                    16 "Channel Source Element Index";
+        cdei                    16 "Channel Destination Element Index";
+        cicr                    16 "Channel Interrupt Control Register";
+        cfn                     16 "Channel Frame Number";
+        csdsa                   32 "Channel Source/Destination Start Address";
+        next_descriptor_type    3 type(next_descriptor_type) "Next Descriptor Type";
+        block_ie                1 "End-of-Block Interrupt Enable";
+        next_src_valid          2 type(addr_valid) "Next Source Address Valid";
+        next_dst_valid          2 type(addr_valid) "Next Destination Address Valid";
+        cen                     24 "Channel Element Number";
+        next_descriptor_pointer 30 "Next Descriptor Address Pointer";
+        _                       1 rsvd;
+        pause_link_list         1 type(pause_link_list) "Pause Linked-List Transfer";
+    };
+
+    datatype dma4_type3a msbfirst(32) "Link-List Type 3 Descriptor With Source and Destination Address Updates" {
+        cssa                    32 "Channel Source Start Address";
+        cdsa                    32 "Channel Destination Start Address";
+        next_descriptor_type    3 type(next_descriptor_type) "Next Descriptor Type";
+        block_ie                1 "End-of-Block Interrupt Enable";
+        next_src_valid          2 type(addr_valid) "Next Source Address Valid";
+        next_dst_valid          2 type(addr_valid) "Next Destination Address Valid";
+        cen                     24 "Channel Element Number";
+        next_descriptor_pointer 30 "Next Descriptor Address Pointer";
+        _                       1 rsvd;
+        pause_link_list         1 type(pause_link_list) "Pause Linked-List Transfer";
+    };
+
+    datatype dma4_type3b msbfirst(32) "Link-List Type 3 Descriptor With Source or Destination Address Updates" {
+        csdsa                   32 "Channel Source/Destination Start Address";
+        next_descriptor_type    3 type(next_descriptor_type) "Next Descriptor Type";
+        block_ie                1 "End-of-Block Interrupt Enable";
+        next_src_valid          2 type(addr_valid) "Next Source Address Valid";
+        next_dst_valid          2 type(addr_valid) "Next Destination Address Valid";
+        cen                     24 "Channel Element Number";
+        next_descriptor_pointer 30 "Next Descriptor Address Pointer";
+        _                       1 rsvd;
+        pause_link_list         1 type(pause_link_list) "Pause Linked-List Transfer";
+    };
+};

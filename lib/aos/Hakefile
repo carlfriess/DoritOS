@@ -1,0 +1,54 @@
+--------------------------------------------------------------------------
+-- Copyright (c) 2007-2012, 2016, ETH Zurich.
+-- Copyright (c) 2014, HP Labs.
+-- Copyright (c) 2015, Hewlett Packard Enterprise Development LP.
+-- All rights reserved.
+--
+-- This file is distributed under the terms in the attached LICENSE file.
+-- If you do not find this file, copies can be found by writing to:
+-- ETH Zurich D-INFK, CAB F.78, Universitaetstr. 6, CH-8092 Zurich,
+-- Attn: Systems Group.
+--
+-- Hakefile for lib/aos
+--
+--------------------------------------------------------------------------
+
+[ build library { target = "aos",
+                  architectures = [ "armv7" ],
+                  cFiles = [ "arch/arm/debug.c",
+                             "arch/arm/dispatch.c",
+                             "arch/arm/sys_debug.c",
+                             "arch/arm/syscalls.c",
+                             "slot_alloc/single_slot_alloc.c",
+                             "slot_alloc/slot_alloc.c",
+                             "slot_alloc/range_slot_alloc.c",
+                             "slot_alloc/twolevel_slot_alloc.c",
+                             "aos_rpc.c",
+                             "capabilities.c",
+                             "debug.c",
+                             "deferred.c",
+                             "dispatch.c",
+                             "domain.c",
+                             "event_mutex.c",
+                             "event_queue.c",
+                             "heap.c",
+                             "init.c",
+                             "inthandler.c",
+                             "lmp_chan.c",
+                             "lmp_endpoints.c",
+                             "morecore.c",
+                             "paging.c",
+                             "ram_alloc.c",
+                             "slab.c",
+                             "sys_debug.c",
+                             "syscalls.c",
+                             "systime.c",
+                             "thread_once.c",
+                             "thread_sync.c",
+                             "threads.c",
+                             "waitset.c" ],
+                  assemblyFiles = [ "arch/arm/entry.S", "arch/arm/syscall.S" ],
+                  addIncludes =   [ "include", "include/arch/arm" ],
+                  addGeneratedDependencies = [ "/include/asmoffsets.h" ]
+                }
+]

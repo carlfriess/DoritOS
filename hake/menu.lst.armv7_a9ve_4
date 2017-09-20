@@ -1,0 +1,22 @@
+timeout 0
+
+#
+# This script is used to describe the commands to start at
+# boot-time and the arguments they should receive.
+#
+# Kernel arguments are not read from this script. On QEMU they can be
+# set using 'qemu-system-arm -append ...'.
+
+title	Barrelfish
+# We have 100MHz timer on the FVP, but that's not discoverable at run time.
+kernel	/armv7/sbin/cpu_a9ve loglevel=5 logmask=1 periphclk=100000000 consolePort=0
+module	/armv7/sbin/cpu_a9ve
+module	/armv7/sbin/init
+
+# The FVP simulates 4GB of RAM, 2GB of which is in the 32-bit address space.
+#        start       size       id
+mmap map  0x00000000  0x80000000 13 # Device region
+mmap map  0x80000000  0x40000000  1
+mmap map  0xC0000000  0x40000000  1
+# Caps above 4GB break things right now, but should be ignored.
+#mmap map 0x880000000  0x80000000  1

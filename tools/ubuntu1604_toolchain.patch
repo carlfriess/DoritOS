@@ -1,0 +1,80 @@
+diff --git a/hake/Main.hs b/hake/Main.hs
+index 95fb4cb..9f74a4a 100644
+--- a/hake/Main.hs
++++ b/hake/Main.hs
+@@ -413,7 +413,7 @@ wrapHake hakefile hake_exp =
+                                       (Var (UnQual (Ident "sourceDB"))))
+                                  (Lit (String hakefile)))
+                        (Var (UnQual (Ident "arg"))))))
+-            (BDecls [])],
++            (Just (BDecls []))],
+ 
+         FunBind [Match
+             dummy_loc
+@@ -426,7 +426,7 @@ wrapHake hakefile hake_exp =
+                                (Var (UnQual (Ident "sourceDB"))))
+                           (Lit (String hakefile)))
+                      (Var (UnQual (Ident "a")))))
+-            (BDecls [])]
++            (Just (BDecls []))]
+         ])
+         (Paren (App (Con (UnQual (Ident "Rules")))
+                     hake_exp))
+diff --git a/hake/Tools.hs b/hake/Tools.hs
+index 033705f..2e655e8 100644
+--- a/hake/Tools.hs
++++ b/hake/Tools.hs
+@@ -182,6 +182,14 @@ arm_netos_linaro_be_2015_02 root
+         toolPrefix = "armeb-eabi-"
+       }
+ 
++-- System (Ubuntu 16.04) aarch64 toolchain
++aarch64_system _
++    = ToolDetails {
++        toolPath = "",
++        toolPrefix = "aarch64-linux-gnu-"
++      }
++
++--
+ --
+ -- X86 (32/64) toolchains (x86_32,x86_64)
+ --
+diff --git a/hake/TreeDB.hs b/hake/TreeDB.hs
+index 9ee61f9..ef9d6f9 100644
+--- a/hake/TreeDB.hs
++++ b/hake/TreeDB.hs
+@@ -66,7 +66,7 @@ dlAddByExt ext name ((ext', names):dirlist) =
+ --
+ type TreeDB = Trie DirList
+ 
+-deriving instance Typeable1 Trie
++deriving instance Typeable Trie
+ 
+ tdbEmpty :: TreeDB
+ tdbEmpty  = T.empty
+diff --git a/tools/fof/Semantics.lhs b/tools/fof/Semantics.lhs
+index bceff1a..87e1db7 100644
+--- a/tools/fof/Semantics.lhs
++++ b/tools/fof/Semantics.lhs
+@@ -13,6 +13,8 @@
+ 
+ > module Semantics where
+ 
++> import Control.Monad
++
+ %endif
+ 
+ \section{Plumbing Machinery}
+@@ -52,6 +54,12 @@ First of all, we show that this defines a functor:
+ >     fmap f (Pure x) = Pure (f x)
+ >     fmap f (Impure t) = Impure (fmap (fmap f) t)
+ 
++We need to (as of GHC 7.10) implement Applicative
++
++> instance (Functor f) => Applicative (Semantics f) where
++>     pure = return
++>     (<*>) = ap
++
+ Then, we obtain the monad:
+ 
+ > instance Functor f => Monad (Semantics f) where

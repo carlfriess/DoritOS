@@ -1,0 +1,76 @@
+/**
+ * \file
+ * \brief Startup prototypes.
+ */
+
+/*
+ * Copyright (c) 2007, 2008, 2009, 2010, ETH Zurich.
+ * All rights reserved.
+ *
+ * This file is distributed under the terms in the attached LICENSE file.
+ * If you do not find this file, copies can be found by writing to:
+ * ETH Zurich D-INFK, Haldeneggsteig 4, CH-8092 Zurich. Attn: Systems Group.
+ */
+
+#ifndef __KERNEL_STARTUP_H
+#define __KERNEL_STARTUP_H
+
+struct capability;
+struct mem_region;
+struct bootinfo;
+enum region_type;
+
+struct spawn_state {
+    /// Init's cnodes
+    struct cte *taskcn, *segcn, *supercn, *physaddrcn, *modulecn,
+               *pagecn, *basepagecn,
+               *slot_alloc_cn0, *slot_alloc_cn1, *slot_alloc_cn2;
+
+    /// Next slot in each cnode
+    cslot_t segcn_slot, supercn_slot, physaddrcn_slot, modulecn_slot;
+
+    /// Address of arguments page
+    lpaddr_t args_page;
+};
+
+errval_t create_caps_to_cnode(lpaddr_t base_addr, size_t size,
+                              enum region_type type,
+                              struct spawn_state *st, struct bootinfo *bootinfo);
+
+/**
+ * \brief Linear physical memory allocator callback function.
+ *
+ * This function allocates a linear region of addresses of size 'size' from
+ * physical memory.
+ *
+ * \param size  Number of bytes to allocate.
+ *
+ * \return Base physical address of memory region.
+ */
+typedef lpaddr_t (*alloc_phys_func)(size_t size);
+
+/* As for alloc_phys_func, but aligned to size 'align'. */
+typedef lpaddr_t (*alloc_phys_aligned_func)(size_t size, size_t align);
+
+struct dcb *spawn_module(struct spawn_state *st,
+                         const char *name, int argc, const char** argv,
+                         lpaddr_t bootinfo, lvaddr_t args_base,
+                         alloc_phys_func alloc_phys,
+                         alloc_phys_aligned_func alloc_phys_aligned,
+                         lvaddr_t *retparamaddr);
+
+extern lpaddr_t app_alloc_phys_start;
+
+extern lpaddr_t app_alloc_phys_end;
+
+lpaddr_t app_alloc_phys(size_t size);
+
+lpaddr_t app_alloc_phys_aligned(size_t size, size_t align);
+
+extern lpaddr_t bsp_init_alloc_addr;
+
+lpaddr_t bsp_alloc_phys(size_t size);
+
+lpaddr_t bsp_alloc_phys_aligned(size_t size, size_t align);
+
+#endif // __KERNEL_STARTUP_H

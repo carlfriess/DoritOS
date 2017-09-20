@@ -1,0 +1,569 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Copyright (c) 2015, ETH Zurich.
+% All rights reserved.
+%
+% This file is distributed under the terms in the attached LICENSE file.
+% If you do not find this file, copies can be found by writing to:
+% ETH Zurich D-INFK, Universitaetstr 6, CH-8092 Zurich. Attn: Systems Group.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[a4paper,11pt,twoside]{report}
+\usepackage{bftn}
+\usepackage{calc}
+\usepackage{verbatim}
+\usepackage{xspace}
+\usepackage{pifont}
+\usepackage{pxfonts}
+\usepackage{textcomp}
+\usepackage{amsmath}
+\usepackage{multirow}
+\usepackage{listings}
+\usepackage[framemethod=default]{mdframed}
+\usepackage[shortlabels]{enumitem}
+\usepackage{parskip}
+\usepackage{xparse}
+\usepackage{ctable}
+\usepackage[pdftex]{hyperref}
+
+% hyperref setup
+\definecolor{linkcol}{rgb}{0,0,0.7}
+\hypersetup{
+  pdftitle={Barrelfish Specification},
+  plainpages=false,
+  linktocpage,
+  colorlinks,
+  linkcolor=linkcol,citecolor=linkcol,pagecolor=linkcol,urlcolor=linkcol
+  %breaklinks=true,pagebackref=true
+}
+
+\mdfdefinestyle{mdsyscall}{
+rightline=true,
+innerleftmargin=10,
+innerrightmargin=10,
+frametitlerulewidth=2pt,
+frametitlefont={\color{white}\varname},
+skipbelow=1em,
+skipabove=1em,
+}
+
+\DeclareDocumentEnvironment{arguments}{}
+{
+\newcommand{\argument}[2]{ \item[\varname{##1}] ##2 }
+\textbf{Arguments}\parskip
+\begin{description}[leftmargin=!,labelwidth=\widthof{count},labelindent=1em]
+}
+{
+\end{description}
+}
+
+\DeclareDocumentEnvironment{api}{o O {stable}}
+{
+\definecolor{unused}{RGB}{215,25,28}
+\definecolor{unstable}{RGB}{253,174,97}
+\definecolor{todo}{RGB}{255,255,191}
+\definecolor{lightblue}{RGB}{171,217,233}
+\definecolor{stable}{RGB}{44,123,182}
+\newcommand{\brief}[1]{##1\\}
+\newcommand{\note}[1]{\\\textbf{Note}\\##1\parskip}
+
+\begin{mdframed}[style=mdsyscall,frametitle=#1,frametitlebackgroundcolor=#2]
+}
+{
+\end{mdframed}
+}
+
+\newcommand{\fnname}[1]{\textit{\texttt{#1}}}%
+\newcommand{\datatype}[1]{\textit{\texttt{#1}}}%
+\newcommand{\varname}[1]{\texttt{#1}}%
+\newcommand{\keywname}[1]{\textbf{\texttt{#1}}}%
+\newcommand{\pathname}[1]{\texttt{#1}}%
+\newcommand{\tabindent}{\hspace*{3ex}}%
+\newcommand{\sockeye}{\lstinline[language=sockeye]}
+\newcommand{\ccode}{\lstinline[language=C]}
+
+% Default language for code listings is C
+\lstset{
+  language=C,
+  basicstyle=\small,
+  frame=lines,
+  breaklines=true,
+  showstringspaces=false,
+  texcl=true,
+  columns=flexible
+}
+
+\lstdefinelanguage{Mackerel}{
+  morekeywords={datatype,device,register,regtype,constants,type,at,
+              many,edit,io,also},
+  sensitive=false,
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]",
+}
+
+% sans-serif URLs
+\urlstyle{sf}
+
+\newcommand{\todo}[1]{[\textcolor{red}{\emph{#1}}]}
+
+\newcommand{\noarginvocation}[1]{\paragraph{#1 invocation}}
+\newcounter{invocArgCnt}
+\newenvironment{invocation}[1]{%
+  \noarginvocation{#1}
+
+  \begin{list}{\emph{Argument~\arabic{invocArgCnt}:}}{%
+    \usecounter{invocArgCnt}%
+    \setlength{\rightmargin}{\leftmargin}%
+    \setlength{\itemsep}{0ex}%
+  }
+  \renewcommand{\arg}{\item}
+}{%
+  \end{list}
+}
+
+
+% autoref (from hyperref) setup
+\def\chapterautorefname{Chapter}
+\def\sectionautorefname{Section}
+\def\subsectionautorefname{Section}
+\expandafter\def\csname section*autorefname\endcsname{Section}
+
+
+\title{Barrelfish Specification}
+\author{Barrelfish project}
+\tnnumber{10}
+\tnkey{Specification}
+
+\presetkeys{todonotes}{inline}{}
+
+\begin{document}
+
+\maketitle
+
+\begin{versionhistory}
+\vhEntry{0.1}{01.01.2009}{AB,SP,TR,AS,AK}{Initial Version}
+\vhEntry{0.2}{01.01.2015}{GZ}{Update ABI etc.}
+\end{versionhistory}
+
+\cleardoublepage
+\tableofcontents
+
+\chapter{Barrelfish Kernel API}
+
+\section{System Calls}\label{sec:syscalls}
+
+The section defines the specification of the common system call
+API that is provided by a Barrelfish CPU driver. Currently
+we have the following system calls:
+
+\begin{tabular}{|p{5cm}|>{\raggedright\arraybackslash}p{7cm}|}
+\hline
+
+SYSCALL\_INVOKE & Invoke a capability. \\
+SYSCALL\_YIELD & Yield the CPU. \\
+SYSCALL\_LRPC & Fast LRPC. \\
+SYSCALL\_DEBUG & Benchmarking and debug syscalls. \\
+SYSCALL\_REBOOT & Reboot the machine. \\
+SYSCALL\_NOP & No operation. \\
+SYSCALL\_PRINT & Write to console. \\
+SYSCALL\_SUSPEND & Suspend the CPU. \\
+SYSCALL\_GET\_ABS\_TIME & Get time elapsed since boot. \\
+\hline
+\end{tabular}
+
+\subsection{SYSCALL\_INVOKE -- Capability Invocation Interface}\label{sec:sys_invoke}
+
+The invoke call acts as a generic system call to apply operation on various OS
+objects (also known as capabilities). For any given object, a distinct set of
+operations are applicable depending on the capability type.
+
+This system call takes at least one argument, which must be the address of a
+capability in the caller's CSpace. The remaining arguments, if any, are
+interpreted based on the type of this first capability.
+
+Other than yielding, all kernel operations including IDC are (or should be)
+provided by capability invocation, and make use of this call. The
+possible invocations for every capability type are described in
+the capability management document (TN-013).
+
+This system call may only be used while the caller is
+\emph{enabled}. The reason is that the caller must be prepared to
+receive a reply immediately and that is only possible when
+enabled, as it requires the kernel to enter the dispatcher at the
+IDC entry point.
+
+\subsection{SYSCALL\_YIELD -- Yield the CPU}\label{sec:sys_yield}
+
+This system call yields the CPU. It takes a single argument, which must be
+either the CSpace address of a dispatcher capability, or \verb CPTR_NULL .
+In the first case, the given dispatcher is run unconditionally; in the
+latter case, the scheduler picks which dispatcher to run.
+
+This system call may only be used while the caller is \emph{disabled}.
+Furthermore, it clears the caller's \emph{disabled} flag, so the next time
+it will be entered is at the run entry point.
+
+\subsection{SYSCALL\_DEBUG -- Debug system calls}
+
+The debug system call (SYSCALL\_DEBUG) de-multiplexes using the second system
+call argument and is defined for the following operations.
+Those calls may not be supported, depending on build options,
+and are not part of the regular kernel interface.
+
+\begin{api}[DEBUG\_CONTEXT\_COUNTER\_RESET]
+\brief{Sets the \varname{context\_switch\_counter} to 0.}
+\end{api}
+
+\begin{api}[DEBUG\_CONTEXT\_COUNTER\_READ]
+\brief{Returns \varname{context\_switch\_counter}.}
+\end{api}
+
+\begin{api}[DEBUG\_TIMESLICE\_COUNTER\_READ]
+\brief{Returns \varname{kernel\_now}.}
+\end{api}
+
+\begin{api}[DEBUG\_FLUSH\_CACHE]
+\brief{Executes \fnname{wbinvd} on x86-64.}
+\end{api}
+
+\begin{api}[DEBUG\_SEND\_IPI][unstable]
+\brief{Sends an interrupt to a remote core.}
+\begin{arguments}
+\argument{destination}{Target core.}
+\argument{shorthand}{?}
+\argument{vector}{IRQ number.}
+\end{arguments}
+\note{Is this needed with the IPI capability?}
+\end{api}
+
+\begin{api}[DEBUG\_SET\_BREAKPOINT]
+\brief{Sets a hardware breakpoint at an address.}
+\begin{arguments}
+\argument{addr}{Where to break.}
+\argument{mode}{?}
+\argument{length}{?}
+\end{arguments}
+\note{Use dr7 and dr0 on x86-64.}
+\end{api}
+
+\begin{api}[DEBUG\_SEND\_NOTIFY][unused]
+\brief{Does only exist as a definition?}
+\end{api}
+
+\begin{api}[DEBUG\_SLEEP][unused]
+\brief{Does only exist as a definition?}
+\end{api}
+
+\begin{api}[DEBUG\_HARDWARE\_TIMER\_READ][unstable]
+\brief{Returns \fnname{tsc\_read}.}
+\note{Exists only for ARM.}
+\end{api}
+
+\begin{api}[DEBUG\_HARDWARE\_TIMER\_HERTZ\_READ][unstable]
+\brief{Returns \fnname{tsc\_get\_hz}.}
+\note{Exists only on ARM.}
+\end{api}
+
+\begin{api}[DEBUG\_HARDWARE\_GLOBAL\_TIMER\_LOW][unstable]
+\brief{Returns \fnname{gt\_read\_low}. The lower 32 bits of the timer.}
+\note{Exists only in OMAP, and returns 0 on GEM 5.}
+\end{api}
+
+\begin{api}[DEBUG\_HARDWARE\_GLOBAL\_TIMER\_HIGH][unstable]
+\brief{Returns global timer \fnname{gt\_read\_high}. The higher 32 bits of the timer.}
+\note{Exists only in OMAP, and returns 0 on GEM 5.}
+\end{api}
+
+\begin{api}[DEBUG\_GET\_TSC\_PER\_MS][unstable]
+\brief{Returns TSC (\fnname{rdtsc}) clock rate in ticks per ms.}
+\note{Implemention for x86 only.}
+\end{api}
+
+\begin{api}[DEBUG\_GET\_APIC\_TIMER][unstable]
+\brief{Returns the XAPIC timer counter.}
+\note{Implemention for x86-64 only.}
+\end{api}
+
+\begin{api}[DEBUG\_GET\_APIC\_TICKS\_PER\_SEC][unstable]
+\brief{Returns ticks per seconds of the APIC timer.}
+\note{Calibrated against RTC clock. Implemention for x86-64 only.}
+\end{api}
+
+\begin{api}[DEBUG\_FEIGN\_FRAME\_CAP][unused]
+\brief{Fabricates an arbitrary DevFrame cap.}
+\note{Implemention for x86-32 bit only. Not used?}
+\end{api}
+
+\begin{api}[DEBUG\_TRACE\_PMEM\_CTRL]
+\brief{Enables tracing for capabilities.}
+\begin{arguments}
+\argument{types}{?}
+\argument{start}{?}
+\argument{size}{?}
+\end{arguments}
+\note{Implemention for x86-64 and aarch64 only.}
+\end{api}
+
+\begin{api}[DEBUG\_GET\_APIC\_ID]
+\brief{Returns the xAPIC ID.}
+\note{Implemention for x86-64 only.}
+\end{api}
+
+\subsection{SYSCALL\_REBOOT -- Reboot the system}
+This call unconditionally hard reboots the system.
+\todo{This call should be removed -AB}
+
+\subsection{SYSCALL\_NOP}
+This call takes no arguments, and returns directly to the
+caller. It always succeeds.
+
+\subsection{SYSCALL\_PRINT}
+This call takes two arguments: an address in the caller's vspace, which
+must be mapped, and a size, and prints the string found at that address
+to the console. It may fail if any part of the string is not accessible
+to the calling domain.
+
+\subsection{SYSCALL\_SUSPEND}
+\todo{should probably be a cap invocation}
+
+\subsection{SYSCALL\_GET\_ABS\_TIME}
+\todo{Figure out proper time API, they appear in various
+DEBUG syscalls as well.}
+
+
+\section{Dispatch and Execution}\label{sec:dispatch}
+
+A dispatcher consists of code executing at user-level and a data
+structure located in pinned memory, split into two regions. One
+region is only accessible from the kernel, the other region is
+shared read/write between user and kernel. The fields in the
+kernel-defined part of the structure are described in
+\autoref{tab:dispcb}.
+
+\ctable[
+caption=Dispatcher control structure,
+label=tab:dispcb,
+width=\textwidth
+]{lll>{\raggedright}X}{}{
+  \FL
+  Field name & Size & Kernel R/W & Short description
+  \ML
+  \lstinline+disabled+ & word & R/W & If non-zero, the kernel will not
+  upcall the dispatcher, except to deliver a trap.
+  \NN
+  \lstinline+haswork+ & pointer & R & If non-zero, the kernel will
+  consider this dispatcher eligible to run.
+  \NN
+  \lstinline+crit_pc_low+ & pointer & R & Address of first instruction
+  in dispatcher's critical code section.
+  \NN
+  \lstinline+crit_pc_high+ & pointer & R & Address immediately after
+  last instruction of dispatcher's critical code section.
+  \NN
+  entry points & 4 function descriptors & R & Functions at which
+  the dispatcher code may be invoked
+  \NN
+  \lstinline+enabled_save_area+ & arch specific & W & Area for kernel
+  to save register state when enabled
+  \NN
+  \lstinline+disabled_save_area+ & arch specific & R/W & Area for
+  kernel to save and restore register state when disabled
+  \NN
+  \lstinline+trap_save_area+ & arch specific & W & Area for kernel to
+  save register state when a trap or a pagefault while disabled occurs
+  \NN
+  \lstinline+recv_cptr+ & capability pointer & R & Address of CNode to
+  store received capabilities of next local IDC into
+  \NN
+  \lstinline+recv_bits+ & word & R & Number of valid bits within
+  \lstinline+recv_cptr+
+  \NN
+  \lstinline+recv_slot+ & word & R & Slot within CNode to store
+  received capability of next local IDC into
+  \LL
+}
+
+Beyond these fields, the user may define and use their own data
+structures (eg. a stack for the dispatcher code to execute on,
+thread management structures, etc).
+
+\subsection{Disabled}
+
+A dispatcher is considered disabled by the kernel if either of the
+following conditions is true:
+
+\begin{itemize}
+\item its disabled word is non-zero
+\item its program counter is within the range specified by the
+\lstinline+crit_pc_low+ and \lstinline+crit_pc_high+ fields
+\end{itemize}
+
+The disabled state of a dispatcher controls where the kernel saves
+its registers, and is described in the following subsection. When
+the kernel resumes a dispatcher that was last running while
+disabled, it restores its machine state and resumes execution at the
+saved instruction, rather than upcalling it at an entry point.
+
+\subsection{Register save areas}
+
+The dispatcher structure contains enough space for three full copies
+of the machine register state to be saved. The \lstinline+trap_save_area+
+is used whenever the dispatcher takes a trap, regardless of whether
+it is enabled or disabled. Otherwise, the \lstinline+disabled_save_area+
+is used whenever the dispatcher is disabled (see above), and the
+\lstinline+enabled_save_area+ is used in all other cases.
+
+\autoref{fig:dispstatesaves} (Trap and PageFault states have
+been left out for brevity) shows important dispatcher states and into
+which register save area state is saved upon a state transition. The
+starting state for a domain is ``notrunning'' and depicted with a
+bold border in the Figure.
+
+\begin{figure}
+\centering
+\includegraphics[width=\textwidth]{disp_states_simple_save_area_analysis}
+\caption[Dispatcher state save areas]{Dispatcher state save areas.
+ Trap and PageFault states
+ omitted for brevity. Regular text and lines denote state changes
+ by the kernel. Dashed lines and italic text denote state changes
+ by user-space, which do not necessarily have to use the denoted
+ save area. The starting state is in the bold
+ node.}\label{fig:dispstatesaves}
+\end{figure}
+
+Arrows from right to left involve saving state into the labeled
+area. Arrows from left to right involve restoring state from the
+labeled area. It can be seen that no state can be overwritten. The
+kernel can recognize a disabled dispatcher by looking at the
+disabled flag, as well as the domain's instruction pointer. Nothing
+else needs to be examined.
+
+The dispatcher states are also depicted in \autoref{fig:dispstates}.
+
+\subsection{Dispatcher Entry Points}
+
+Unless restoring it from a disabled context, the kernel always
+enters a dispatcher at one of the following entry
+points. Whenever the kernel invokes a dispatcher at any of its entry
+points, it sets the disabled bit on. One (ABI-specific) register
+always points to the dispatcher structure. The value of all other
+registers depends on the entry point at which the dispatcher is
+invoked, and is described below.
+
+The entry points are:
+
+\begin{description}
+\item[Run] A dispatcher is entered at this entry point when it was
+not previously running, the last time it ran it was either enabled or
+yielded the CPU, and the kernel has given it the CPU. Other than the
+register that holds a pointer to the dispatcher itself, all other registers
+are undefined. The dispatcher's last machine state is saved in the
+\lstinline+enabled_save_area+.
+
+\item[PageFault] A dispatcher is entered at this entry point when it
+suffers a page fault while enabled. On entry, the dispatcher register is
+set, and the argument registers contain information about the cause of
+the fault. Volatile registers are saved in the
+\lstinline+enabled_save_area+; all other registers contain the user
+state at the time of the fault.
+
+\item[PageFault\_Disabled] A dispatcher is entered at this entry point when it
+suffers a page fault while disabled. On entry, the dispatcher register is
+set, and the argument registers contain information about the cause of
+the fault. Volatile registers are saved in the
+\lstinline+trap_save_area+; all other registers contain the user
+state at the time of the fault.
+
+\item[Trap] A dispatcher is entered at this entry point when it is
+running and it raises an exception (for example, illegal
+instruction, divide by zero, breakpoint, etc.). Unlike the other
+entry points, a dispatcher may be entered at its trap entry even
+when it was running disabled. The machine state at the time of the
+trap is saved in the \lstinline+trap_save_area+, and the argument
+registers convey information about the cause of the trap.
+
+\item[LRPC] A dispatcher is entered at this entry point when an
+LRPC message (see below) is delivered to it. This can only
+happen when it was not previously running, and was enabled. On
+entry, four registers are delivered containing the message payload,
+one stores the endpoint offset, and another contains the dispatcher pointer.
+\end{description}
+
+This diagram shows the states a \emph{dispatcher} can be in and how it
+gets there. The exceptional states Trap and PageFault have been
+omitted for brevity.
+
+\begin{figure}
+\centering
+\includegraphics[width=.7\columnwidth]{disp_states_simple}
+\caption[Typical dispatcher states]{Typical dispatcher states.
+  Trap and PageFault states
+  omitted for brevity. Regular text and lines denote state changes
+  by the kernel. Dashed lines and italic text denote state changes
+  by user-space. The starting state is in bold.}
+\label{fig:dispstates}
+\end{figure}
+
+\subsection{Interrupt delivery}\label{sec:interrupts}
+
+Hardware interrupts are delivered by the kernel as asynchronous IDC
+messages to a registered dispatcher. A dispatcher can be registered
+as for a specific IRQ by invoking the IRQTable capability,
+passing it an IDC endpoint to the dispatcher and the IRQ
+number. It is not possible for multiple IDC endpoints to be
+registered with the same IRQ number at any one time.
+
+Henceforth, the kernel will send an IDC message using asynchronous
+delivery to the registered endpoint. Asynchronous
+IDC is used as it does not cause priority inversion by directly
+dispatching the target dispatcher.
+
+\subsection{Exception delivery}
+
+When a CPU exception happens in user-space, it is reflected to the
+dispatcher on which it appeared. Page
+faults are dispatched to the page-fault entry point of the
+dispatcher. All other exceptions are dispatched to the trap entry
+point of the dispatcher. The disabled flag of the dispatcher is
+ignored in all cases and state is saved to the trap save area.
+
+\section{Scheduling}
+
+Upon reception of a timer interrupt, the kernel calls `schedule()`,
+which selects the next dispatcher to run. At the moment, a simple
+round-robin scheduler is implemented that walks a circular
+singly-linked list forever.
+\todo{RBED, gang-scheduling}
+
+\section{TODO}
+\begin{itemize}
+\item virtual machine support
+\item timers
+\item resource management
+\item thread migration
+\item event tracing / performance monitoring
+\end{itemize}
+
+\chapter{Barrelfish Library API}
+\todo{Documentation of libbarrelfish}
+
+\subsection{Initial Capability Space}
+
+The initial capability space of other domains is similar, but lacks the other
+cnodes in the root cnode, as illustrated in \autoref{fig:app_cspace}.
+
+\begin{figure}
+\centering
+\includegraphics[width=\textwidth]{app_cspace}
+\caption{initial capability space layout of user tasks}
+\label{fig:app_cspace}
+\end{figure}
+
+
+\chapter*{Acknowledgements}
+Paul, Rebecca, Tim, et al.
+
+
+\bibliographystyle{plain}
+\bibliography{defs,barrelfish}
+\end{document}

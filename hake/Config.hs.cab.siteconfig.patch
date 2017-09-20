@@ -1,0 +1,32 @@
+diff --git a/hake/Config.hs.template b/hake/Config.hs.template
+--- a/hake/Config.hs.template
++++ b/hake/Config.hs.template
+@@ -33,7 +33,7 @@ x86_toolspec     :: Maybe (Maybe FilePath -> ToolDetails)
+ k1om_toolspec    :: Maybe (Maybe FilePath -> ToolDetails)
+ 
+ -- Default toolchains
+-arm_tools     = fromMaybe Tools.arm_system
++arm_tools     = fromMaybe Tools.arm_ethz_rhel7
+                           arm_toolspec
+                 toolroot
+ aarch64_tools = fromMaybe Tools.aarch64_system
+@@ -132,15 +132,15 @@ architectures :: [String]
+ -- manipulate ELF files (arm_boot and usbboot).
+ -- (defaults for Ubuntu w/ libelf-freebsd and freebsd-glue)
+ libelf_include :: String
+-libelf_include = "/usr/include/freebsd"
++libelf_include = "/pub/aos/tools/libelf/usr/include"
+ libelf_link :: String
+-libelf_link = "-lelf-freebsd"
++libelf_link = "/pub/aos/tools/libelf/usr/lib/libelf.a"
+ 
+ -- Libusb include path and linker options for building usbboot
+ libusb_include :: String
+-libusb_include = "/usr/include/libusb-1.0"
++libusb_include = "/pub/aos/tools/libusb-1.0/include/libusb-1.0"
+ libusb_libdir :: String
+-libusb_libdir = "/usr/lib"
++libusb_libdir = "/pub/aos/tools/libusb-1.0/lib"
+ 
+ -- Optimisation flags (-Ox -g etc.) passed to compiler
+ cOptFlags :: [String]

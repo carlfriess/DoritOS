@@ -1,0 +1,86 @@
+--------------------------------------------------------------------------
+-- Copyright (c) 2015-2016 ETH Zurich.
+-- All rights reserved.
+--
+-- This file is distributed under the terms in the attached LICENSE file.
+-- If you do not find this file, copies can be found by writing to:
+-- ETH Zurich D-INFK, Universitaetstr. 6, CH-8092 Zurich. Attn: Systems Group.
+--
+-- Hakefile for /platforms/
+--
+--------------------------------------------------------------------------
+
+let    -- Default list of modules to build/install
+    modules_common = [ "init" ]
+
+    -- ARMv7-a Pandaboard modules
+    pandaModules = [ "/sbin/" ++ f | f <- [
+                        "cpu_omap44xx"
+                        ] ++ modules_common ]
+
+    armv7Image target bootTarget cpuTarget physBase modules =
+        let bootDriver = "/sbin/boot_" ++ bootTarget
+            cpuDriver  = "/sbin/cpu_"  ++ cpuTarget
+            image      = "/" ++ target ++ "_image"
+        in Rules [
+            Rule ([ In BuildTree "tools" "/bin/arm_bootimage",
+                    In BuildTree "root" ("/platforms/arm/menu.lst."++target),
+                    In BuildTree "armv7" bootDriver,
+                    Out "root" image,
+                    NoDep BuildTree "root" "/",
+                    Str physBase ] ++
+                    [ (Dep BuildTree "armv7" m) | m <- modules ] ),
+
+            Rule ([ Str Config.arm_objcopy,
+                    Str "-O binary",
+                    In BuildTree "root" image,
+                    Out "root" (image ++ ".bin") ]),
+            Rule ([ In SrcTree "tools" "/tools/arm_boot/gdb_script.sh",
+                    Str Config.arm_objdump,
+                    In BuildTree "root" image,
+                    In BuildTree "armv7" bootDriver,
+                    In BuildTree "armv7" cpuDriver,
+                    Out "root" (image ++ "-gdb.gdb") ])
+            ]
+  in
+ [
+   --
+   -- Rules to build assorted platforms
+   --
+
+    platform "PandaboardES" [ "armv7" ]
+    ([ ("armv7", f) | f <- pandaModules ] ++
+     [ ("root", "/armv7_omap44xx_image"),
+       ("root", "/armv7_omap44xx_image-gdb.gdb") ])
+    "Standard Pandaboard ES build image and modules",
+
+    --
+    -- Rules to build assorted boot images
+    --
+
+    -- Build the AOS milestone 0 image
+    armv7Image "armv7_aos_m0" "omap44xx" "aos_m0" "0x80000000"
+               ["/sbin/cpu_aos_m0"],
+
+    --
+    -- Booting: various targets for booting Barrelfish under different circumstances
+    --
+
+    -- Copy menu.list files across
+    Rules [ copyFile SrcTree "root" ("/hake/menu.lst." ++ p)
+                     "root" ("/platforms/arm/menu.lst." ++ p)
+            | p <- [ "armv7_aos_m0" ]],
+
+    boot "usbboot_panda" [ "armv7" ] [
+      In BuildTree "tools" "/bin/usbboot",
+      In BuildTree "root" "/armv7_omap44xx_image"
+    ]
+    "Boot Barrelfish on a Pandaboard, over a local USB cable",
+
+    boot "usbboot_aos_m0" [ "armv7" ] [
+      In BuildTree "tools" "/bin/usbboot",
+      In BuildTree "root" "/armv7_aos_m0_image"
+    ]
+    "Boot AOS M0 on a Pandaboard, over a local USB cable"
+
+ ]

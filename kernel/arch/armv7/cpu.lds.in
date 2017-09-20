@@ -1,0 +1,90 @@
+/*
+ * Copyright (c) 2007-2016 ETH Zurich.
+ * All rights reserved.
+ *
+ * This file is distributed under the terms in the attached LICENSE file.
+ * If you do not find this file, copies can be found by writing to:
+ * ETH Zurich D-INFK, Haldeneggsteig 4, CH-8092 Zurich. Attn: Systems Group.
+ */
+
+#include <offsets.h>
+
+OUTPUT_FORMAT("elf32-littlearm")
+OUTPUT_ARCH("arm")
+
+/* There are two loadable segments - the first contains everything, and is
+ * intended to be loaded at boot time on the BSP core.  The second is just the
+ * relocatable data segment for APP cores sharing the text segment.  We use
+ * the OS-specific program header range for this. */
+PHDRS {
+    bsp_image PT_LOAD;
+    app_image 0x60000000; /* PT_BF_RELOC */
+    dynamic   PT_DYNAMIC;
+}
+
+/* The ELF binary marks bsp_start as the entry point, so that a non-BF-aware
+ * bootloader or simulator can start the BSP kernel.  Corebooted instances
+ * will be started in app_init instead. */
+ENTRY(bsp_start)
+
+SECTIONS {
+    . = KERNEL_LINK_BASE;
+
+    . = ALIGN(4k);
+    kernel_first_byte = .;
+    kernel_init_start = .;
+
+    /* We place the BSP-only code, and its stack, first.  It sits in its own
+     * frame, so that it can be reclaimed once the BSP kernel is running. */
+    .text.bsp : { *(.text.bsp); } :bsp_image
+    .data.bsp : { *(.data.bsp); }
+
+    . = ALIGN(4k);
+
+    /* The exception vector table is next, and sits in its own 4k frame
+     * together with the handler stubs. */
+    .text.vectors : { *(.text.vectors); }
+
+    . = ALIGN(4k);
+
+    /* Now the shared text segment. */
+    .text : { *(.text); }
+    .text.unlikely : { *(.text.unlikely); }
+
+    .rodata . : { *(.rodata); }
+
+    .dynsym . : { *(.dynsym); }
+    .dynstr . : { *(.dynstr); }
+    .gnu.hash . : { *(.gnu.hash); }
+    .dynamic . : { *(.dynamic);  } :bsp_image :dynamic
+
+    /* The CPU driver will come looking for its build ID, to identify itself
+     * to coreboot. */
+    build_id_nhdr = .;
+    .note.gnu.build-id . : { *(.note.gnu.build-id); } :bsp_image
+
+    kernel_text_final_byte = .;
+
+    /* Everything up until this point (except the BSP code) is shared among
+     * all kernel instances, but everything from here on will need to be
+     * separately allocated and relocated, and must thus sit in a different
+     * frame. */
+    . = ALIGN(4k);
+
+    .got . : {
+        got_base = .;
+        *(.got);
+    } :bsp_image  :app_image
+
+    .bss . : { *(.bss); }
+
+    kernel_final_byte = .;
+
+    /***** These sections get discarded *****/
+    /DISCARD/ : {
+        /* Discard exception handler frames and headers -- we don't use em */
+        *(.eh_frame);
+        *(.eh_frame_hdr);
+        *(.interp);
+    }
+}

@@ -1,0 +1,19 @@
+timeout 0
+
+#
+# This script is used to describe the commands to start at
+# boot-time and the arguments they should receive.
+#
+# Kernel arguments are not read from this script. On QEMU they can be
+# set using 'qemu-system-arm -append ...'.
+
+title	Barrelfish
+#root	(nd)
+kernel	/armv7/sbin/cpu_a15ve loglevel=3 periphbase=0x2c000000 consolePort=0 timerirq=29
+module	/armv7/sbin/cpu_a15ve
+module	/armv7/sbin/init
+
+# gem5 simulates 512MB of RAM starting at 0x80000000
+#        start       size       id
+mmap map 0x00000000  0x80000000 13 # Device region
+mmap map 0x80000000  0x20000000 1

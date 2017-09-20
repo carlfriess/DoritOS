@@ -1,0 +1,79 @@
+--------------------------------------------------------------------------
+-- Copyright (c) 2007-2013, ETH Zurich.
+-- All rights reserved.
+--
+-- This file is distributed under the terms in the attached LICENSE file.
+-- If you do not find this file, copies can be found by writing to:
+-- ETH Zurich D-INFK, Haldeneggsteig 4, CH-8092 Zurich. Attn: Systems Group.
+--
+-- Hakefile for devices/
+--
+--------------------------------------------------------------------------
+
+-- Mackerel 2 device descriptions
+--
+-- THIS is the place for new device descriptions.
+--
+[ mackerel2 (options arch) f
+  | f <- [ "cpuid_arm",
+           "arm",
+           "ehci",
+           "gic_v3",
+           "gic_v2_cpu",
+           "ohci",
+           "uhci",
+           "pl130_gic",
+           "pl011_uart",
+           "sp804_pit",
+           "cortex_a9_pit",
+           "cortex_a9_gt",
+           "cortex_a9_scu",
+           "ti_i2c",
+           "ti_twl6030",
+           "sdhc",
+           "omap/ehci",
+           "omap/ohci",
+           "omap/omap_uart",
+           "omap/omap44xx_boot",
+           "omap/omap44xx_cam_cm2",
+           "omap/omap44xx_cam_prm",
+           "omap/omap44xx_ckgen_cm1",
+           "omap/omap44xx_ckgen_cm2",
+           "omap/omap44xx_ckgen_prm",
+           "omap/omap44xx_cortexa9_wugen",
+           "omap/omap44xx_cortex_m3_nvic",
+           "omap/omap44xx_ctrlmod",
+           "omap/omap44xx_device_prm",
+           "omap/omap44xx_ehci",
+           "omap/omap44xx_emif",
+           "omap/omap44xx_fdif",
+           "omap/omap44xx_gpio",
+           "omap/omap44xx_hsusbhost",
+           "omap/omap44xx_id",
+           "omap/omap44xx_l3init_cm2",
+           "omap/omap44xx_l4per_cm2",
+           "omap/omap44xx_mmchs",
+           "omap/omap44xx_mmchs1",
+           "omap/omap44xx_mmu",
+           "omap/omap44xx_scrm",
+           "omap/omap44xx_sdma",
+           "omap/omap44xx_spinlock",
+           "omap/omap44xx_sysctrl_padconf_core",
+           "omap/omap44xx_sysctrl_padconf_wkup",
+           "omap/omap44xx_usbconf",
+           "omap/omap44xx_usbtllhs_config",
+           "omap/omap44xx_uart3"
+         ], arch <- allArchitectures
+] ++
+
+-- Mackerel 1 device descriptions
+--
+-- DO NOT add new devices to this list - the interface is non-portable
+-- and liable to break with new C compiler versions!
+--
+[ mackerel (options arch) f
+  | f <- [ "arm_icp_pic0",
+           "arm_icp_pit",
+           "cpuid"
+         ], arch <- allArchitectures
+]

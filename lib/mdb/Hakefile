@@ -1,0 +1,61 @@
+--------------------------------------------------------------------------
+-- Copyright (c) 2007-2011, ETH Zurich.
+-- All rights reserved.
+--
+-- This file is distributed under the terms in the attached LICENSE file.
+-- If you do not find this file, copies can be found by writing to:
+-- ETH Zurich D-INFK, Haldeneggsteig 4, CH-8092 Zurich. Attn: Systems Group.
+--
+-- Hakefile for lib/mdb
+-- 
+--------------------------------------------------------------------------
+
+[
+  build library {
+    target = "mdb",
+    cFiles = [ "mdb_tree.c", "mdb.c" ],
+    addLibraries = [ "aos" ],
+    addIncludes = [ "/include/aos" ],
+    addCFlags = [
+         if Config.mdb_trace_user then "-DMDB_TRACE" else "",
+         if Config.mdb_fail_invariants_user then "-DMDB_FAIL_INVARIANTS" else "",
+         if Config.mdb_recheck_invariants_user then "-DMDB_RECHECK_INVARIANTS" else "",
+         if Config.mdb_check_invariants_user then "-DMDB_CHECK_INVARIANTS" else ""
+    ]
+  },
+
+  let
+    buildKernelMdbFn allfiles filename args =
+      Rules [ buildKernelMdb allfiles filename args arch
+              | arch <- architectures args ]
+    buildKernelMdb allfiles filename args arch =
+      let kopts = kernelOptions arch
+          libopts = libGetOptionsForArch arch args
+          opts = kopts {
+              extraIncludes = extraIncludes libopts,
+              optSuffix = optSuffix libopts,
+              extraFlags = extraFlags libopts
+            }
+          predicatesFile = "/capabilities/cap_predicates.c"
+          predicatesObj = objectFilePath opts predicatesFile
+          csrcs = cFiles args
+          objectFiles = predicatesObj : (allObjectPaths opts args)
+      in Rules [
+        compileCFiles opts csrcs,
+        compileGeneratedCFile opts predicatesFile,
+        staticLibrary opts (target args) (objectFiles) []
+      ]
+  in
+    build Args.defaultArgs {
+      buildFunction = buildKernelMdbFn,
+      target = "mdb_kernel",
+      cFiles = [ "mdb_tree.c", "mdb.c" ],
+      addCFlags = [
+           if Config.mdb_trace then "-DMDB_TRACE" else "",
+           if Config.mdb_trace_no_recursive then "-DMDB_TRACE_NO_RECURSVIE" else "",
+           if Config.mdb_fail_invariants then "-DMDB_FAIL_INVARIANTS" else "",
+           if Config.mdb_recheck_invariants then "-DMDB_RECHECK_INVARIANTS" else "",
+           if Config.mdb_check_invariants then "-DMDB_CHECK_INVARIANTS" else ""
+      ]
+    }
+]
