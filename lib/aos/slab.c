@@ -178,23 +178,8 @@ size_t slab_freecount(struct slab_allocator *slabs)
  */
 static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
-    errval_t err;
-    struct capref frame_cap;
-
-    err = frame_alloc(&frame_cap, bytes, &bytes);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_FRAME_CREATE);
-    }
-
-    void *buf;
-    err = paging_map_frame(get_current_paging_state(), &buf, bytes,
-            frame_cap, NULL, NULL);
-    if (err_is_fail(err)) {
-        return err_push(err, LIB_ERR_VSPACE_MAP);
-    }
-
-    slab_grow(slabs, buf, bytes);
-    return SYS_ERR_OK;
+    USER_PANIC("TODO: Not yet implemented.")
+    return LIB_ERR_NOT_IMPLEMENTED;
 }
 
 /**

@@ -23,6 +23,7 @@
                              "slot_alloc/slot_alloc.c",
                              "slot_alloc/range_slot_alloc.c",
                              "slot_alloc/twolevel_slot_alloc.c",
+                             "aos_dirent.c",
                              "aos_rpc.c",
                              "capabilities.c",
                              "debug.c",

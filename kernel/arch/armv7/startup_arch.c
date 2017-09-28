@@ -479,14 +479,14 @@ spawn_init_common(const char *name, int argc, const char *argv[],
 
     /*
      * We create the capability to the devices at this stage and store it
-     * in the TASKCN_SLOT_IO, where on x86 the IO capability is stored for
+     * in the TASKCN_SLOT_DEVCAP, where on x86 the IO capability is stored for
      * device access on PCI.
      *
      * PCI is not available on our existing ARMv7 platforms, but this may be a
      * problem in future.
      */
     struct cte *iocap=
-        caps_locate_slot(CNODE(spawn_state.taskcn), TASKCN_SLOT_IO);
+        caps_locate_slot(CNODE(spawn_state.taskcn), TASKCN_SLOT_DEVCAP);
     errval_t err=
         caps_create_new(ObjType_DevFrame, device_base, device_length,
                         device_length, my_core_id, iocap);

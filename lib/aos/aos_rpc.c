@@ -14,6 +14,13 @@
 
 #include <aos/aos_rpc.h>
 
+errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
+{
+    // TODO: implement functionality to send a number ofer the channel
+    // given channel and wait until the ack gets returned.
+    return SYS_ERR_OK;
+}
+
 errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
 {
     // TODO: implement functionality to send a string over the given channel
@@ -29,18 +36,9 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t request_bits,
     return SYS_ERR_OK;
 }
 
-errval_t aos_rpc_get_dev_cap(struct aos_rpc *chan, lpaddr_t paddr,
-                             size_t length, struct capref *retcap,
-                             size_t *retlen)
-{
-    // TODO (milestone 4): implement functionality to request device memory
-    // capability.
-    return SYS_ERR_OK;
-}
-
 errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
 {
-    // TODO (milestone 4): implement functionality to request a character from
+    // TODO implement functionality to request a character from
     // the serial driver.
     return SYS_ERR_OK;
 }
@@ -48,7 +46,7 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
 
 errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
 {
-    // TODO (milestone 4): implement functionality to send a character to the
+    // TODO implement functionality to send a character to the
     // serial port.
     return SYS_ERR_OK;
 }
@@ -75,49 +73,11 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
     return SYS_ERR_OK;
 }
 
-errval_t aos_rpc_open(struct aos_rpc *chan, char *path, int *fd)
+errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc,
+                                lpaddr_t paddr, size_t bytes,
+                                struct capref *frame)
 {
-    // TODO (milestone 7): implement file open
-    return SYS_ERR_OK;
-}
-
-errval_t aos_rpc_readdir(struct aos_rpc *chan, char* path,
-                         struct aos_dirent **dir, size_t *elem_count)
-{
-    // TODO (milestone 7): implement readdir
-    return SYS_ERR_OK;
-}
-
-errval_t aos_rpc_read(struct aos_rpc *chan, int fd, size_t position, size_t size,
-                      void** buf, size_t *buflen)
-{
-    // TODO (milestone 7): implement file read
-    return SYS_ERR_OK;
-}
-
-errval_t aos_rpc_close(struct aos_rpc *chan, int fd)
-{
-    // TODO (milestone 7): implement file close
-    return SYS_ERR_OK;
-}
-
-errval_t aos_rpc_write(struct aos_rpc *chan, int fd, size_t position, size_t *size,
-                       void *buf, size_t buflen)
-{
-    // TODO (milestone 7): implement file write
-    return SYS_ERR_OK;
-}
-
-errval_t aos_rpc_create(struct aos_rpc *chan, char *path, int *fd)
-{
-    // TODO (milestone 7): implement file create
-    return SYS_ERR_OK;
-}
-
-errval_t aos_rpc_delete(struct aos_rpc *chan, char *path)
-{
-    // TODO (milestone 7): implement file delete
-    return SYS_ERR_OK;
+    return LIB_ERR_NOT_IMPLEMENTED;
 }
 
 errval_t aos_rpc_init(struct aos_rpc *rpc)

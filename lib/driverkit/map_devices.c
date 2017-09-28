@@ -7,18 +7,18 @@
 
 #include <aos/aos.h>
 #include <aos/capabilities.h>
+#include <aos/aos_rpc.h>
 
 #include <driverkit/driverkit.h>
 
 #define UNBITS_GENPA(bits) (((genpaddr_t)1) << (bits))
 
 /**
- * \brief Maps device register with the capabilities provided by the
- * argcn slot.
- *
- * The function is used mostly as a helper to map registers by programs
- * that were spawned by Kaluga.
- *
+ * \brief Maps device register. Requests needed capability via RPC 
+ * using aos_rpc_get_device_cap.
+ * 
+ * The function is used mostly as a helper to map registers by drivers
+ * 
  * \param[in] address The address of the device region you want to map.
  * \param[in] size The size of the region.
  * \param[out] return_address The virtual memory address where the region
@@ -29,53 +29,27 @@
 errval_t map_device_register(lpaddr_t address, size_t size, lvaddr_t *return_address)
 {
     errval_t err;
-    struct cnoderef argcn_cnref = {
-        .croot = CPTR_ROOTCN,
-        .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_ARGCN),
-        .level = CNODE_TYPE_OTHER,
-    };
 
-    struct capref device_cap_iter = {
-        .cnode = argcn_cnref,
-        .slot = 0
-    };
+    struct capref device_cap;
 
-    for (; device_cap_iter.slot < L2_CNODE_SLOTS; device_cap_iter.slot++) {
-        // Get cap data
-        struct capability cap;
-        err = debug_cap_identify(device_cap_iter, &cap);
-        // If cap type was Null, kernel returns error
-        if (err_no(err) == SYS_ERR_IDENTIFY_LOOKUP ||
-            err_no(err) == SYS_ERR_CAP_NOT_FOUND ||
-            err_no(err) == SYS_ERR_LMP_CAPTRANSFER_SRC_LOOKUP) {
-            continue;
-        }
+    size = (size + BASE_PAGE_SIZE - 1) & ~(BASE_PAGE_SIZE-1);
+    lpaddr_t address_base = address & ~(BASE_PAGE_SIZE-1);
+    lpaddr_t offset = address & (BASE_PAGE_SIZE-1);
 
-        struct frame_identity fid;
-        err = frame_identify(device_cap_iter, &fid);
-        if (err_is_fail(err)) {
-            DEBUG_ERR(err, "Failure in frame_identify");
-            return err;
-        }
-        assert(err_is_ok(err));
-
-        lpaddr_t address_base = address & ~(BASE_PAGE_SIZE-1);
-        lpaddr_t offset = address & (BASE_PAGE_SIZE-1);
-        // XXX: should be address+size <= ...
-        // Need to add proper register size
-        if (address_base >= fid.base &&
-                (address_base + size) <= (fid.base + fid.bytes)) {
-            void* frame_base;
-            err = vspace_map_one_frame_attr(&frame_base, size,
-                                            device_cap_iter, VREGION_FLAGS_READ_WRITE_NOCACHE,
-                                            NULL, NULL);
-            *return_address = (lvaddr_t)frame_base + offset;
-            if (err_is_fail(err)) {
-                DEBUG_ERR(err, "Failure in vspace_map_one_frame_attr.\n");
-            }
-            return err;
-        }
+    err = aos_rpc_get_device_cap(get_init_rpc(), address_base, size, &device_cap);
+    if (err_is_fail(err)) {
+        return err;
     }
 
-    return DRIVERKIT_ERR_NO_CAP_FOUND;
+    struct frame_identity id;
+    invoke_frame_identify(device_cap, &id);
+    debug_printf("got cap: %x %x\n", id.base, id.bytes);
+
+    void* frame_base;
+    err = paging_map_frame_attr(get_current_paging_state(), &frame_base,
+                                size, device_cap, VREGION_FLAGS_READ_WRITE_NOCACHE,
+                                NULL, NULL);
+    *return_address = (lvaddr_t)frame_base + offset;
+
+    return err;
 }

@@ -119,6 +119,120 @@ let
   in cpudrivers [
 
   --
+  -- Versatile Express Cortex-A15 ARMv7-A, e.g. GEM5 or qemu
+  --
+  cpuDriver {
+    target = "a15ve",
+    architectures = [ "armv7" ],
+    assemblyFiles = [ "arch/armv7/exceptions.S",
+                      "arch/armv7/set_stack_for_mode.S",
+                      "arch/armv7/bsp_start.S",
+                      "arch/armv7/cpu_start.S"
+                    ],
+    cFiles = [
+               "arch/armv7/a15_gt.c",
+               "arch/armv7/boot_protocol.c",
+               "arch/armv7/dispatch.c",
+               "arch/armv7/init.c",
+               "arch/armv7/gdb_arch.c",
+               "arch/armv7/paging.c",
+               "arch/armv7/plat_a15mpcore.c",
+               "arch/armv7/plat_id.c",
+               "arch/armv7/plat_priv_cbar.c",
+               "arch/armv7/plat_vexpress.c",
+               "arch/armv7/plat_vexpress_consts.c",
+               "arch/armv7/startup_arch.c",
+               "arch/armv7/syscall.c",
+               "arch/arm/debug.c",
+               "arch/arm/exec.c",
+               "arch/arm/exn.c",
+               "arch/arm/gic.c",
+               "arch/arm/gdb_arch.c",
+               "arch/arm/irq.c",
+               "arch/arm/kputchar.c",
+               "arch/arm/misc.c",
+               "arch/arm/multiboot.c",
+               "arch/arm/pl011.c"
+               ],
+    mackerelDevices = [ "arm",
+                        "cpuid_arm",
+                        "pl011_uart",
+                        "pl130_gic" ],
+    addLibraries = [ "elf" ]
+    },
+  --
+  -- Common boot driver for Versatile Express boards
+  --
+  bootDriver {
+     target = "ve",
+     architectures = [ "armv7" ],
+     assemblyFiles = [ "arch/armv7/boot.S" ],
+     cFiles = [
+               "logging.c",
+                "arch/armv7/boot_driver.c",
+                "arch/armv7/gdb_arch.c",
+                "arch/armv7/paging_init.c",
+                "arch/armv7/plat_basic_boot.c",
+                "arch/armv7/plat_vexpress_consts.c",
+                "arch/arm/gdb_arch.c",
+                "arch/arm/kputchar.c",
+                "arch/arm/misc.c",
+                "arch/arm/multiboot.c",
+                "arch/arm/pl011.c"
+                ] ++ boot_c,
+     mackerelDevices = [ "arm",
+                         "cpuid_arm",
+                         "pl011_uart"
+                       ],
+     addLibraries = [ ]
+     },
+  --
+  -- Versatile Express Cortex-A9 ARMv7-A, e.g. ARM Fixed Virtual Platform
+  --
+  cpuDriver {
+     target = "a9ve",
+     architectures = [ "armv7" ],
+     assemblyFiles = [ "arch/armv7/exceptions.S",
+                       "arch/armv7/set_stack_for_mode.S",
+                       "arch/armv7/bsp_start.S",
+                       "arch/armv7/cpu_start.S"
+                     ],
+     cFiles = [
+                "arch/armv7/a9_gt.c",
+                "arch/armv7/a9_scu.c",
+                "arch/armv7/boot_protocol.c",
+                "arch/armv7/init.c",
+                "arch/armv7/dispatch.c",
+                "arch/armv7/gdb_arch.c",
+                "arch/armv7/paging.c",
+                "arch/armv7/plat_a9mpcore.c",
+                "arch/armv7/plat_id.c",
+                "arch/armv7/plat_priv_cbar.c",
+                "arch/armv7/plat_vexpress.c",
+                "arch/armv7/plat_vexpress_consts.c",
+                "arch/armv7/startup_arch.c",
+                "arch/armv7/syscall.c",
+                "arch/arm/debug.c",
+                "arch/arm/exec.c",
+                "arch/arm/exn.c",
+                "arch/arm/gic.c",
+                "arch/arm/gdb_arch.c",
+                "arch/arm/irq.c",
+                "arch/arm/kputchar.c",
+                "arch/arm/misc.c",
+                "arch/arm/multiboot.c",
+                "arch/arm/pl011.c"
+                ],
+     mackerelDevices = [ "arm",
+                         "cpuid_arm",
+                         "pl011_uart",
+                         "pl130_gic",
+                         "cortex_a9_gt",
+                         "cortex_a9_scu"
+                       ],
+     addLibraries = [ "elf" ]
+     },
+  --
   -- TI OMAP44xx-series dual-core Cortex-A9 SoC
   --
   bootDriver {
@@ -144,6 +258,64 @@ let
                          "omap/omap44xx_uart3"
                        ],
      addLibraries = [ ]
+     },
+  cpuDriver {
+     target = "omap44xx",
+     architectures = [ "armv7" ],
+     assemblyFiles = [ "arch/armv7/exceptions.S",
+                       "arch/armv7/set_stack_for_mode.S",
+                       "arch/armv7/bsp_start.S",
+                       "arch/armv7/cpu_start.S"
+                     ],
+     cFiles = [
+                "arch/armv7/a9_gt.c",
+                "arch/armv7/a9_scu.c",
+                "arch/armv7/boot_protocol.c",
+                "arch/armv7/gdb_arch.c",
+                "arch/armv7/init.c",
+                "arch/armv7/dispatch.c",
+                "arch/armv7/paging.c",
+                "arch/armv7/plat_a9mpcore.c",
+                "arch/armv7/plat_id.c",
+                "arch/armv7/plat_omap44xx.c",
+                "arch/armv7/plat_omap44xx_consts.c",
+                "arch/armv7/plat_priv_cbar.c",
+                "arch/armv7/startup_arch.c",
+                "arch/armv7/syscall.c",
+                "arch/arm/debug.c",
+                "arch/arm/exec.c",
+                "arch/arm/gdb_arch.c",
+                "arch/arm/exn.c",
+                "arch/arm/gic.c",
+                "arch/arm/irq.c",
+                "arch/arm/kputchar.c",
+                "arch/arm/misc.c",
+                "arch/arm/multiboot.c",
+                "arch/arm/omap_uart.c"
+                ],
+     mackerelDevices = [ "arm",
+                         "cpuid_arm",
+                         "pl130_gic",
+                         "cortex_a9_pit",
+                         "cortex_a9_gt",
+                         "cortex_a9_scu",
+                         "omap/omap44xx_uart3",
+                         "omap/omap44xx_id",
+                         "omap/omap44xx_emif",
+                         "omap/omap44xx_sysctrl_padconf_core",
+                         "omap/omap44xx_sysctrl_padconf_wkup",
+                         "omap/omap44xx_hsusbhost",
+                         "omap/omap44xx_usbtllhs_config",
+                         "omap/omap44xx_scrm",
+                         "omap/omap44xx_ehci",
+                         "omap/omap44xx_ckgen_prm",
+                         "omap/omap44xx_ckgen_cm1",
+                         "omap/omap44xx_l4per_cm2",
+                         "omap/omap44xx_l3init_cm2",
+                         "omap/omap44xx_spinlock",
+                         "omap/omap44xx_gpio"
+                         ],
+     addLibraries = [ "elf" ]
      },
   cpuDriver {
      target = "aos_m0",

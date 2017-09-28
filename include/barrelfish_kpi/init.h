@@ -83,7 +83,7 @@
 #define TASKCN_SLOT_ROOTCN      2   ///< RootCN slot in task cnode
 #define TASKCN_SLOT_DISPFRAME   4   ///< Dispatcher frame cap in task cnode
 #define TASKCN_SLOT_IRQ         5   ///< IRQ cap in task cnode
-#define TASKCN_SLOT_IO          6   ///< IO cap in task cnode
+#define TASKCN_SLOT_DEVCAP      6   ///< Device cap in task cnode
 #define TASKCN_SLOT_BOOTINFO    7   ///< Bootinfo frame slot in task cnode
 #define TASKCN_SLOT_KERNELCAP   8   ///< Kernel cap in task cnode
 #define TASKCN_SLOT_TRACEBUF    9   ///< Trace buffer cap in task cnode

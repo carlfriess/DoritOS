@@ -56,10 +56,10 @@ static bool is_bsp = false;
 // Kernel command line variables and binding options
 //
 
-uint32_t periphclk = 0;
-uint32_t periphbase = 0;
-uint32_t timerirq = 0;
-uint32_t cntfrq = 0;
+unsigned int periphclk = 0;
+unsigned int periphbase = 0;
+unsigned int timerirq = 0;
+unsigned int cntfrq = 0;
 
 static struct cmdarg cmdargs[] = {
     { "consolePort", ArgType_UInt, { .uinteger = (void *)0 } },

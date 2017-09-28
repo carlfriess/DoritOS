@@ -22,6 +22,11 @@ struct aos_rpc {
 };
 
 /**
+ * \brief send a number over the given channel
+ */
+errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val);
+
+/**
  * \brief send a string over the given channel
  */
 errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string);
@@ -30,8 +35,8 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string);
  * \brief request a RAM capability with >= request_bits of size over the given
  * channel.
  */
-errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t request_bits,
-                             struct capref *retcap, size_t *ret_bits);
+errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t bytes,
+                             struct capref *retcap, size_t *ret_bytes);
 
 /**
  * \brief get one character from the serial port
@@ -42,13 +47,6 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc);
  * \brief send one character to the serial port
  */
 errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c);
-
-/**
- * \brief Request device memory capability from memory server.
- */
-errval_t aos_rpc_get_dev_cap(struct aos_rpc *chan, lpaddr_t paddr,
-                             size_t length, struct capref *retcap,
-                             size_t *retlen);
 
 /**
  * \brief Request process manager to start a new process
@@ -80,81 +78,14 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
                                       domainid_t **pids, size_t *pid_count);
 
 /**
- * \brief open a file
- * \arg path the file's path
- * \arg fd a numeric identifier (file descriptor) which can then be used to
- * access the open file
+ * \brief Gets a capability to device registers
+ * \param rpc  the rpc channel
+ * \param paddr physical address of the device
+ * \param bytes number of bytes of the device memory
+ * \param frame returned devframe
  */
-errval_t aos_rpc_open(struct aos_rpc *chan, char *path, int *fd);
-
-#define MAXNAMELEN 255
-struct aos_dirent {
-    /// name of the directory entry
-    char name[MAXNAMELEN];
-    /// size of the item referenced
-    size_t size;
-    /// Optional: add more information about a directory entry here
-};
-
-/**
- * \brief list a directory's contents
- * \arg path the directory's path
- * \arg dir An array containing a struct dirent for each directory entry. Will
- * be allocated by the rpc implementation. Freeing is the caller's
- * responsibility.
- * \arg elem_count the size of `dir' in elements
- */
-errval_t aos_rpc_readdir(struct aos_rpc *chan, char* path,
-                         struct aos_dirent **dir, size_t *elem_count);
-
-/**
- * \brief read from an open file
- * \arg fd the file descriptor returned by a previous call to open
- * \arg position the position in the file to read from
- * \arg size the number of bytes to read from the file
- * \arg buf A buffer containing the bytes read. Will
- * be allocated by the rpc implementation. Freeing is the caller's
- * responsibility.
- * \arg buflen the amount of bytes read and stored in `buf'
- */
-errval_t aos_rpc_read(struct aos_rpc *chan, int fd, size_t position, size_t size,
-                      void** buf, size_t *buflen);
-
-/**
- * \brief close an open file
- * \arg fd the file descriptor returned by a previous call to open
- */
-errval_t aos_rpc_close(struct aos_rpc *chan, int fd);
-
-/// Optional modification support for the file system
-
-/**
- * \brief write to an open file
- * \arg fd the file descriptor returned by a previous call to open
- * \arg position the position in the file to write to
- * \arg size the number of bytes actually written to the file
- * \arg buf A buffer containing the bytes to write.
- * \arg buflen the amount of bytes in `buf' that should be written to the file
- */
-errval_t aos_rpc_write(struct aos_rpc *chan, int fd, size_t position, size_t *size,
-                       void *buf, size_t buflen);
-
-/**
- * \brief create a new file. Will perform an implicit open when successful.
- * Shouldn't succeed when a file (or directory) with the same path exists. Can
- * create missing directories.
- * \arg path the path of the file to create
- * \arg fd the file descriptor of the newly created file
- */
-errval_t aos_rpc_create(struct aos_rpc *chan, char *path, int *fd);
-
-/**
- * \brief delete a file. Should fail / be deferred if that file is still open
- * (i.e. there is a fd referencing that file)
- * \arg path the file to delete
- */
-errval_t aos_rpc_delete(struct aos_rpc *chan, char *path);
-
+errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr, size_t bytes,
+                                struct capref *frame);
 /**
  * \brief Initialize given rpc channel.
  * TODO: you may want to change the inteface of your init function

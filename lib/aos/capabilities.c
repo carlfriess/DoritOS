@@ -78,9 +78,9 @@ struct capref cap_irq = {
 };
 
 /// Capability for legacy IO
-struct capref cap_io = {
+struct capref cap_devices = {
     .cnode = TASK_CNODE_INIT,
-    .slot  = TASKCN_SLOT_IO
+    .slot  = TASKCN_SLOT_DEVCAP
 };
 
 /// Capability for endpoint to self

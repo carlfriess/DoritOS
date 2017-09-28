@@ -35,8 +35,6 @@ struct mm; // forward declaration
 
 /// Instance data for pre-allocating slot allocator for 2 level cspace
 struct slot_prealloc {
-    uint8_t maxslotbits;            ///< Maximum number of slots per allocation
-
     /// Metadata for next place from which to allocate slots
     struct {
         struct capref cap;        ///< Next cap to allocate
@@ -52,11 +50,11 @@ struct slot_prealloc {
 
 /// Initialiser for the pre-allocating implementation
 errval_t slot_prealloc_init(struct slot_prealloc *slot_alloc,
-                            uint8_t maxslotbits, struct capref initial_cnode,
+                            struct capref initial_cnode,
                             uint64_t initial_space, struct mm *ram_mm);
 
 /// Refill function for the pre-allocating implementation
-errval_t slot_prealloc_refill(struct slot_prealloc *inst);
+errval_t slot_prealloc_refill(void *inst);
 
 /// Instance data for simple base-cnode allocator
 struct slot_alloc_basecn {
