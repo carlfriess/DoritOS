@@ -98,7 +98,7 @@ arch_init(struct arm_core_data *boot_core_data,
      * correct virtual address.  The low mappings are still enabled, but we
      * shouldn't be accessing them any longer, no matter where RAM is located.
      * */
-
+    
     /* Save our core data. */
     core_data= boot_core_data;
 
@@ -110,7 +110,8 @@ arch_init(struct arm_core_data *boot_core_data,
      * it into high memory. */
     /* XXX - reread the args to update serial_console_port. */
     serial_console_init(true);
-
+    
+    
     /* Load the global lock address. */
     global= (struct global *)core_data->global;
 
@@ -141,7 +142,13 @@ arch_init(struct arm_core_data *boot_core_data,
     parse_commandline((const char *)core_data->cmdline, cmdargs);
 
     MSG("Welcome to AOS.\n");
-
+        
+    serial_putchar(0,42);
+    serial_putchar(0,42);
+    serial_putchar(0,42);
+    
+    printf("\n");
+    
     blink_leds();
 
     while(1);
