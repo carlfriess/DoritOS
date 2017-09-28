@@ -31,8 +31,10 @@
 #define GPIO1_OE        ((volatile unsigned int*)0x4A310134)
 #define GPIO1_DATAOUT   ((volatile unsigned int*)0x4A31013C)
 #define GPIO4_OE        ((volatile unsigned int*)0x48059134)
+#define GPIO4_DATAIN    ((volatile unsigned int*)0x48059138)
 #define GPIO4_DATAOUT   ((volatile unsigned int*)0x4805913C)
 #define CONTROL_CORE_PAD0_SDMMC1_DAT7_PAD1_ABE_MCBSP2_CLKX  ((volatile unsigned int*)0x4A1000F4)
+#define CONTROL_CORE_PAD0_ABE_MCBSP2_FSX_PAD1_ABE_MCBSP1_CLKX  ((volatile unsigned int*)0x4A1000FC)
 
 void blink_leds(void);
 
@@ -80,6 +82,14 @@ blink_leds(void) {
     // Configure multiplexter for GPIO_110
     *CONTROL_CORE_PAD0_SDMMC1_DAT7_PAD1_ABE_MCBSP2_CLKX &= 0xFFFBFFFF;
     *CONTROL_CORE_PAD0_SDMMC1_DAT7_PAD1_ABE_MCBSP2_CLKX |= 0x00030000;
+    
+    // Configure multiplexter for GPIO_113 and enable internal pull-up
+    *CONTROL_CORE_PAD0_ABE_MCBSP2_FSX_PAD1_ABE_MCBSP1_CLKX &= 0xFFFFFFFB;
+    *CONTROL_CORE_PAD0_ABE_MCBSP2_FSX_PAD1_ABE_MCBSP1_CLKX |= 0x0000001B;
+    
+    printf("Waiting for you to press S2! ;)\n");
+    
+    while (*GPIO4_DATAIN & 0x00020000) ;    // Read GPIO_113
     
     unsigned int ledOn = 0;
     
