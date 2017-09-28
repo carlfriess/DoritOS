@@ -142,7 +142,8 @@ arch_init(struct arm_core_data *boot_core_data,
     parse_commandline((const char *)core_data->cmdline, cmdargs);
 
     MSG("Welcome to AOS.\n");
-        
+    
+    // Test serial_putchar by printing out three asterisk
     serial_putchar(0,42);
     serial_putchar(0,42);
     serial_putchar(0,42);

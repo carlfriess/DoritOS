@@ -57,7 +57,7 @@ serial_putchar(unsigned port, char c) {
     /* XXX - You'll need to implement this, but it's safe to ignore the
      * port parameter. */
     
-    while(!((*UART3_LSR) & 0x20));
+    while(!((*UART3_LSR) & 0x00000020));
     *UART3_THR = c;
 }
 
@@ -66,10 +66,9 @@ serial_getchar(unsigned port) {
     /* XXX - You only need to implement this if you're going for the extension
      * component. */
 
-    while (!((*UART3_LSR) & 0x1));
+    while (!((*UART3_LSR) & 0x00000001));
     return *UART3_RHR;
     
-    //panic("Unimplemented.\n");
 }
 
 /*** LED flashing ***/
@@ -79,10 +78,10 @@ void
 blink_leds(void) {
     /* XXX - You'll need to implement this. */
     
-    
     // LED D2 with signal name gpio_wk8
     volatile uint32_t *GPIO1_OE = (uint32_t *) 0x4A310134;
     volatile uint32_t *GPIO1_DATAOUT = (uint32_t *) 0x4A31013C;
+    
     
     // LED D1 with signal name gpio_110 and Button S2 with gpio_113
     volatile uint32_t *GPIO4_OE = (uint32_t *) 0x48059134;
@@ -134,8 +133,6 @@ blink_leds(void) {
     
     // Input char
     char c;
-    
-    
     
     printf("*******************************************************\n");
     printf("* Change between modes BLINKING and TOGGLE with key 0 *\n");
