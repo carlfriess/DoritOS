@@ -85,7 +85,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
  */
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
-    assert(allignment != 0);
+    assert(alignment != 0);
     
     debug_printf("Allocating %zu bytes with allignment %zu\n", size, alignment);
     
