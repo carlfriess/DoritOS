@@ -51,6 +51,11 @@ int main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
+    
+    struct capref retcap;
+    
+    ram_alloc(&retcap, 64);
+    ram_alloc(&retcap, 64);
 
     debug_printf("Message handler loop\n");
     // Hang around

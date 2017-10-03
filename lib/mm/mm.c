@@ -24,8 +24,16 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
                  void *slot_alloc_inst)
 {
     assert(mm != NULL);
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    
+    mm->objtype = objtype;
+    mm->slot_alloc = slot_alloc_func;
+    mm->slot_refill = slot_refill_func;
+    mm->slot_alloc_inst = slot_alloc_inst;
+    mm->head = NULL;
+    
+    slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
+    
+    return SYS_ERR_OK;
 }
 
 /**
@@ -44,8 +52,27 @@ void mm_destroy(struct mm *mm)
  */
 errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    assert(mm != NULL);
+    
+    debug_printf("Adding memory at %llx of size %zu\n", base, size/1024/1024);
+
+    // Allocating new block for mmnode:
+    struct mmnode *newNode = slab_alloc((struct slab_allocator *)&mm->slabs);
+    
+    newNode->type = NodeType_Free;
+    newNode->cap.cap = cap;
+    newNode->cap.base = base;
+    newNode->cap.size = size;
+    newNode->next = mm->head;
+    newNode->base = base;
+    newNode->size = size;
+    
+    if (mm->head != NULL) {
+        mm->head->prev = newNode;
+    }
+    mm->head = newNode;
+    
+    return SYS_ERR_OK;
 }
 
 /**
@@ -58,8 +85,34 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
  */
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    assert(allignment != 0);
+    
+    debug_printf("Allocating %zu bytes with allignment %zu\n", size, alignment);
+    
+    struct mmnode *node;
+    
+    // Iterate the list of mmnodes until there are no nodes left
+    for (node = mm->head; node != NULL; node = node->next) {
+        
+        // Break if we found a free mmnode with sufficient size and correct alignment
+        if (node->type == NodeType_Free &&
+            node->size >= size &&
+            !(node->base % alignment)) {
+            break;
+        }
+        
+    }
+    
+    // Check we actually found a node
+    if (node != NULL) {
+        node->type = NodeType_Allocated;    // Mark the node as allocated
+        *retcap = node->cap.cap;            // Return the capability
+        debug_printf("Allocated %zu bytes at %llx with allignment %zu\n", size, node->base, alignment);
+        return SYS_ERR_OK;
+    }
+    
+    return -1;
+    
 }
 
 /**
