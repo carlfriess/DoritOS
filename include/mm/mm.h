@@ -41,7 +41,6 @@ struct capinfo {
 struct mmnode {
     enum nodetype type;    ///< Type of `this` node.
     struct capinfo cap;    ///< Cap in which this region exists
-    struct mmnode *parent; ///< Parent mmnode
     struct mmnode *prev;   ///< Previous node in the list.
     struct mmnode *next;   ///< Next node in the list.
     genpaddr_t base;       ///< Base address of this region

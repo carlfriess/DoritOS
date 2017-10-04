@@ -6,6 +6,8 @@
 #include <mm/mm.h>
 #include <aos/debug.h>
 
+void coalesceNext(struct mm *mm, struct mmnode *node);
+
 
 /**
  * Initialize the memory manager.
@@ -54,7 +56,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     assert(mm != NULL);
     
-    debug_printf("Adding memory at %llx of size %zuMB\n", base, size/1024/1024);
+    debug_printf("Adding memory at 0x%llx of size %zuMB\n", base, size/1024/1024);
 
     // Allocating new block for mmnode:
     struct mmnode *newNode = slab_alloc((struct slab_allocator *)&mm->slabs);
@@ -65,7 +67,6 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
     newNode->cap.size = size;
     newNode->prev = NULL;
     newNode->next = mm->head;
-    newNode->parent = newNode;
     newNode->base = base;
     newNode->size = size;
     
@@ -87,9 +88,8 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
  */
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
+    // Disallow an alignment of 0
     assert(alignment != 0);
-    
-    // TODO: What if region is not alligned correctly? Padding?
     
     debug_printf("Allocating %zu bytes with alignment %zu\n", size, alignment);
     
@@ -106,110 +106,69 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     for (node = mm->head; node != NULL; node = node->next) {
         
         // Break if we found a free mmnode with sufficient size and correct alignment
+        //  TODO: Maybe support using nodes with smaller size than realSize as long as node->size >= size?
+        //  TODO: What if region is not alligned correctly? Padding?
         if (node->type == NodeType_Free &&
-            node->size >= realSize &&       // TODO: Maybe support using nodes with smaller size than realSize as long as node->size >= size?
+            node->size >= realSize &&
             !(node->base % alignment)) {
             break;
         }
         
     }
     
-    // Check we actually found a node and then split the memory region
+    // Check if we actually found a node
     if (node != NULL) {
         
-        // Check if the memory region actually needs to be split
-        if (node->size == realSize) {
-            node->type = NodeType_Allocated;    // Mark the node as allocated
-            *retcap = node->cap.cap;            // Return the capability
-            debug_printf("Allocated %zu bytes at %llx with alignment %zu\n", size, node->base, alignment);
-            return SYS_ERR_OK;
+        // Mark the node as allocated
+        node->type = NodeType_Allocated;
+        
+        // Check if the memory region needs to be split
+        if (node->size != realSize) {
+            
+            // Allocate new mmnode that will follow the `node` mmnode
+            //  TODO: Handle failure (refill)
+            struct mmnode *newNode = slab_alloc((struct slab_allocator *)&mm->slabs);
+            
+            // Calculate new bases and sizes
+            newNode->base = node->base + realSize;
+            newNode->size = node->size - realSize;
+            node->size = realSize;
+            
+            // Set type of newNode
+            newNode->type = NodeType_Free;
+            
+            // Copy capability info
+            newNode->cap = node->cap;
+            
+            // Link stuff up
+            newNode->prev = node;
+            newNode->next = node->next;
+            if (node->next != NULL) {
+                node->next->prev = newNode;
+            }
+            node->next = newNode;
+            
         }
         
-        // Allocate a new slots for the new capabilities
-        struct capref newSlot1, newSlot2;
-        // TODO: Create slot allocator wrapper
-        // TODO: Better error handeling:
-        assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, &newSlot1) ));
-        assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, &newSlot2) ));
+        // Allocate a new slot for the returned capability
+        //  TODO: Create slot allocator wrapper
+        //  TODO: Handle refill (error)
+        assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, retcap) ));
         
-        // Allocate new mmnodes
-        struct mmnode *newNode1 = slab_alloc((struct slab_allocator *)&mm->slabs);
-        struct mmnode *newNode2 = slab_alloc((struct slab_allocator *)&mm->slabs);
+        // Return capability for the allocated region
+        errval_t err = cap_retype(*retcap,
+                                  node->cap.cap,
+                                  node->base - node->cap.base,
+                                  mm->objtype,
+                                  node->size,
+                                  1);
         
-        // Calculate new bases and sizes
-        newNode1->base = node->base;
-        newNode1->size = realSize;
-        newNode2->base = node->base + realSize;
-        newNode2->size = node->size - realSize;
-        
-        // Set types
-        newNode1->type = NodeType_Allocated;
-        newNode2->type = NodeType_Free;
-        
-        // Allocate slots for new capabilities
-        // TODO: Handle refill
-        assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, &newNode1->cap.cap) ));
-        assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, &newNode2->cap.cap) ));
-        
-        // Create capabilites for new nodes
-        errval_t err1 = cap_retype(newNode1->cap.cap,
-                                   node->parent->cap.cap,
-                                   newNode1->base - node->parent->base,
-                                   mm->objtype,
-                                   newNode1->size,
-                                   1);
-        errval_t err2 = cap_retype(newNode2->cap.cap,
-                                   node->parent->cap.cap,
-                                   newNode2->base - node->parent->base,
-                                   mm->objtype,
-                                   newNode2->size,
-                                   1);
-        
-        debug_printf("Retype 1: %s\n", err_getstring(err1));
-        debug_printf("Retype 2: %s\n", err_getstring(err2));
-
         // Make sure we can continue
-        assert(err_is_ok(err1));
-        assert(err_is_ok(err2));
-        
-        // Update capability info
-        newNode1->cap.base = newNode1->base;
-        newNode1->cap.size = newNode1->size;
-        newNode2->cap.base = newNode1->base;
-        newNode2->cap.size = newNode1->size;
-        
-        // Link stuff up
-        newNode1->parent = node->parent;
-        newNode2->parent = node->parent;
-        newNode1->prev = node->prev;
-        newNode1->next = newNode2;
-        newNode2->prev = newNode1;
-        newNode2->next = node->next;
-        if (node->prev != NULL) {
-            node->prev->next = newNode1;
-        }
-        if (node->next != NULL) {
-            node->next->prev = newNode2;
-        }
-        
-        // Alter the head pointer if this is the first mmnode in the list
-        if (mm->head == node) {
-            mm->head = newNode1;
-        }
-        
-        // Delete this mmnode if it isn't the parent of the region
-        if (node->parent != node) {
-            // Delete the capability
-            cap_delete(node->cap.cap);
-            // TODO: Free the slot of the capability
-            // Free this node
-            slab_free((struct slab_allocator *)&mm->slabs, node);
-        }
-        
-        // Return the allocated capability
-        *retcap = newNode1->cap.cap;
-        
-        debug_printf("Allocated %zu bytes at %llx with alignment %zu\n", realSize, newNode1->base, alignment);
+        debug_printf("Retype: %s\n", err_getstring(err));
+        assert(err_is_ok(err));
+    
+        // Summary
+        debug_printf("Allocated %llu bytes at %llx with alignment %zu\n", node->size, node->base, alignment);
         
         return SYS_ERR_OK;
     }
@@ -242,66 +201,82 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
     
-    debug_printf("Freeing memory of size %llu at %llu", size, base);
+    debug_printf("Freeing %llu bytes of memory at 0x%llx\n", size, base);
     
     struct mmnode *node;
 
-    // Iterate to desired mmnode
-    for(node = mm->head; node != NULL && (node->base != base && node->size != size); node = node->next);
+    // Walk the list of mmnodes until we find the node containing the memory region
+    for(node = mm->head; node != NULL; node = node->next) {
+        if (node->base == base) {
+            break;
+        }
+    }
 
-    // Check if node NULL or Free
-    assert(node != NULL);
-    if (node->type == NodeType_Free) {
+    // Check the node was found and isn't allocated
+    if (node == NULL || node->type != NodeType_Allocated) {
+        debug_printf("Could not find memory region to be freed :(\n");
         return MM_ERR_NOT_FOUND;
     }
-
-    // Absorb the previous node if free and has same parent
-    if (node->prev != NULL && node->prev->type == NodeType_Free && node->parent == node->prev->parent) {
-        debug_printf("Absorbing previous node!\n");
-        struct mmnode *prev = node->prev;
-
-        // Update base and size
-        node->base = prev->base;
-        node->size += prev->size;
-
-        // Relink list
-        if(node->prev->prev != NULL){
-            prev->prev->next = node;
-        }
-        node->prev = node->prev->prev;
-
-        // Delete next capability
-        cap_delete(prev->cap.cap);
-        
-        // Free deallocated node
-        slab_free(&mm->slabs, (void *)prev);
-    }
-
-    // Absorb the next node if free and has same parent
-    if (node->next != NULL && node->next->type == NodeType_Free && node->parent == node->next->parent) {
-        debug_printf("Absorbing next node!\n");
-        struct mmnode *next = node->next;
-
-        // Update size
-        node->size += node->next->size;
-
-        // Relink list
-        if(node->next->next != NULL){
-            node->next->next->prev = node;
-        }
-        node->next = node->next->next;
-        
-        // Delete next capability
-        cap_delete(next->cap.cap);
-
-        // Free deallocated
-        slab_free(&mm->slabs, (void *)next);
-    }
-
-    // TODO: Free Slot and Capability
+    
+    // Mark the region as free
     node->type = NodeType_Free;
-    cap_delete(node->cap.cap);
-    debug_printf("mmnode successfully freed!\n");
+    
+    // Delete this capability
+    //  TODO: Reuse this capability's slot
+    assert(err_is_ok( cap_delete(cap) ));
+
+    // Absorb the previous node if it is free and has the same parent capability
+    if (node->prev != NULL &&
+        node->prev->type == NodeType_Free &&
+        node->cap.base == node->prev->cap.base &&
+        node->cap.size == node->prev->cap.size) {
+        
+        debug_printf("Coalescing with previous node\n");
+        
+        //Moving to previous node
+        node = node->prev;
+        
+        // Coalesce with next node
+        coalesceNext(mm, node);
+        
+    }
+
+    // Absorb the next node if it is free and has the same parent capability
+    if (node->next != NULL &&
+        node->next->type == NodeType_Free &&
+        node->cap.base == node->next->cap.base &&
+        node->cap.size == node->next->cap.size) {
+        
+        debug_printf("Coalescing with next node\n");
+        
+        // Coalesce with next node
+        coalesceNext(mm, node);
+    }
+
+    // Summary
+    debug_printf("Done! Free block of %llu bytes at 0x%llx\n", node->size, node->base);
 
     return SYS_ERR_OK;
+}
+
+void coalesceNext(struct mm *mm, struct mmnode *node) {
+    
+    // Sanity checks
+    assert(node->next != NULL);
+    assert(node->base + node->size == node->next->base);
+    
+    // Update size
+    node->size += node->next->size;
+    
+    struct mmnode* nextNode = node->next;
+    
+    // Remove the next node from the linked list
+    node->next = node->next->next;
+    if (node->next != NULL) {
+        node->next->prev = node;
+    }
+    
+    // Free the memory for the removed node
+    slab_free(&mm->slabs, nextNode);
+    
 }
