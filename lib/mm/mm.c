@@ -248,7 +248,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
     struct mmnode *node;
 
     // Iterate to desired mmnode
-    for(node = mm->head; node != NULL && node->cap.cap != cap; node = node->next);
+    for(node = mm->head; node != NULL && (node->base != base && node->size != size); node = node->next);
 
     // Check if node NULL or Free
     assert(node != NULL);
@@ -257,21 +257,27 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
     }
 
     // Absorb previous node if free and same parent
-    if (node->prev->type == NodeType_Free && node->parent == node->prev->parent) {
+    if (node->prev != NULL && node->prev->type == NodeType_Free && node->parent == node->prev->parent) {
         node->base = node->prev->base;
         node->size += node->prev->size;
-        node->prev->prev->next = node;
+
+        if(node->prev->prev != NULL){
+            node->prev->prev->next = node;
+        }
     }
 
     // Absorb next node if free and same parent
-    if (node->prev->type == NodeType_Free && node->parent == node->next->parent) {
+    if (node->next != NULL && node->next->type == NodeType_Free && node->parent == node->next->parent) {
         node->size += node->next->size;
-        node->next->next->prev = node;
+
+        if(node->next->next != NULL){
+            node->next->next->prev = node;
+        }
     }
 
     node->type = NodeType_Free;
     //TODO: Free Slot and Capability
-    node->cap = NULL;
+//    node->cap = NULL;
 
     return SYS_ERR_OK;
 }

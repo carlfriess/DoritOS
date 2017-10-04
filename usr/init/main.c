@@ -55,7 +55,9 @@ int main(int argc, char *argv[])
     struct capref retcap;
     
     ram_alloc(&retcap, 64);
-    ram_alloc(&retcap, 64);
+    aos_ram_free(retcap, 64);
+//    ram_alloc(&retcap, 64);
+//    return EXIT_SUCCESS;
 
     debug_printf("Message handler loop\n");
     // Hang around
