@@ -107,7 +107,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         
         // Break if we found a free mmnode with sufficient size and correct alignment
         if (node->type == NodeType_Free &&
-            node->size >= realSize &&
+            node->size >= realSize &&       // TODO: Maybe support using nodes with smaller size than realSize as long as node->size >= size?
             !(node->base % alignment)) {
             break;
         }
@@ -117,7 +117,13 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     // Check we actually found a node and then split the memory region
     if (node != NULL) {
         
-        // TODO: Check if the memory actually needs to be split
+        // Check if the memory region actually needs to be split
+        if (node->size == realSize) {
+            node->type = NodeType_Allocated;    // Mark the node as allocated
+            *retcap = node->cap.cap;            // Return the capability
+            debug_printf("Allocated %zu bytes at %llx with alignment %zu\n", size, node->base, alignment);
+            return SYS_ERR_OK;
+        }
         
         // Allocate a new slots for the new capabilities
         struct capref newSlot1, newSlot2;
@@ -193,18 +199,12 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         
         // Delete this mmnode if it isn't the parent of the region
         if (node->parent != node) {
-            // TODO: Delete capability
+            // Delete the capability
+            cap_delete(node.cap.cap)
             // TODO: Free the slot of the capability
             // Free this node
             slab_free((struct slab_allocator *)&mm->slabs, node);
         }
-        
-        // Create a new capability for the remaining memory area
-        //errval_t err2 = cap_retype(newSlot, newSlot2, 2*4096, mm->objtype, node->size-2*4096, 1);
-        
-        //debug_printf("%s\n", err_getstring(err2));
-        
-        //assert(err_is_ok(err2));
         
         // Return the allocated capability
         *retcap = newNode1->cap.cap;
