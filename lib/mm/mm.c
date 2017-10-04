@@ -150,9 +150,6 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         // TODO: Handle refill
         assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, &newNode1->cap.cap) ));
         assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, &newNode2->cap.cap) ));
-    
-        printf("parent base: %llu parent size: %llu\n", node->parent->base, node->parent->size);
-        
         
         // Create capabilites for new nodes
         errval_t err1 = cap_retype(newNode1->cap.cap,

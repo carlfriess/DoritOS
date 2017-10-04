@@ -26,6 +26,72 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
+int test_alloc_free(size_t b) {
+    printf("a1 f1 with (%d)\n", b);
+    struct capref;
+    
+    ram_alloc(&capref, b);
+    aos_ram_free(capref, b);
+    
+    return 0;
+}
+
+
+int test_alloc_free_alloc_free(size_t b1, b2) {
+    printf("a1 f1 a2 f2 with (%d,%d)\n", b1, b2);
+    struct capref retcap1;
+    struct capref retcap2;
+    
+    ram_alloc(&retcap1, b1);
+    aos_ram_free(retcap1, b1);
+    ram_alloc(&retcap2, b2);
+    aos_ram_free(retcap2, b2);
+    
+    return 0;
+}
+
+int test_alloc_free_free(size_t b) {
+    printf("a1 f1 f1 with (%d)\n", b);
+    struct capref;
+    
+    ram_alloc(&capref, b);
+    aos_ram_free(capref, b);
+    aos_ram_free(capref, b);
+
+    return 0;
+}
+
+int test_alloc_n_free_n(int n, size_t b) {
+    printf("a1..an and f1..fn with (%d)\n");
+    struct capref retcap_array[n];
+    
+    for (int i=0; i<n; ++i) {
+        ram_alloc(&(retcap_array[i]), b);
+    }
+    for (int i=0; i<n; ++i) {
+        aos_ram_free(retcap_array[i], b);
+    }
+    
+    return 0;
+}
+
+int test_coalescing(size_t b1, size_t b2, size_t b3) {
+    printf("a1 a2 a3 f3 f1 f2 with (%d,%d,%d)\n", b1, b2, b3);
+    struct capref retcap_1;
+    struct capref retcap_2;
+    struct capref retcap_3;
+    
+    ram_alloc(&retcap_1, b1);
+    ram_alloc(&retcap_2, b2);
+    ram_alloc(&retcap_3, b3);
+    
+    aos_ram_free(retcap_3, b3);
+    aos_ram_free(retcap_1, b1);
+    aos_ram_free(retcap_2, b2);
+    
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     errval_t err;
@@ -53,40 +119,27 @@ int main(int argc, char *argv[])
     }
     
     /* TESTS */
-    printf("Test0\n");
-    struct capref retcap0;
-    ram_alloc(&retcap0, 64);
-    aos_ram_free(retcap0, 64);
+    printf("Test 1\n");
+    assert(!test_alloc_free_alloc_free(64, 64));
     
-    printf("Test1\n");
-    struct capref retcap1;
-    ram_alloc(&retcap1, 64);
-    aos_ram_free(retcap1, 64);
+    printf("Test 2\n");
+    assert(!test_alloc_free(4096));
+    //assert(!test_alloc_free(0));      //< Should this be fixed?
     
-    printf("Test2\n");
-    struct capref retcap2;
-    ram_alloc(&retcap2, 4096);
-    aos_ram_free(retcap2, 4096);
+    printf("Test 3\n");
+    assert(!test_alloc_free_free(2*4096));
     
-    //printf("Test3\n");
-    //struct capref retcap3;
-    //ram_alloc(&retcap3, 0);
-    //aos_ram_free(retcap3, 0);
+    printf("Test 4\n");
+    assert(!test_alloc_n_free_n(64, 2048));
+    assert(!test_alloc_n_free_n(65, 4096));
     
-    printf("Test4\n");
-    struct capref retcap4;
-    struct capref retcap5;
-    struct capref retcap6;
+    printf("Test 5\n");
+    assert(!test_coalescing1(2048, 4096, 2*4096));
+    assert(!test_coalescing1(2*4096, 4096, 1));
 
-    ram_alloc(&retcap4, 2048);
-    ram_alloc(&retcap5, 4096);
-    ram_alloc(&retcap6, 4096);
-
-    aos_ram_free(retcap6, 4096);
-    aos_ram_free(retcap4, 2048);
-    aos_ram_free(retcap5, 4096);
+    //printf("Test 6\n");
+    // TODO: Check other coalescing cases
     
-
 
     debug_printf("Message handler loop\n");
     // Hang around
