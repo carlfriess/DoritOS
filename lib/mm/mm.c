@@ -200,7 +200,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         // Delete this mmnode if it isn't the parent of the region
         if (node->parent != node) {
             // Delete the capability
-            cap_delete(node.cap.cap)
+            cap_delete(node->cap.cap);
             // TODO: Free the slot of the capability
             // Free this node
             slab_free((struct slab_allocator *)&mm->slabs, node);
@@ -268,12 +268,12 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         node->prev = node->prev->prev;
 
         // Free deallocated node
-        slab_free(mm->slabs, (void *)prev);
+        slab_free(&mm->slabs, (void *)prev);
     }
 
     // Absorb the next node if free and has same parent
     if (node->next != NULL && node->next->type == NodeType_Free && node->parent == node->next->parent) {
-        debug_printf("Absorbing next node!\n")
+        debug_printf("Absorbing next node!\n");
         struct mmnode *next = node->next;
 
         // Update size
@@ -286,12 +286,12 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         node->next = node->next->next;
 
         // Free deallocated
-        slab_free(mm->slabs, (void *)next);
+        slab_free(&mm->slabs, (void *)next);
     }
 
     // TODO: Free Slot and Capability
     node->type = NodeType_Free;
-    cap_delete(node->cap);
+    cap_delete(node->cap.cap);
     debug_printf("mmnode successfully freed!\n");
 
     return SYS_ERR_OK;
