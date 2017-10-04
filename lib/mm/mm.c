@@ -91,7 +91,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     
     // TODO: What if region is not alligned correctly? Padding?
     
-    debug_printf("Allocating %zu bytes with allignment %zu\n", size, alignment);
+    debug_printf("Allocating %zu bytes with alignment %zu\n", size, alignment);
     
     // Calculate the real size of the region to be allocated, such that it is alligned at the beginning and the end
     size_t realSize = size / alignment;
@@ -119,10 +119,6 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         
         // TODO: Check if the memory actually needs to be split
         
-        // Calculate base and size for remaining memory region
-        //genpaddr_t newBase = node->base + size;
-        //gensize_t newSize = node->size - size;
-        
         // Allocate a new slots for the new capabilities
         struct capref newSlot1, newSlot2;
         // TODO: Create slot allocator wrapper
@@ -133,12 +129,12 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         // Allocate new mmnodes
         struct mmnode *newNode1 = slab_alloc((struct slab_allocator *)&mm->slabs);
         struct mmnode *newNode2 = slab_alloc((struct slab_allocator *)&mm->slabs);
-
+        
         // Calculate new bases and sizes
         newNode1->base = node->base;
         newNode1->size = realSize;
         newNode2->base = node->base + realSize;
-        newNode2->base = node->size - realSize;
+        newNode2->size = node->size - realSize;
         
         // Set types
         newNode1->type = NodeType_Allocated;
@@ -146,9 +142,9 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         
         // Allocate slots for new capabilities
         // TODO: Handle refill
-        assert(err_is_ok( slot_alloc_prealloc(mm->slot_alloc, 1, &newNode1->cap.cap) ));
-        assert(err_is_ok( slot_alloc_prealloc(mm->slot_alloc, 1, &newNode2->cap.cap) ));
-
+        assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, &newNode1->cap.cap) ));
+        assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, &newNode2->cap.cap) ));
+        
         // Create capabilites for new nodes
         errval_t err1 = cap_retype(newNode1->cap.cap,
                                    node->parent->cap.cap,
@@ -213,7 +209,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         // Return the allocated capability
         *retcap = newNode1->cap.cap;
         
-        debug_printf("Allocated %zu bytes at %llx with allignment %zu\n", realSize, newNode1->base, alignment);
+        debug_printf("Allocated %zu bytes at %llx with alignment %zu\n", realSize, newNode1->base, alignment);
         
         return SYS_ERR_OK;
     }
@@ -256,7 +252,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         return MM_ERR_NOT_FOUND;
     }
 
-    // Absorb previous node if free and same parent
+    // Absorb the previous node if free and has same parent
     if (node->prev != NULL && node->prev->type == NodeType_Free && node->parent == node->prev->parent) {
         node->base = node->prev->base;
         node->size += node->prev->size;
@@ -266,7 +262,7 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         }
     }
 
-    // Absorb next node if free and same parent
+    // Absorb the next node if free and has same parent
     if (node->next != NULL && node->next->type == NodeType_Free && node->parent == node->next->parent) {
         node->size += node->next->size;
 
