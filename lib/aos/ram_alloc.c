@@ -98,6 +98,8 @@ errval_t ram_alloc(struct capref *ret, size_t size)
 errval_t ram_available(genpaddr_t *available, genpaddr_t *total)
 {
     // TODO: Implement protocol to check amount of ram available with memserv
+    
+    
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
