@@ -14,7 +14,7 @@ extern struct bootinfo *bi;
 errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     printf("spawn start_child: starting: %s\n", binary_name);
 
-    errval_t err;
+    errval_t err = SYS_ERR_OK;
 
     // Init spawninfo
     memset(si, 0, sizeof(*si));
@@ -30,5 +30,5 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     // - Setup environment
     // - Make dispatcher runnable
 
-    return SYS_ERR_OK;
+    return err;
 }

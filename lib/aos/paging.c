@@ -97,7 +97,6 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, s
     pr->base_addr    = (lvaddr_t)base;
     pr->current_addr = pr->base_addr;
     pr->region_size  = size;
-    // TODO: maybe add paging regions to paging state?
     return SYS_ERR_OK;
 }
 
@@ -136,18 +135,18 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
  */
 errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t bytes)
 {
-    // XXX: should free up some space in paging region, however need to track
-    //      holes for non-trivial case
+    // TIP: you will need to keep track of possible holes in the region
     return SYS_ERR_OK;
 }
 
 /**
- * TODO(M2): Implement this function
+ *
  * \brief Find a bit of free virtual address space that is large enough to
  *        accomodate a buffer of size `bytes`.
  */
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
 {
+    // TODO: M2 Implement this function
     *buf = NULL;
     return SYS_ERR_OK;
 }

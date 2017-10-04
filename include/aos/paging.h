@@ -64,6 +64,7 @@ struct paging_region {
     lvaddr_t base_addr;
     lvaddr_t current_addr;
     size_t region_size;
+    // TODO: if needed add struct members for tracking state
 };
 
 errval_t paging_region_init(struct paging_state *st,
@@ -95,11 +96,11 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes);
  */
 /// Map user provided frame with given flags while allocating VA space for it
 errval_t paging_map_frame_attr(struct paging_state *st, void **buf,
-                    size_t bytes, struct capref frame,
-                    int flags, void *arg1, void *arg2);
+                               size_t bytes, struct capref frame,
+                               int flags, void *arg1, void *arg2);
 /// Map user provided frame at user provided VA with given flags.
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
-                struct capref frame, size_t bytes, int flags);
+                               struct capref frame, size_t bytes, int flags);
 
 /**
  * refill slab allocator without causing a page fault
@@ -117,7 +118,8 @@ errval_t paging_unmap(struct paging_state *st, const void *region);
 
 /// Map user provided frame while allocating VA space for it
 static inline errval_t paging_map_frame(struct paging_state *st, void **buf,
-                size_t bytes, struct capref frame, void *arg1, void *arg2)
+                                        size_t bytes, struct capref frame,
+                                        void *arg1, void *arg2)
 {
     return paging_map_frame_attr(st, buf, bytes, frame,
             VREGION_FLAGS_READ_WRITE, arg1, arg2);
@@ -125,7 +127,7 @@ static inline errval_t paging_map_frame(struct paging_state *st, void **buf,
 
 /// Map user provided frame at user provided VA.
 static inline errval_t paging_map_fixed(struct paging_state *st, lvaddr_t vaddr,
-                struct capref frame, size_t bytes)
+                                        struct capref frame, size_t bytes)
 {
     return paging_map_fixed_attr(st, vaddr, frame, bytes,
             VREGION_FLAGS_READ_WRITE);
