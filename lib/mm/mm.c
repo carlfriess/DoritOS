@@ -138,6 +138,33 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
  */
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    struct mmnode *node;
+
+    // Iterate to desired mmnode
+    for(node = mm->head; node != NULL && node->cap.cap != cap; node = node->next);
+
+    // Check if node NULL or Free
+    assert(node != NULL);
+    if (node->type == NodeType_Free) {
+        return MM_ERR_NOT_FOUND;
+    }
+
+    // Absorb previous node if free and same parent
+    if (node->prev->type == NodeType_Free && node->parent == node->prev->parent) {
+        node->base = node->prev->base;
+        node->size += node->prev->size;
+        node->prev->prev->next = node;
+    }
+
+    // Absorb next node if free and same parent
+    if (node->prev->type == NodeType_Free && node->parent == node->next->parent) {
+        node->size += node->next->size;
+        node->next->next->prev = node;
+    }
+
+    node->type = NodeType_Free;
+    //TODO: Free Slot and Capability
+    node->cap = NULL;
+
+    return SYS_ERR_OK;
 }
