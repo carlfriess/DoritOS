@@ -273,6 +273,9 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         }
         node->prev = node->prev->prev;
 
+        // Delete next capability
+        cap_delete(prev->cap.cap);
+        
         // Free deallocated node
         slab_free(&mm->slabs, (void *)prev);
     }
@@ -290,6 +293,9 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
             node->next->next->prev = node;
         }
         node->next = node->next->next;
+        
+        // Delete next capability
+        cap_delete(next->cap.cap);
 
         // Free deallocated
         slab_free(&mm->slabs, (void *)next);

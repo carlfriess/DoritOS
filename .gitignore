@@ -52,3 +52,6 @@ bin/
 *.aux
 *.log
 *.out
+
+# Mac
+*.DS_Store
