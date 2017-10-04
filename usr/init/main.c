@@ -52,12 +52,41 @@ int main(int argc, char *argv[])
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
     
-    struct capref retcap;
+    /* TESTS */
+    printf("Test0\n");
+    struct capref retcap0;
+    ram_alloc(&retcap0, 64);
+    aos_ram_free(retcap0, 64);
     
-    ram_alloc(&retcap, 64);
-    aos_ram_free(retcap, 64);
-//    ram_alloc(&retcap, 64);
-//    return EXIT_SUCCESS;
+    printf("Test1\n");
+    struct capref retcap1;
+    ram_alloc(&retcap1, 64);
+    aos_ram_free(retcap1, 64);
+    
+    printf("Test2\n");
+    struct capref retcap2;
+    ram_alloc(&retcap2, 4096);
+    aos_ram_free(retcap2, 4096);
+    
+    //printf("Test3\n");
+    //struct capref retcap3;
+    //ram_alloc(&retcap3, 0);
+    //aos_ram_free(retcap3, 0);
+    
+    printf("Test4\n");
+    struct capref retcap4;
+    struct capref retcap5;
+    struct capref retcap6;
+
+    ram_alloc(&retcap4, 2048);
+    ram_alloc(&retcap5, 4096);
+    ram_alloc(&retcap6, 4096);
+
+    aos_ram_free(retcap6, 4096);
+    aos_ram_free(retcap4, 2048);
+    aos_ram_free(retcap5, 4096);
+    
+
 
     debug_printf("Message handler loop\n");
     // Hang around
