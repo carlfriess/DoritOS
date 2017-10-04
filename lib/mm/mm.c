@@ -245,7 +245,7 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
     
-    debug_printf("Freeing memory of size %llu at %llu", size, base);
+    debug_printf("Freeing memory of size %llu at %llu\n", size, base);
     
     struct mmnode *node;
 
