@@ -182,6 +182,7 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
+    
     return SYS_ERR_OK;
 }
 
