@@ -54,7 +54,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     assert(mm != NULL);
     
-    debug_printf("Adding memory at %llx of size %zu\n", base, size/1024/1024);
+    debug_printf("Adding memory at %llx of size %zuMB\n", base, size/1024/1024);
 
     // Allocating new block for mmnode:
     struct mmnode *newNode = slab_alloc((struct slab_allocator *)&mm->slabs);
