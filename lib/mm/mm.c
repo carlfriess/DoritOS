@@ -254,26 +254,45 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
 
     // Absorb the previous node if free and has same parent
     if (node->prev != NULL && node->prev->type == NodeType_Free && node->parent == node->prev->parent) {
-        node->base = node->prev->base;
-        node->size += node->prev->size;
+        debug_printf("Absorbing previous node!\n");
+        struct mmnode *prev = node->prev;
 
+        // Update base and size
+        node->base = prev->base;
+        node->size += prev->size;
+
+        // Relink list
         if(node->prev->prev != NULL){
-            node->prev->prev->next = node;
+            prev->prev->next = node;
         }
+        node->prev = node->prev->prev;
+
+        // Free deallocated node
+        slab_free(mm->slabs, (void *)prev);
     }
 
     // Absorb the next node if free and has same parent
     if (node->next != NULL && node->next->type == NodeType_Free && node->parent == node->next->parent) {
+        debug_printf("Absorbing next node!\n")
+        struct mmnode *next = node->next;
+
+        // Update size
         node->size += node->next->size;
 
+        // Relink list
         if(node->next->next != NULL){
             node->next->next->prev = node;
         }
+        node->next = node->next->next;
+
+        // Free deallocated
+        slab_free(mm->slabs, (void *)next);
     }
 
+    // TODO: Free Slot and Capability
     node->type = NodeType_Free;
-    //TODO: Free Slot and Capability
-//    node->cap = NULL;
+    cap_delete(node->cap);
+    debug_printf("mmnode successfully freed!\n");
 
     return SYS_ERR_OK;
 }
