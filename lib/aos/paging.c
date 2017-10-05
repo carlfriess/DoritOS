@@ -192,7 +192,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     };
     
     struct capref ret1;
-    assert(err_is_ok( slot_alloc(&ret1) ));
+    //assert(err_is_ok( slot_alloc(&ret1) ));
     struct capref ret2;
     assert(err_is_ok( slot_alloc(&ret2) ));
     struct capref ret3;
@@ -202,9 +202,9 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     
     debug_printf(err_getstring( arml2_alloc(&current, &ret1) ));
     
-    debug_printf(err_getstring( vnode_map(l1_pagetable, ret1, 150, flags, 0, 1, ret2) ));
+    debug_printf(err_getstring( vnode_map(l1_pagetable, ret1, ARM_L1_OFFSET(vaddr), flags, 0, 1, ret2) ));
     
-    debug_printf(err_getstring( vnode_map(ret1, frame, 200, flags, 0, 1, ret3) ));
+    debug_printf(err_getstring( vnode_map(ret1, frame, ARM_L2_OFFSET(vaddr), flags, 0, 1, ret3) ));
     
     return SYS_ERR_OK;
 }

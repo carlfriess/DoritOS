@@ -157,9 +157,9 @@ int main(int argc, char *argv[])
     errval_t err1 = frame_alloc(&frame, 4096, &retSize);
     debug_printf("Allocated a %zu byte frame: %s\n", retSize, err_getstring(err1));
     
-    paging_map_fixed_attr(NULL, 0, frame, 4096, VREGION_FLAGS_READ_WRITE);
+    paging_map_fixed_attr(NULL, 0x0320A000, frame, 4096, VREGION_FLAGS_READ_WRITE);
     
-    int *test = (int *) 0x258C8000;
+    int *test = (int *) 0x0320A000;
     debug_printf("%d", *test);
 
     debug_printf("Message handler loop\n");
