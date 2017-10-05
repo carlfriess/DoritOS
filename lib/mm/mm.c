@@ -328,3 +328,17 @@ void coalesce_next(struct mm *mm, struct mmnode *node) {
     // Free the memory for the removed node
     slab_free(&mm->slabs, next_node);
 }
+
+errval_t mm_available(struct mm *mm, gensize_t *available, gensize_t *total) {
+
+    for (struct mmnode *node = mm->head; node != NULL; node = node->next) {
+        if (node->type == NodeType_Free) {
+            *available += node->size;
+        }
+        *total += node->size;
+    }
+    
+    return SYS_ERR_OK;
+    
+}
+
