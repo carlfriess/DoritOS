@@ -106,9 +106,6 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, s
     pr->current_addr = pr->base_addr;
     pr->region_size  = size;
     // TODO: maybe add paging regions to paging state?
-    
-    
-    
     return SYS_ERR_OK;
 }
 
@@ -149,9 +146,6 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
 {
     // XXX: should free up some space in paging region, however need to track
     //      holes for non-trivial case
-    
-    
-    
     return SYS_ERR_OK;
 }
 
@@ -192,7 +186,7 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size
     // FIXME: Currently a full page is allocated. More is not supported.
     assert(minbytes <= BASE_PAGE_SIZE);
     
-    // Perform the refill. This should not cause a page fault. FIXME: Hopefully.
+    // Perform the refill. FIXME: This should not cause a page fault. Hopefully.
     slab_default_refill(slabs);
     
     return SYS_ERR_OK;
