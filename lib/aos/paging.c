@@ -197,7 +197,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     
     // TODO: Lookup if l2_pagetable already exists (maybe in the mapping data structure)
     struct capref l2_pagetable;
-    debug_printf(err_getstring( arml2_alloc(st, &l2_pagetable) ));
+    debug_printf("%s\n", err_getstring( arml2_alloc(st, &l2_pagetable) ));
     
     // Allocating l2Mapping to be stored in the data structure
     struct capref l2Mapping;
@@ -206,7 +206,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     // TODO(M2): Frames going over multiple l2_pagetables
     
     // Set page table entry of l1_pagetable to be appropriate l2_pagetable
-    debug_printf(err_getstring( vnode_map(current.l1_pagetable, l2_pagetable, ARM_L1_OFFSET(vaddr), flags, 0, 1, l2Mapping) ));
+    debug_printf("%s\n", err_getstring( vnode_map(current.l1_pagetable, l2_pagetable, ARM_L1_OFFSET(vaddr), flags, 0, 1, l2Mapping) ));
     
     // TODO: Save the mapping capability in data structure!
 
@@ -219,7 +219,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         
         struct capref frameMapping;
         assert( err_is_ok( slot_alloc(&frameMapping) ));
-        debug_printf(err_getstring( vnode_map(l2_pagetable, frame, ARM_L2_OFFSET(vaddr), flags, i, 1, frameMapping) ));
+        debug_printf("%s\n", err_getstring( vnode_map(l2_pagetable, frame, ARM_L2_OFFSET(vaddr), flags, i, 1, frameMapping) ));
         
         // TODO: Save the mapping capabilities in data structure!
         
