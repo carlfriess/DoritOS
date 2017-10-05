@@ -144,11 +144,14 @@ int main(int argc, char *argv[])
     printf("Test 4\n");
     assert(!test_alloc_n_free_n(64, 2048));
     //assert(!test_alloc_n_free_n(65, 4096));
-    /*
-    printf("Test 5\n");
-    assert(!test_coalescing1(2048, 4096, 2*4096));
-    assert(!test_coalescing1(2*4096, 4096, 1));
 
+    //assert(!test_alloc_n_free_n(500, 4096));
+    //assert(!test_alloc_n_free_n(500, 3*4096));
+    
+    //printf("Test 5\n");
+    //assert(!test_coalescing1(2048, 4096, 2*4096));
+    //assert(!test_coalescing1(2*4096, 4096, 1));
+    /*
     //printf("Test 6\n");
     // TODO: Check other coalescing cases*/
     
@@ -161,7 +164,7 @@ int main(int argc, char *argv[])
     
     int *test = (int *) 0x0320A000;
     debug_printf("%d", *test);*/
-
+    
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
