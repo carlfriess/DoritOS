@@ -48,6 +48,7 @@ typedef int paging_flags_t;
 struct paging_state {
     struct slot_allocator* slot_alloc;
     // TODO: add struct members to keep track of the page tables etc
+    struct capref l1_pagetable;
 };
 
 
