@@ -190,7 +190,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
     
-    // Set l1_page table to default location in capability space, namely slot 0 of the page node
+    // Set l1_page table reference to default location in capability space
     // XXX: Should these be added to paging_init_state?
     st->l1_pagetable.cnode = cnode_page;
     st->l1_pagetable.slot = 0;
@@ -206,7 +206,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     // TODO(M2): Frames going over multiple l2_pagetables
     
     // Set page table entry of l1_pagetable to be appropriate l2_pagetable
-    debug_printf(err_getstring( vnode_map(current->l1_pagetable, l2_pagetable, ARM_L1_OFFSET(vaddr), flags, 0, 1, l2Mapping) ));
+    debug_printf(err_getstring( vnode_map(current.l1_pagetable, l2_pagetable, ARM_L1_OFFSET(vaddr), flags, 0, 1, l2Mapping) ));
     
     // TODO: Save the mapping capability in data structure!
 

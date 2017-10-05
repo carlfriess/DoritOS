@@ -179,6 +179,8 @@ size_t slab_freecount(struct slab_allocator *slabs)
 static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
     
+    debug_printf("Refilling slabs\n");
+    
     struct capref frame;
     size_t frame_size = bytes;
     
@@ -191,10 +193,12 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     
     // Map the new frame into the virtual memory
     //  TODO: pass the instance of the paging state
-    paging_map_fixed_attr(NULL, addr, frame, frame_size, VREGION_FLAGS_READ_WRITE);
+    paging_map_fixed_attr(get_current_paging_state(), addr, frame, frame_size, VREGION_FLAGS_READ_WRITE);
     
     // Grow the slab allocator using the new frame
     slab_grow(slabs, (void *) addr, frame_size);
+    
+    debug_printf("Done refilling slabs\n");
     
     return SYS_ERR_OK;
 }

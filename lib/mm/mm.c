@@ -61,7 +61,7 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     assert(mm != NULL);
     
-    debug_printf("Adding memory at 0x%llx of size %zuMB\n", base, size/1024/1024);
+    debug_printf("Adding %zu bytes of memory at 0x%llx\n", size, base);
 
     // Allocating new block for mmnode:
     struct mmnode *newNode = slab_alloc((struct slab_allocator *)&mm->slabs);
@@ -96,6 +96,12 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     // Disallow an alignment of 0
     assert(alignment != 0);
     
+    // Quick fix
+    //  TODO: Slit beginning if the alignemnt does not match
+    if (alignment <= 4096) {
+        alignment = 4096;
+    }
+    
     debug_printf("Allocating %zu bytes with alignment %zu\n", size, alignment);
     
     // Calculate the real size of the region to be allocated, such that it is alligned at the beginning and the end
@@ -121,6 +127,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         
     }
     
+    debug_printf("Finished walk: %p %p \n", node, node && node->next);
+    
     // Check if we actually found a node
     if (node != NULL) {
         
@@ -133,6 +141,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             // Allocate new mmnode that will follow the `node` mmnode
             //  TODO: Handle failure (refill)
             struct mmnode *newNode = slab_alloc((struct slab_allocator *)&mm->slabs);
+            
+            debug_printf("Finished slabing: %p\n", newNode);
             
             // Calculate new bases and sizes
             newNode->base = node->base + realSize;
@@ -153,6 +163,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             }
             node->next = newNode;
             
+            debug_printf("Finished relinking\n");
+            
         }
         
         // Allocate a new slot for the returned capability
@@ -172,6 +184,11 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         // Make sure we can continue
         debug_printf("Retype: %s\n", err_getstring(err));
         assert(err_is_ok(err));
+        
+        // Check that there are sufficient slabs left in the slab allocator
+        if (slab_freecount((struct slab_allocator *)&mm->slabs) == 2) {
+            slab_default_refill((struct slab_allocator *)&mm->slabs);
+        }
     
         // Summary
         debug_printf("Allocated %llu bytes at %llx with alignment %zu\n", node->size, node->base, alignment);
@@ -228,11 +245,10 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
     node->type = NodeType_Free;
 
     // Delete this capability
-    //  TODO: Reuse this capability's slot
     assert(err_is_ok( cap_delete(cap) ));
 
     // Free the slot for the removed node
-    slot_free(next_node->cap.cap);
+    slot_free(cap);
 
     // Absorb the previous node if it is free and has the same parent capability
     if (node->prev != NULL &&

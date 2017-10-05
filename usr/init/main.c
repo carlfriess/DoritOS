@@ -77,7 +77,7 @@ int test_alloc_n_free_n(int n, size_t b) {
     struct capref retcap_array[n];
     
     for (int i=0; i<n; ++i) {
-        printf("Allocating mmnode: %d\n", i);
+        printf("Allocating mmnode: %d\n", i+1);
         ram_alloc(&(retcap_array[i]), b);
     }
     for (int i=0; i<n; ++i) {
@@ -140,11 +140,11 @@ int main(int argc, char *argv[])
     
     printf("Test 3\n");
     assert(!test_alloc_free_free(2*4096));
-    
+    */
     printf("Test 4\n");
-    //assert(!test_alloc_n_free_n(64, 2048));
+    assert(!test_alloc_n_free_n(64, 2048));
     //assert(!test_alloc_n_free_n(65, 4096));
-    
+    /*
     printf("Test 5\n");
     assert(!test_coalescing1(2048, 4096, 2*4096));
     assert(!test_coalescing1(2*4096, 4096, 1));
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
     //printf("Test 6\n");
     // TODO: Check other coalescing cases*/
     
-    struct capref frame;
+    /*struct capref frame;
     size_t retSize;
     errval_t err1 = frame_alloc(&frame, 4096, &retSize);
     debug_printf("Allocated a %zu byte frame: %s\n", retSize, err_getstring(err1));
@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
     paging_map_fixed_attr(NULL, 0x0320A000, frame, 4096, VREGION_FLAGS_READ_WRITE);
     
     int *test = (int *) 0x0320A000;
-    debug_printf("%d", *test);
+    debug_printf("%d", *test);*/
 
     debug_printf("Message handler loop\n");
     // Hang around
