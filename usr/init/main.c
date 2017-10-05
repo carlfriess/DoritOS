@@ -145,8 +145,13 @@ int main(int argc, char *argv[])
     //assert(!test_alloc_n_free_n(64, 2048));
     //assert(!test_alloc_n_free_n(65, 4096));
 
-    assert(!test_alloc_n_free_n(200, 4096));
+    assert(!test_alloc_n_free_n(300, 4096*8));
     //assert(!test_alloc_n_free_n(500, 3*4096));
+    
+    /*struct capref a;
+    for (int i = 0; i < 300; i++) {
+        slot_alloc(&a);
+    }*/
     
     //printf("Test 5\n");
     //assert(!test_coalescing1(2048, 4096, 2*4096));
