@@ -35,7 +35,8 @@ errval_t initialize_ram_alloc(void)
     errval_t err;
 
     // Init slot allocator
-    static struct slot_prealloc init_slot_alloc;
+    // *** Disabled the slot preallocator ***
+    /*static struct slot_prealloc init_slot_alloc;
     struct capref cnode_cap = {
         .cnode = {
             .croot = CPTR_ROOTCN,
@@ -47,12 +48,14 @@ errval_t initialize_ram_alloc(void)
     err = slot_prealloc_init(&init_slot_alloc, cnode_cap, L2_CNODE_SLOTS, &aos_mm);
     if (err_is_fail(err)) {
         return err_push(err, MM_ERR_SLOT_ALLOC_INIT);
-    }
+    }*/
 
     // Initialize aos_mm
     err = mm_init(&aos_mm, ObjType_RAM, NULL,
                   slot_alloc_prealloc, slot_prealloc_refill,
-                  &init_slot_alloc);
+                  // *** Disabled the slot preallocator ***
+                  // &init_slot_alloc);
+                  NULL);
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "Can't initalize the memory manager.");
     }
@@ -77,12 +80,13 @@ errval_t initialize_ram_alloc(void)
                 DEBUG_ERR(err, "Warning: adding RAM region %d (%p/%zu) FAILED", i, bi->regions[i].mr_base, bi->regions[i].mr_bytes);
             }
 
-            err = slot_prealloc_refill(aos_mm.slot_alloc_inst);
+            // *** Disabled the slot preallocator ***
+            /*err = slot_prealloc_refill(aos_mm.slot_alloc_inst);
             if (err_is_fail(err) && err_no(err) != MM_ERR_SLOT_MM_ALLOC) {
                 DEBUG_ERR(err, "in slot_prealloc_refill() while initialising"
                         " memory allocator");
                 abort();
-            }
+            }*/
 
             mem_cap.slot++;
         }

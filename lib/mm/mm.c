@@ -96,32 +96,28 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     // Disallow an alignment of 0
     assert(alignment != 0);
     
-    // Quick fix
-    //  TODO: Split beginning if the alignemnt does not match
-    if (alignment <= 4096) {
-        alignment = 4096;
-    }
-    
     debug_printf("Allocating %zu bytes with alignment %zu\n", size, alignment);
     
-    // Calculate the real size of the region to be allocated, such that it is alligned at the beginning and the end
-    size_t realSize = size / alignment;
-    if (size % alignment) {
-        realSize++;
+    // Check the alignment is a multiple of the page size
+    if (alignment % BASE_PAGE_SIZE) {
+        size_t tempAlignment = alignment / BASE_PAGE_SIZE;
+        tempAlignment++;
+        tempAlignment *= BASE_PAGE_SIZE;
+        alignment = tempAlignment;
     }
-    realSize *= alignment;
     
     struct mmnode *node;
+    size_t padding;
     
     // Iterate the list of mmnodes until there are no nodes left
     for (node = mm->head; node != NULL; node = node->next) {
         
+        // Calculate the amount of padding needed at the beginning of the blobk to match the alignment criteria
+        padding = alignment - (node->base % alignment);
+        
         // Break if we found a free mmnode with sufficient size and correct alignment
-        //  TODO: Maybe support using nodes with smaller size than realSize as long as node->size >= size?
-        //  TODO: What if region is not alligned correctly? Padding?
         if (node->type == NodeType_Free &&
-            node->size >= realSize &&
-            !(node->base % alignment)) {
+            node->size - padding >= size) {
             break;
         }
         
@@ -133,16 +129,16 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         // Mark the node as allocated
         node->type = NodeType_Allocated;
         
-        // Check if the memory region needs to be split
-        if (node->size != realSize) {
+        // Check if the memory region needs to be split at the back
+        if (node->size != padding + size) {
             
             // Allocate new mmnode that will follow the `node` mmnode
             struct mmnode *newNode = slab_alloc((struct slab_allocator *)&mm->slabs);
             
             // Calculate new bases and sizes
-            newNode->base = node->base + realSize;
-            newNode->size = node->size - realSize;
-            node->size = realSize;
+            newNode->base = node->base + padding + size;
+            newNode->size = node->size - padding - size;
+            node->size = padding + size;
             
             // Set type of newNode
             newNode->type = NodeType_Free;
@@ -157,6 +153,37 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
                 node->next->prev = newNode;
             }
             node->next = newNode;
+            
+        }
+        
+        // Check if the memory region needs to be split at the front
+        if (padding != 0) {
+            
+            // Allocate new mmnode that will precede the `node` mmnode
+            struct mmnode *newNode = slab_alloc((struct slab_allocator *)&mm->slabs);
+            
+            // Calculate new bases and sizes
+            newNode->base = node->base;
+            newNode->size = padding;
+            node->base += padding;
+            node->size -= padding;
+            
+            // Set type of newNode
+            newNode->type = NodeType_Free;
+            
+            // Copy capability info
+            newNode->cap = node->cap;
+            
+            // Link stuff up
+            newNode->prev = node->prev;
+            newNode->next = node;
+            if (node->prev != NULL) {
+                node->prev->next = newNode;
+            }
+            node->prev = newNode;
+            if (mm->head == newNode) {
+                mm->head = newNode;
+            }
             
         }
         
@@ -177,7 +204,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         assert(err_is_ok(err));
         
         // Check that there are sufficient slabs left in the slab allocator
-        if (slab_freecount((struct slab_allocator *)&mm->slabs) == 2) {
+        if (slab_freecount((struct slab_allocator *)&mm->slabs) == 4) {
             slab_default_refill((struct slab_allocator *)&mm->slabs);
         }
     
