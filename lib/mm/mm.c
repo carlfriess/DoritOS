@@ -6,7 +6,7 @@
 #include <mm/mm.h>
 #include <aos/debug.h>
 
-void coalesceNext(struct mm *mm, struct mmnode *node);
+void coalesce_next(struct mm *mm, struct mmnode *node);
 
 
 /**
@@ -226,25 +226,27 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
     
     // Mark the region as free
     node->type = NodeType_Free;
-    
+
     // Delete this capability
     //  TODO: Reuse this capability's slot
     assert(err_is_ok( cap_delete(cap) ));
+
+    // Free the slot for the removed node
+    slot_free(next_node->cap.cap);
 
     // Absorb the previous node if it is free and has the same parent capability
     if (node->prev != NULL &&
         node->prev->type == NodeType_Free &&
         node->cap.base == node->prev->cap.base &&
         node->cap.size == node->prev->cap.size) {
-        
+
         debug_printf("Coalescing with previous node\n");
-        
+
         //Moving to previous node
         node = node->prev;
-        
+
         // Coalesce with next node
-        coalesceNext(mm, node);
-        
+        coalesce_next(mm, node);
     }
 
     // Absorb the next node if it is free and has the same parent capability
@@ -252,11 +254,11 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         node->next->type == NodeType_Free &&
         node->cap.base == node->next->cap.base &&
         node->cap.size == node->next->cap.size) {
-        
+
         debug_printf("Coalescing with next node\n");
-        
+
         // Coalesce with next node
-        coalesceNext(mm, node);
+        coalesce_next(mm, node);
     }
 
     // Summary
@@ -265,24 +267,22 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
     return SYS_ERR_OK;
 }
 
-void coalesceNext(struct mm *mm, struct mmnode *node) {
-    
+void coalesce_next(struct mm *mm, struct mmnode *node) {
     // Sanity checks
     assert(node->next != NULL);
     assert(node->base + node->size == node->next->base);
-    
+
     // Update size
     node->size += node->next->size;
-    
-    struct mmnode* nextNode = node->next;
-    
+
+    struct mmnode* next_node = node->next;
+
     // Remove the next node from the linked list
     node->next = node->next->next;
     if (node->next != NULL) {
         node->next->prev = node;
     }
-    
+
     // Free the memory for the removed node
-    slab_free(&mm->slabs, nextNode);
-    
+    slab_free(&mm->slabs, next_node);
 }

@@ -99,6 +99,9 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, s
     pr->current_addr = pr->base_addr;
     pr->region_size  = size;
     // TODO: maybe add paging regions to paging state?
+    
+    
+    
     return SYS_ERR_OK;
 }
 
@@ -139,6 +142,9 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
 {
     // XXX: should free up some space in paging region, however need to track
     //      holes for non-trivial case
+    
+    
+    
     return SYS_ERR_OK;
 }
 
@@ -184,27 +190,40 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
     
-    debug_printf("Hello! :D\n");
+    // Set l1_page table to default location in capability space, namely slot 0 of the page node
+    // XXX: Should these be added to paging_init_state?
+    st->l1_pagetable.cnode = cnode_page;
+    st->l1_pagetable.slot = 0;
     
-    struct capref l1_pagetable = {
-        .cnode = cnode_page,
-        .slot = 0
-    };
+    // TODO: Lookup if l2_pagetable already exists (maybe in the mapping data structure)
+    struct capref l2_pagetable;
+    debug_printf(err_getstring( arml2_alloc(st, &l2_pagetable) ));
     
-    struct capref ret1;
-    //assert(err_is_ok( slot_alloc(&ret1) ));
-    struct capref ret2;
-    assert(err_is_ok( slot_alloc(&ret2) ));
-    struct capref ret3;
-    assert(err_is_ok( slot_alloc(&ret3) ));
+    // Allocating l2Mapping to be stored in the data structure
+    struct capref l2Mapping;
+    assert( err_is_ok( slot_alloc(&l2Mapping) ));
     
-    debug_printf("danger\n");
+    // TODO(M2): Frames going over multiple l2_pagetables
     
-    debug_printf(err_getstring( arml2_alloc(&current, &ret1) ));
+    // Set page table entry of l1_pagetable to be appropriate l2_pagetable
+    debug_printf(err_getstring( vnode_map(current->l1_pagetable, l2_pagetable, ARM_L1_OFFSET(vaddr), flags, 0, 1, l2Mapping) ));
     
-    debug_printf(err_getstring( vnode_map(l1_pagetable, ret1, ARM_L1_OFFSET(vaddr), flags, 0, 1, ret2) ));
+    // TODO: Save the mapping capability in data structure!
+
     
-    debug_printf(err_getstring( vnode_map(ret1, frame, ARM_L2_OFFSET(vaddr), flags, 0, 1, ret3) ));
+    // Loop through l2_pagetable mapping the appropriate chunks of cap frame
+    for (uint64_t i = 0; i < (uint64_t)bytes; i += BASE_PAGE_SIZE) {
+        //struct capref l2_pagetable;
+        //debug_printf(err_getstring( arml2_alloc(st, &l2_pagetable) ));
+        //debug_printf(err_getstring( vnode_map(l1_pagetable, l2_pagetable, ARM_L1_OFFSET(vaddr), flags, 0, 1, l2Mapping) ));
+        
+        struct capref frameMapping;
+        assert( err_is_ok( slot_alloc(&frameMapping) ));
+        debug_printf(err_getstring( vnode_map(l2_pagetable, frame, ARM_L2_OFFSET(vaddr), flags, i, 1, frameMapping) ));
+        
+        // TODO: Save the mapping capabilities in data structure!
+        
+    }
     
     return SYS_ERR_OK;
 }
