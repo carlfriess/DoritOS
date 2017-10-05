@@ -32,6 +32,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     mm->slot_refill = slot_refill_func;
     mm->slot_alloc_inst = slot_alloc_inst;
     mm->head = NULL;
+    mm->is_refilling = 0;
     
     // Set the default refill function for the slab allocator
     if (slab_refill_func == NULL) {
@@ -203,11 +204,11 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
         // Check that there are sufficient slabs left in the slab allocator
         size_t freecount = slab_freecount((struct slab_allocator *)&mm->slabs);
-        if (6 <= freecount && freecount <= 7) {
+        if (freecount <= 4 && !mm->is_refilling) {
+            mm->is_refilling = 1;
             slab_default_refill((struct slab_allocator *)&mm->slabs);
+            mm->is_refilling = 0;
         }
-
-        debug_printf("NODE: %p\n", node);
 
         // Summary
         debug_printf("Allocated %llu bytes at %llx with alignment %zu\n", node->size, node->base, alignment);
