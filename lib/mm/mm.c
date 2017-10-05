@@ -33,6 +33,11 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     mm->slot_alloc_inst = slot_alloc_inst;
     mm->head = NULL;
     
+    // Set the default refill function for the slab allocator
+    if (slab_refill_func == NULL) {
+        slab_refill_func = slab_default_refill;
+    }
+    
     slab_init(&mm->slabs, sizeof(struct mmnode), slab_refill_func);
     
     return SYS_ERR_OK;
@@ -153,7 +158,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         // Allocate a new slot for the returned capability
         //  TODO: Create slot allocator wrapper
         //  TODO: Handle refill (error)
-        assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, retcap) ));
+        //assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, retcap) ));
+        assert(err_is_ok( slot_alloc(retcap) ));
         
         // Return capability for the allocated region
         errval_t err = cap_retype(*retcap,
