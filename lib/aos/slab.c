@@ -188,11 +188,10 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     assert(err_is_ok( frame_alloc(&frame, frame_size, &frame_size) ));
     
     // Find a free address to allocate the new frame
-    static lvaddr_t addr = 0x0320A000;
+    static lvaddr_t addr = VADDR_OFFSET;
     addr += frame_size;
     
     // Map the new frame into the virtual memory
-    //  TODO: pass the instance of the paging state
     paging_map_fixed_attr(get_current_paging_state(), addr, frame, frame_size, VREGION_FLAGS_READ_WRITE);
     
     // Grow the slab allocator using the new frame

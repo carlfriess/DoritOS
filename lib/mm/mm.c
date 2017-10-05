@@ -107,14 +107,14 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     }
     
     struct mmnode *node;
-    size_t padding;
+    size_t padding = 0;
     
     // Iterate the list of mmnodes until there are no nodes left
     for (node = mm->head; node != NULL; node = node->next) {
-        
-        // Calculate the amount of padding needed at the beginning of the blobk to match the alignment criteria
-        padding = alignment - (node->base % alignment);
-        
+
+        // Calculate the amount of padding needed at the beginning of the block to match the alignment criteria
+        padding = (node->base % alignment != 0) ? alignment - (node->base % alignment) : 0;
+
         // Break if we found a free mmnode with sufficient size and correct alignment
         if (node->type == NodeType_Free &&
             node->size - padding >= size) {
@@ -122,13 +122,13 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         }
         
     }
-    
+
     // Check if we actually found a node
     if (node != NULL) {
         
         // Mark the node as allocated
         node->type = NodeType_Allocated;
-        
+
         // Check if the memory region needs to be split at the back
         if (node->size != padding + size) {
             
@@ -153,7 +153,6 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
                 node->next->prev = newNode;
             }
             node->next = newNode;
-            
         }
         
         // Check if the memory region needs to be split at the front
@@ -184,13 +183,12 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             if (mm->head == newNode) {
                 mm->head = newNode;
             }
-            
         }
         
         // Allocate a new slot for the returned capability
         //  TODO: Test refill of slots
         assert(err_is_ok( slot_alloc(retcap) ));
-        
+
         // Return capability for the allocated region
         errval_t err = cap_retype(*retcap,
                                   node->cap.cap,
@@ -198,16 +196,19 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
                                   mm->objtype,
                                   node->size,
                                   1);
-        
+
         // Make sure we can continue
         debug_printf("Retype: %s\n", err_getstring(err));
         assert(err_is_ok(err));
-        
+
         // Check that there are sufficient slabs left in the slab allocator
-        if (slab_freecount((struct slab_allocator *)&mm->slabs) == 4) {
+        size_t freecount = slab_freecount((struct slab_allocator *)&mm->slabs);
+        if (6 <= freecount && freecount <= 7) {
             slab_default_refill((struct slab_allocator *)&mm->slabs);
         }
-    
+
+        debug_printf("NODE: %p\n", node);
+
         // Summary
         debug_printf("Allocated %llu bytes at %llx with alignment %zu\n", node->size, node->base, alignment);
         
