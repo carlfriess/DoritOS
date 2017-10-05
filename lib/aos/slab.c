@@ -184,6 +184,8 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     struct capref frame;
     size_t frame_size = bytes;
     
+    // XXX: I think we have to check that we don't run out of slots here!
+    
     // Allocate a new frame capability
     assert(err_is_ok( frame_alloc(&frame, frame_size, &frame_size) ));
     

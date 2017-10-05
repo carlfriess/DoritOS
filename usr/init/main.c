@@ -141,11 +141,11 @@ int main(int argc, char *argv[])
     printf("Test 3\n");
     assert(!test_alloc_free_free(2*4096));
     */
-    printf("Test 4\n");
-    assert(!test_alloc_n_free_n(64, 2048));
+    //printf("Test 4\n");
+    //assert(!test_alloc_n_free_n(64, 2048));
     //assert(!test_alloc_n_free_n(65, 4096));
 
-    //assert(!test_alloc_n_free_n(500, 4096));
+    assert(!test_alloc_n_free_n(200, 4096));
     //assert(!test_alloc_n_free_n(500, 3*4096));
     
     //printf("Test 5\n");
@@ -164,6 +164,10 @@ int main(int argc, char *argv[])
     
     int *test = (int *) 0x0320A000;
     debug_printf("%d", *test);*/
+    
+    //for(int i=0; i<300; ++i) {
+    //    test_alloc_free_alloc_free(64, 64);
+    //}
     
     debug_printf("Message handler loop\n");
     // Hang around
