@@ -178,8 +178,25 @@ size_t slab_freecount(struct slab_allocator *slabs)
  */
 static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
-    USER_PANIC("TODO: Not yet implemented.")
-    return LIB_ERR_NOT_IMPLEMENTED;
+    
+    struct capref frame;
+    size_t frame_size = bytes;
+    
+    // Allocate a new frame capability
+    assert(err_is_ok( frame_alloc(&frame, frame_size, &frame_size) ));
+    
+    // Find a free address to allocate the new frame
+    static lvaddr_t addr = 0x0320A000;
+    addr += frame_size;
+    
+    // Map the new frame into the virtual memory
+    //  TODO: pass the instance of the paging state
+    paging_map_fixed_attr(NULL, addr, frame, frame_size, VREGION_FLAGS_READ_WRITE);
+    
+    // Grow the slab allocator using the new frame
+    slab_grow(slabs, (void *) addr, frame_size);
+    
+    return SYS_ERR_OK;
 }
 
 /**
