@@ -97,7 +97,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     assert(alignment != 0);
     
     // Quick fix
-    //  TODO: Slit beginning if the alignemnt does not match
+    //  TODO: Split beginning if the alignemnt does not match
     if (alignment <= 4096) {
         alignment = 4096;
     }
@@ -127,8 +127,6 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         
     }
     
-    debug_printf("Finished walk: %p %p \n", node, node && node->next);
-    
     // Check if we actually found a node
     if (node != NULL) {
         
@@ -139,10 +137,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         if (node->size != realSize) {
             
             // Allocate new mmnode that will follow the `node` mmnode
-            //  TODO: Handle failure (refill)
             struct mmnode *newNode = slab_alloc((struct slab_allocator *)&mm->slabs);
-            
-            debug_printf("Finished slabing: %p\n", newNode);
             
             // Calculate new bases and sizes
             newNode->base = node->base + realSize;
@@ -163,14 +158,10 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             }
             node->next = newNode;
             
-            debug_printf("Finished relinking\n");
-            
         }
         
         // Allocate a new slot for the returned capability
-        //  TODO: Create slot allocator wrapper
-        //  TODO: Handle refill (error)
-        //assert(err_is_ok( mm->slot_alloc(mm->slot_alloc_inst, 1, retcap) ));
+        //  TODO: Test refill of slots
         assert(err_is_ok( slot_alloc(retcap) ));
         
         // Return capability for the allocated region
@@ -209,8 +200,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
  */
 errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 {
-    // TODO: Implement
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return mm_alloc_aligned(mm, size, BASE_PAGE_SIZE, retcap);
 }
 
 /**
