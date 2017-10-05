@@ -69,6 +69,7 @@ errval_t paging_init(void)
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
     set_current_paging_state(&current);
+    current.slot_alloc = get_default_slot_allocator();
     return SYS_ERR_OK;
 }
 
@@ -182,6 +183,28 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
+    
+    debug_printf("Hello! :D\n");
+    
+    struct capref l1_pagetable = {
+        .cnode = cnode_page,
+        .slot = 0
+    };
+    
+    struct capref ret1;
+    assert(err_is_ok( slot_alloc(&ret1) ));
+    struct capref ret2;
+    assert(err_is_ok( slot_alloc(&ret2) ));
+    struct capref ret3;
+    assert(err_is_ok( slot_alloc(&ret3) ));
+    
+    debug_printf("danger\n");
+    
+    debug_printf(err_getstring( arml2_alloc(&current, &ret1) ));
+    
+    debug_printf(err_getstring( vnode_map(l1_pagetable, ret1, 150, flags, 0, 1, ret2) ));
+    
+    debug_printf(err_getstring( vnode_map(ret1, frame, 200, flags, 0, 1, ret3) ));
     
     return SYS_ERR_OK;
 }

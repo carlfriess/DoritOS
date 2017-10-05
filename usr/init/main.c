@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
     }
     
     /* TESTS */
-    printf("Test 1\n");
+    /*printf("Test 1\n");
     assert(!test_alloc_free_alloc_free(64, 64));
     
     printf("Test 2\n");
@@ -150,8 +150,17 @@ int main(int argc, char *argv[])
     assert(!test_coalescing1(2*4096, 4096, 1));
 
     //printf("Test 6\n");
-    // TODO: Check other coalescing cases
+    // TODO: Check other coalescing cases*/
     
+    struct capref frame;
+    size_t retSize;
+    errval_t err1 = frame_alloc(&frame, 4096, &retSize);
+    debug_printf("Allocated a %zu byte frame: %s\n", retSize, err_getstring(err1));
+    
+    paging_map_fixed_attr(NULL, 0, frame, 4096, VREGION_FLAGS_READ_WRITE);
+    
+    int *test = (int *) 0x258C8000;
+    debug_printf("%d", *test);
 
     debug_printf("Message handler loop\n");
     // Hang around
