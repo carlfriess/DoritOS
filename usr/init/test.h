@@ -31,11 +31,15 @@ errval_t test_coalescing1(size_t, size_t, size_t);
 
 errval_t test_slot_alloc_n(int);
 
-errval_t test_allocate_frame(size_t);
+errval_t test_frame_alloc(size_t);
+
+errval_t test_frame_alloc_n(int, size_t);
+
+errval_t test_ram_leak(int, size_t);
 
 void run_all_tests(void);
 
 #define PRINT_TEST_NAME         printf("Test %s: ", __FUNCTION__)
-#define TEST_END_SUCCESS        do { printf("SUCCESS\n"); return SYS_ERR_OK; } while(0)
+#define RETURN_TEST_SUCCESS        do { printf("SUCCESS\n"); return SYS_ERR_OK; } while(0)
 
 #endif /* test_h */

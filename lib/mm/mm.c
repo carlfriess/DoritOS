@@ -133,6 +133,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             return errSlot;
         }
         
+        printf("offset: %llu\n", (node->base + padding) - node->cap.base);
+        
         // Return capability for the allocated region
         errval_t errRetype = cap_retype(*retcap,
                                   node->cap.cap,
@@ -212,8 +214,10 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             mm->is_refilling = 1;
             slab_default_refill((struct slab_allocator *)&mm->slabs);
             mm->is_refilling = 0;
-        }
+            debug_printf("HELP!!!!");
 
+        }
+        
         // Summary
         debug_printf("Allocated %llu bytes at %llx with alignment %zu\n", node->size, node->base, alignment);
         
@@ -331,6 +335,9 @@ void coalesce_next(struct mm *mm, struct mmnode *node) {
 
 errval_t mm_available(struct mm *mm, gensize_t *available, gensize_t *total) {
 
+    *available = 0;
+    *total = 0;
+    
     for (struct mmnode *node = mm->head; node != NULL; node = node->next) {
         if (node->type == NodeType_Free) {
             *available += node->size;

@@ -199,6 +199,8 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     //  TODO: Implement recovery from mapping failure
     assert(err_is_ok( paging_map_fixed_attr(get_current_paging_state(), addr, frame, frame_size, VREGION_FLAGS_READ_WRITE) ));
     
+    debug_printf("####################################***************************************\n");
+    
     // Grow the slab allocator using the new frame
     slab_grow(slabs, (void *) addr, frame_size);
     
