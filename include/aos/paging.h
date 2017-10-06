@@ -49,8 +49,19 @@ struct paging_state {
     struct slot_allocator* slot_alloc;
     // TODO: add struct members to keep track of the page tables etc
     struct capref l1_pagetable;
+    struct slab_allocator slabs;
+    struct pt_cap_tree_node *l2_tree_root;
+    struct pt_cap_tree_node *mapping_tree_root;
 };
 
+// struct for tree of allocated l2_pagetable capabilities
+struct pt_cap_tree_node {
+    struct pt_cap_tree_node *left;
+    struct pt_cap_tree_node *right;
+    uintptr_t offset;
+    struct capref cap;
+    struct capref mapping_cap;
+};
 
 struct thread;
 /// Initialize paging_state struct
