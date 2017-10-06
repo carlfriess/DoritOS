@@ -37,6 +37,8 @@ errval_t test_frame_alloc_n(int, size_t);
 
 errval_t test_ram_leak(int, size_t);
 
+errval_t test_random_seq(void);
+
 void run_all_tests(void);
 
 #define PRINT_TEST_NAME         printf("Test %s: ", __FUNCTION__)
