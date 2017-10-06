@@ -32,6 +32,7 @@ errval_t mm_init(struct mm *mm, enum objtype objtype,
     mm->slot_refill = slot_refill_func;
     mm->slot_alloc_inst = slot_alloc_inst;
     mm->head = NULL;
+    mm->is_refilling = 0;
     
     // Set the default refill function for the slab allocator
     if (slab_refill_func == NULL) {
@@ -98,7 +99,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     
     debug_printf("Allocating %zu bytes with alignment %zu\n", size, alignment);
     
-    // Check the alignment is a multiple of the page size
+    // Check the alignment is a multiple of the base page size
     if (alignment % BASE_PAGE_SIZE) {
         size_t tempAlignment = alignment / BASE_PAGE_SIZE;
         tempAlignment++;
@@ -109,7 +110,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     struct mmnode *node;
     size_t padding = 0;
     
-    // Iterate the list of mmnodes until there are no nodes left
+    // Iterate the list of mmnodes
     for (node = mm->head; node != NULL; node = node->next) {
 
         // Calculate the amount of padding needed at the beginning of the block to match the alignment criteria
@@ -125,6 +126,26 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
     // Check if we actually found a node
     if (node != NULL) {
+        
+        // Allocate a new slot for the returned capability
+        errval_t errSlot = slot_alloc(retcap);
+        if (!err_is_ok(errSlot)) {
+            return errSlot;
+        }
+        
+        // Return capability for the allocated region
+        errval_t errRetype = cap_retype(*retcap,
+                                  node->cap.cap,
+                                  (node->base + padding) - node->cap.base,
+                                  mm->objtype,
+                                  size,
+                                  1);
+        
+        // Make sure we can continue
+        if (!err_is_ok(errRetype)) {
+            debug_printf("Retype failed: %s\n", err_getstring(errRetype));
+            return errRetype;
+        }
         
         // Mark the node as allocated
         node->type = NodeType_Allocated;
@@ -184,30 +205,14 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
                 mm->head = newNode;
             }
         }
-        
-        // Allocate a new slot for the returned capability
-        //  TODO: Test refill of slots
-        assert(err_is_ok( slot_alloc(retcap) ));
-
-        // Return capability for the allocated region
-        errval_t err = cap_retype(*retcap,
-                                  node->cap.cap,
-                                  node->base - node->cap.base,
-                                  mm->objtype,
-                                  node->size,
-                                  1);
-
-        // Make sure we can continue
-        debug_printf("Retype: %s\n", err_getstring(err));
-        assert(err_is_ok(err));
 
         // Check that there are sufficient slabs left in the slab allocator
         size_t freecount = slab_freecount((struct slab_allocator *)&mm->slabs);
-        if (6 <= freecount && freecount <= 7) {
+        if (freecount <= 4 && !mm->is_refilling) {
+            mm->is_refilling = 1;
             slab_default_refill((struct slab_allocator *)&mm->slabs);
+            mm->is_refilling = 0;
         }
-
-        debug_printf("NODE: %p\n", node);
 
         // Summary
         debug_printf("Allocated %llu bytes at %llx with alignment %zu\n", node->size, node->base, alignment);
@@ -215,7 +220,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         return SYS_ERR_OK;
     }
     
-    return -1;
+    return MM_ERR_NOT_FOUND;
     
 }
 
@@ -259,11 +264,14 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         return MM_ERR_NOT_FOUND;
     }
     
+    // Delete this capability
+    errval_t errDelete = cap_delete(cap);
+    if (!err_is_ok(errDelete)) {
+        return errDelete;
+    }
+    
     // Mark the region as free
     node->type = NodeType_Free;
-
-    // Delete this capability
-    assert(err_is_ok( cap_delete(cap) ));
 
     // Free the slot for the removed node
     slot_free(cap);
@@ -320,3 +328,17 @@ void coalesce_next(struct mm *mm, struct mmnode *node) {
     // Free the memory for the removed node
     slab_free(&mm->slabs, next_node);
 }
+
+errval_t mm_available(struct mm *mm, gensize_t *available, gensize_t *total) {
+
+    for (struct mmnode *node = mm->head; node != NULL; node = node->next) {
+        if (node->type == NodeType_Free) {
+            *available += node->size;
+        }
+        *total += node->size;
+    }
+    
+    return SYS_ERR_OK;
+    
+}
+

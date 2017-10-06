@@ -69,7 +69,14 @@ errval_t paging_init(void)
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
     set_current_paging_state(&current);
+    
+    // Storing the reference to the default slot allocator
     current.slot_alloc = get_default_slot_allocator();
+    
+    // Set the capability reference for the l1 page table to the default location in capability space
+    current.l1_pagetable.cnode = cnode_page;
+    current.l1_pagetable.slot = 0;
+    
     return SYS_ERR_OK;
 }
 
@@ -99,9 +106,6 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, s
     pr->current_addr = pr->base_addr;
     pr->region_size  = size;
     // TODO: maybe add paging regions to paging state?
-    
-    
-    
     return SYS_ERR_OK;
 }
 
@@ -142,9 +146,6 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
 {
     // XXX: should free up some space in paging region, however need to track
     //      holes for non-trivial case
-    
-    
-    
     return SYS_ERR_OK;
 }
 
@@ -178,6 +179,16 @@ errval_t
 slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size_t minbytes)
 {
     // Refill the two-level slot allocator without causing a page-fault
+    
+    // Free the capability slot that was given to us, as we don't use it.
+    slot_free(frame);
+    
+    // FIXME: Currently a full page is allocated. More is not supported.
+    assert(minbytes <= BASE_PAGE_SIZE);
+    
+    // Perform the refill. FIXME: This should not cause a page fault. Hopefully.
+    slab_default_refill(slabs);
+    
     return SYS_ERR_OK;
 }
 
@@ -190,13 +201,15 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
     
-    // Set l1_page table reference to default location in capability space
-    // XXX: Should these be added to paging_init_state?
-    st->l1_pagetable.cnode = cnode_page;
-    st->l1_pagetable.slot = 0;
+    debug_printf("Mapping page at 0x%p\n", vaddr);
+    
+    static struct capref l2_pagetable;
+
+    
+    if (vaddr == VADDR_OFFSET + 4096) {
     
     // TODO: Lookup if l2_pagetable already exists (maybe in the mapping data structure)
-    struct capref l2_pagetable;
+    //struct capref l2_pagetable;
     debug_printf("%s\n", err_getstring( arml2_alloc(st, &l2_pagetable) ));
     
     // Allocating l2Mapping to be stored in the data structure
@@ -207,6 +220,8 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     
     // Set page table entry of l1_pagetable to be appropriate l2_pagetable
     debug_printf("%s\n", err_getstring( vnode_map(current.l1_pagetable, l2_pagetable, ARM_L1_OFFSET(vaddr), flags, 0, 1, l2Mapping) ));
+        
+    }
     
     // TODO: Save the mapping capability in data structure!
 
