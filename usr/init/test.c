@@ -171,7 +171,7 @@ errval_t test_ram_leak(int n, size_t b) {
 void run_all_tests(void) {
     
     /* TESTS */
-    /*
+    
     printf("Test Phase 1\n");
     test_alloc_free_alloc_free(64, 64);
     
@@ -185,9 +185,8 @@ void run_all_tests(void) {
     printf("Test Phase 4\n");
     test_alloc_n_free_n(64, 2048);
     test_alloc_n_free_n(200, 4096);
-    */
-     test_alloc_n_free_n(500, 3*4096);         //< Not working
-    /*
+    test_alloc_n_free_n(500, 3*4096);
+    
     printf("Test Phase 5\n");
     test_coalescing1(2048, 4096, 2*4096);
     test_coalescing1(2*4096, 4096, 1);
@@ -196,8 +195,8 @@ void run_all_tests(void) {
     // TODO: Check other coalescing cases
     
     printf("Test Phase 6\n");
-    //test_ram_leak(1000, 4096);
-    */
+    test_ram_leak(1000, 2096);
+    
     
     printf("Test Phase 7\n");
     //test_frame_alloc(4096);
