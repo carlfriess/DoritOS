@@ -287,6 +287,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         }
         
         // Map the frame into the appropriate slot in the L2 pagetable
+        //  TODO: Use one call to vnode_map
         errval_t err_frame_map = vnode_map(node->cap, frame, l2_offset, flags, i, 1, map_node->mapping_cap);
         if (!err_is_ok(err_frame_map)) {
             slot_free(map_node->mapping_cap);

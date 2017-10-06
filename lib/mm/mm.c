@@ -98,6 +98,8 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     assert(alignment != 0);
     assert(size != 0);
     
+    // TODO: Always allocate multiple of page size
+    
     debug_printf("Allocating %zu bytes with alignment %zu\n", size, alignment);
     
     // Check the alignment is a multiple of the base page size
