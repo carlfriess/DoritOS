@@ -27,7 +27,7 @@ errval_t test_alloc_free_free(size_t);
 
 errval_t test_alloc_n_free_n(int, size_t);
 
-errval_t test_coalescing1(size_t, size_t, size_t);
+errval_t test_coalescing(size_t, size_t, size_t);
 
 errval_t test_ram_leak(int, size_t);
 

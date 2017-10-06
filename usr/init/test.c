@@ -59,7 +59,7 @@ errval_t test_alloc_n_free_n(int n, size_t b) {
     RETURN_TEST_SUCCESS;
 }
 
-errval_t test_coalescing1(size_t b1, size_t b2, size_t b3) {
+errval_t test_coalescing(size_t b1, size_t b2, size_t b3) {
     PRINT_TEST_NAME;
 
     struct capref retcap_1;
@@ -261,9 +261,8 @@ void run_all_tests(void) {
     test_alloc_n_free_n(500, 3*4096);
     
     printf("Test Phase 4: coalescing tests\n");
-    test_coalescing1(2048, 4096, 2*4096);
-    test_coalescing1(2*4096, 4096, 1);
-    // TODO: Check other coalescing cases
+    test_coalescing(2048, 4096, 2*4096);
+    test_coalescing(2*4096, 4096, 1);
     
     printf("Test Phase 5: ram leak tests\n");
     test_ram_leak(1000, 2096);
@@ -271,13 +270,12 @@ void run_all_tests(void) {
     printf("Test Phase 6: increment ram leak tests\n");
     test_inc_n_by_k(1000, 7);
 
-    
-    printf("Test Phase 7: frame allocation tests\n");
-    //test_frame_alloc(4096);
-    //test_frame_alloc(8*4096);
-    //test_frame_alloc_n(100, 4096);
-    
-    printf("Test Phase 8\n");
+    printf("Test Phase 7: random ram leak tests\n");
     test_random_seq();
+    
+    printf("Test Phase 8: frame allocation tests\n");
+    test_frame_alloc(4096);
+    test_frame_alloc(8*4096);
+    test_frame_alloc_n(100, 8192);
     
 }
