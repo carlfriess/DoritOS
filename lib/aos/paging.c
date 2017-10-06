@@ -217,7 +217,6 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     // Search for L2 pagetable capability in the tree
     struct pt_cap_tree_node *node = st->l2_tree_root;
     struct pt_cap_tree_node *prev = node;
-    debug_printf("+");
 
     while (node != NULL) {
         if (l1_offset == node->offset) {
@@ -251,7 +250,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             return err_l2_alloc;
         }
     
-        // Map L2 pagetable to appropriate slote in L1 pagetable
+        // Map L2 pagetable to appropriate slot in L1 pagetable
         //  TODO: (M2) Frames going over multiple l2_pagetables
         errval_t err_l2_map = vnode_map(current.l1_pagetable, node->cap, l1_offset, flags, 0, 1, node->mapping_cap);
         if (!err_is_ok(err_l2_map)) {
