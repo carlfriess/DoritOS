@@ -127,28 +127,6 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     // Check if we actually found a node
     if (node != NULL) {
         
-        // Allocate a new slot for the returned capability
-        errval_t errSlot = slot_alloc(retcap);
-        if (!err_is_ok(errSlot)) {
-            return errSlot;
-        }
-        
-        printf("offset: %llu\n", (node->base + padding) - node->cap.base);
-        
-        // Return capability for the allocated region
-        errval_t errRetype = cap_retype(*retcap,
-                                  node->cap.cap,
-                                  (node->base + padding) - node->cap.base,
-                                  mm->objtype,
-                                  size,
-                                  1);
-        
-        // Make sure we can continue
-        if (!err_is_ok(errRetype)) {
-            debug_printf("Retype failed: %s\n", err_getstring(errRetype));
-            return errRetype;
-        }
-        
         // Mark the node as allocated
         node->type = NodeType_Allocated;
 
@@ -207,6 +185,26 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
                 mm->head = newNode;
             }
         }
+        
+        // Allocate a new slot for the returned capability
+        errval_t errSlot = slot_alloc(retcap);
+        if (!err_is_ok(errSlot)) {
+            return errSlot;
+        }
+        
+        // Return capability for the allocated region
+        errval_t errRetype = cap_retype(*retcap,
+                                        node->cap.cap,
+                                        node->base - node->cap.base,
+                                        mm->objtype,
+                                        node->size,
+                                        1);
+        
+        // Make sure we can continue
+        if (!err_is_ok(errRetype)) {
+            debug_printf("Retype failed: %s\n", err_getstring(errRetype));
+            return errRetype;
+        }
 
         // Check that there are sufficient slabs left in the slab allocator
         size_t freecount = slab_freecount((struct slab_allocator *)&mm->slabs);
@@ -214,8 +212,6 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
             mm->is_refilling = 1;
             slab_default_refill((struct slab_allocator *)&mm->slabs);
             mm->is_refilling = 0;
-            debug_printf("HELP!!!!");
-
         }
         
         // Summary
