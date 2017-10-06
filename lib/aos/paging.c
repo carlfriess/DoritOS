@@ -77,6 +77,11 @@ errval_t paging_init(void)
     current.l1_pagetable.cnode = cnode_page;
     current.l1_pagetable.slot = 0;
     
+    // Initialize the slab allocator for tree nodes
+    slab_init(&current.slabs, sizeof(struct pt_cap_tree_node), slab_default_refill);
+    static char nodebuf[sizeof(struct pt_cap_tree_node)*64];
+    slab_grow(&current.slabs, nodebuf, sizeof(nodebuf));
+    
     return SYS_ERR_OK;
 }
 
@@ -200,43 +205,124 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
+    uintptr_t addr = vaddr;
     
-    debug_printf("Mapping page at 0x%p\n", vaddr);
+    debug_printf("Mapping page at 0x%x\n", addr);
     
-    static struct capref l2_pagetable;
+    // Calculate the offsets for the given virtual address
+    uintptr_t l1_offset = ARM_L1_OFFSET(addr);
+    uintptr_t l2_offset = ARM_L2_OFFSET(addr);
+    uintptr_t mapping_offset = addr % BASE_PAGE_SIZE;
+    
+    // Search for L2 pagetable capability in the tree
+    struct pt_cap_tree_node *node = st->l2_tree_root;
+    struct pt_cap_tree_node *prev = node;
+    debug_printf("+");
 
+    while (node != NULL) {
+        if (l1_offset == node->offset) {
+            break;
+        }
+        prev = node;
+        if (l1_offset < node->offset) {
+            node = node->left;
+        }
+        else if (l1_offset > node->offset) {
+            node = node->right;
+        }
+    }
     
-    if (vaddr == VADDR_OFFSET + 4096) {
+    // Create a L2 pagetable capability node if it wasn't found
+    if (node == NULL) {
+        
+        // Allocate the new tree node
+        node = slab_alloc(&current.slabs);
+        
+        // Allocate a new slot for the mapping capability
+        errval_t err_slot_alloc = slot_alloc(&node->mapping_cap);
+        if (!err_is_ok(err_slot_alloc)) {
+            return err_slot_alloc;
+        }
+        
+        // Allocate a new L2 pagetable and get the capability
+        errval_t err_l2_alloc = arml2_alloc(st, &node->cap);
+        if (!err_is_ok(err_l2_alloc)) {
+            slot_free(node->mapping_cap);
+            return err_l2_alloc;
+        }
     
-    // TODO: Lookup if l2_pagetable already exists (maybe in the mapping data structure)
-    //struct capref l2_pagetable;
-    debug_printf("%s\n", err_getstring( arml2_alloc(st, &l2_pagetable) ));
-    
-    // Allocating l2Mapping to be stored in the data structure
-    struct capref l2Mapping;
-    assert( err_is_ok( slot_alloc(&l2Mapping) ));
-    
-    // TODO(M2): Frames going over multiple l2_pagetables
-    
-    // Set page table entry of l1_pagetable to be appropriate l2_pagetable
-    debug_printf("%s\n", err_getstring( vnode_map(current.l1_pagetable, l2_pagetable, ARM_L1_OFFSET(vaddr), flags, 0, 1, l2Mapping) ));
+        // Map L2 pagetable to appropriate slote in L1 pagetable
+        //  TODO: (M2) Frames going over multiple l2_pagetables
+        errval_t err_l2_map = vnode_map(current.l1_pagetable, node->cap, l1_offset, flags, 0, 1, node->mapping_cap);
+        if (!err_is_ok(err_l2_map)) {
+            slot_free(node->mapping_cap);
+            return err_l2_map;
+        }
+        
+        // Set the offset for the new node
+        node->offset = l1_offset;
+        
+        // Store new node in the tree
+        if (st->l2_tree_root == NULL) {
+            st->l2_tree_root = node;
+        }
+        else if (prev->offset > l1_offset) {
+            prev->left = node;
+        }
+        else {
+            prev->right = node;
+        }
         
     }
     
-    // TODO: Save the mapping capability in data structure!
-
-    
-    // Loop through l2_pagetable mapping the appropriate chunks of cap frame
-    for (uint64_t i = 0; i < (uint64_t)bytes; i += BASE_PAGE_SIZE) {
-        //struct capref l2_pagetable;
-        //debug_printf(err_getstring( arml2_alloc(st, &l2_pagetable) ));
-        //debug_printf(err_getstring( vnode_map(l1_pagetable, l2_pagetable, ARM_L1_OFFSET(vaddr), flags, 0, 1, l2Mapping) ));
+    // Map the memory region into the l2_pagetable in chunks
+    for (size_t i = 0; i < bytes; i += BASE_PAGE_SIZE) {
         
-        struct capref frameMapping;
-        assert( err_is_ok( slot_alloc(&frameMapping) ));
-        debug_printf("%s\n", err_getstring( vnode_map(l2_pagetable, frame, ARM_L2_OFFSET(vaddr), flags, i, 1, frameMapping) ));
+        // Allocate a new node for the new mapping
+        struct pt_cap_tree_node *map_node = slab_alloc(&current.slabs);;
         
-        // TODO: Save the mapping capabilities in data structure!
+        // Allocate a new slot for the mapping capability
+        errval_t err_slot_alloc = slot_alloc(&map_node->mapping_cap);
+        if (!err_is_ok(err_slot_alloc)) {
+            return err_slot_alloc;
+        }
+        
+        // Map the frame into the appropriate slot in the L2 pagetable
+        errval_t err_frame_map = vnode_map(node->cap, frame, l2_offset, flags, i, 1, map_node->mapping_cap);
+        if (!err_is_ok(err_frame_map)) {
+            slot_free(map_node->mapping_cap);
+            return err_frame_map;
+        }
+        
+        // Store the frame capability and L2 page table offset
+        map_node->cap = frame;
+        map_node->offset = mapping_offset;
+        
+        // Store the new node in the mapping capability tree
+        if (st->mapping_tree_root == NULL) {
+            st->mapping_tree_root = map_node;
+        } else {
+            struct pt_cap_tree_node *prev_map = st->mapping_tree_root;
+            while (prev_map != NULL) {
+                if (mapping_offset < prev_map->offset) {
+                    if (prev_map->left != NULL) {
+                        prev_map = prev_map->left;
+                    } else {
+                        prev_map->left = map_node;
+                        break;
+                    }
+                }
+                else if (l1_offset > prev_map->offset) {
+                    if (prev_map->right != NULL) {
+                        prev_map = prev_map->right;
+                    } else {
+                        prev_map->right = map_node;
+                        break;
+                    }
+                }
+            }
+        }
+        
         
     }
     
