@@ -42,6 +42,6 @@ errval_t test_random_seq(void);
 void run_all_tests(void);
 
 #define PRINT_TEST_NAME         printf("Test %s: ", __FUNCTION__)
-#define RETURN_TEST_SUCCESS        do { printf("SUCCESS\n"); return SYS_ERR_OK; } while(0)
+#define RETURN_TEST_SUCCESS        do { printf("\033[37m\033[42mSUCCESS\033[49m\033[39m\n"); return SYS_ERR_OK; } while(0)
 
 #endif /* test_h */
