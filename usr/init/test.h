@@ -29,13 +29,15 @@ errval_t test_alloc_n_free_n(int, size_t);
 
 errval_t test_coalescing1(size_t, size_t, size_t);
 
+errval_t test_ram_leak(int, size_t);
+
+errval_t test_inc_n_by_k(int, int);
+
 errval_t test_slot_alloc_n(int);
 
 errval_t test_frame_alloc(size_t);
 
 errval_t test_frame_alloc_n(int, size_t);
-
-errval_t test_ram_leak(int, size_t);
 
 void run_all_tests(void);
 
