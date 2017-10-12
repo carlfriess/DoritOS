@@ -54,7 +54,7 @@ k1om_tools    = fromMaybe Tools.k1om_netos_mpss_3_7_1
 
 -- ARM toolchain
 arm_gnu_tool = findTool (toolPath arm_tools) (toolPrefix arm_tools)
-arm_cc       = arm_gnu_tool "gcc-5"
+arm_cc       = arm_gnu_tool "gcc"
 arm_objcopy  = arm_gnu_tool "objcopy"
 arm_objdump  = arm_gnu_tool "objdump"
 arm_ar       = arm_gnu_tool "ar"
