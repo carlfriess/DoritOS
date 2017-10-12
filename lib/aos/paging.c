@@ -170,7 +170,7 @@ errval_t
 slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size_t minbytes)
 {
     // Refill the two-level slot allocator without causing a page-fault
-    return SYS_ERR_OK;
+    return LIB_ERR_NOT_IMPLEMENTED;
 }
 
 /**
