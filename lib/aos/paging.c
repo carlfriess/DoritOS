@@ -159,8 +159,64 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
  */
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
 {
-    // TODO: M2 Implement this function
-    *buf = NULL;
+    
+    // TODO: Initialize the state for this
+    
+    debug_printf("Allocating %zu bytes of virtual address space...\n", bytes);
+    
+    // Round up to next page boundary
+    if (bytes % BASE_PAGE_SIZE) {
+        size_t pages = bytes / BASE_PAGE_SIZE;
+        pages++;
+        bytes = pages * BASE_PAGE_SIZE;
+    }
+    
+    // Iterate free list and check for suitable address range
+    struct free_vspace_node *prev = NULL;
+    struct free_vspace_node *node = st->free_vspace_head;
+    while (node != NULL) {
+        if (node->size >= bytes) {
+            break;
+        }
+        prev = node;
+        node = node->next;
+    }
+    
+    // Check if we found a free address range
+    if (node) {
+        
+        *buf = node->base
+        
+        // Check if free range needs to be split
+        if (node->bytes > bytes) {
+            
+            // Reconfigure the node
+            node->base += bytes;
+            node->size -= bytes;
+            
+        }
+        else {
+            
+            // Remove the node
+            prev->next = node->next;
+            
+            // Free the slab
+            slab_free(st->vspace_slabs, node);
+            
+        }
+        
+    }
+    else {
+        
+        // Alocate at the end of the currently managed address range
+        *buf = free_vspace_base;
+        free_vspace_base += bytes;
+        
+    }
+    
+    // Summary
+    debug_printf("Allocated %zu bytes of virtual address space at 0x%x\n", bytes, *buf);
+    
     return SYS_ERR_OK;
 }
 
