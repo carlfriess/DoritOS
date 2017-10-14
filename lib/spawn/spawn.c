@@ -30,21 +30,24 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     // - Setup environment
     // - Make dispatcher runnable
 
+    // Finding the memory region containing the ELF image
     struct mem_region *mem = multiboot_find_module(bi, si->binary_name);
+    if (!mem) {
+        return SPAWN_ERR_FIND_MODULE;
+    }
 
+    // Constructing the capability for the frame containing the ELF image
     struct capref child_frame = {
         .cnode = cnode_module,
         .slot = mem->mrmod_slot
     };
 
+    // Mapping the ELF image into the virtual address space
     void *buf = NULL;
-
     paging_map_frame_attr(get_current_paging_state(), &buf, mem->mrmod_size, child_frame, VREGION_FLAGS_READ, NULL, NULL);
 
-    char * ptr = buf;
-
-    debug_printf("%p\n", buf);
-    debug_printf("%x%c%c%c\n", ptr[0], ptr[1], ptr[2], ptr[3]);
+    char *elf = buf;
+    debug_printf("Mapped ELF into memory: 0x%x %c%c%c\n", elf[0], elf[1], elf[2], elf[3]);
 
     return err;
 }
