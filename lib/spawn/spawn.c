@@ -9,6 +9,118 @@
 
 extern struct bootinfo *bi;
 
+
+// Set up the cspace for a child process
+static errval_t spawn_setup_cspace(struct spawninfo *si) {
+    
+    // TODO: Reduce caprefs on stack!!!
+    
+    errval_t err;
+    
+    // Create a L1 cnode
+    struct capref root_cnode_cap;
+    struct cnoderef root_cnode_ref;
+    err = cnode_create_l1(&root_cnode_cap, &root_cnode_ref);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Create L2 cnode: TASKCN
+    struct cnoderef taskcn_ref;
+    err = cnode_create_foreign_l2(root_cnode_cap, ROOTCN_SLOT_TASKCN, &taskcn_ref);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    //  Create SLOT_DISPATCHER capability
+    struct capref slot_dispatcher_cap = {
+        .cnode = taskcn_ref,
+        .slot = TASKCN_SLOT_DISPATCHER
+    };
+    err = dispatcher_create(slot_dispatcher_cap);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    //  Retype SLOT_DISPATCHER capability into SLOT_SELFEP
+    struct capref slot_selfep_cap = {
+        .cnode = taskcn_ref,
+        .slot = TASKCN_SLOT_SELFEP
+    };
+    err = cap_retype(slot_selfep_cap, slot_dispatcher_cap, 0, ObjType_EndPoint, 0, 1);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    //  Copy root cnode capability into SLOT_ROOTCN
+    struct capref slot_rootcn_cap = {
+        .cnode = taskcn_ref,
+        .slot = TASKCN_SLOT_ROOTCN
+    };
+    cap_copy(slot_rootcn_cap, root_cnode_cap);
+    
+    
+    //  TODO: SLOT_DISPFRAME and SLOT_ARGSPG
+    
+    
+    // Create L2 cnode: SLOT_ALLOC0
+    struct cnoderef slot_alloc0_ref;
+    err = cnode_create_foreign_l2(root_cnode_cap, ROOTCN_SLOT_SLOT_ALLOC0, &slot_alloc0_ref);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    
+    // Create L2 cnode: SLOT_ALLOC1
+    struct cnoderef slot_alloc1_ref;
+    err = cnode_create_foreign_l2(root_cnode_cap, ROOTCN_SLOT_SLOT_ALLOC1, &slot_alloc1_ref);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    
+    // Create L2 cnode: SLOT_ALLOC2
+    struct cnoderef slot_alloc2_ref;
+    err = cnode_create_foreign_l2(root_cnode_cap, ROOTCN_SLOT_SLOT_ALLOC2, &slot_alloc2_ref);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    
+    // Create L2 cnode: SLOT_BASE_PAGE_CN
+    struct cnoderef slot_base_page_ref;
+    err = cnode_create_foreign_l2(root_cnode_cap, ROOTCN_SLOT_BASE_PAGE_CN, &slot_base_page_ref);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    //  Create RAM capabilities for SLOT_BASE_PAGE_CN
+    struct capref ram_cap;
+    err = ram_alloc(&ram_cap, BASE_PAGE_SIZE * L2_CNODE_SLOTS);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    struct capref base_page_ram_cap = {
+        .cnode = slot_base_page_ref,
+        .slot = 0
+    };
+    err = cap_retype(base_page_ram_cap, ram_cap, 0, ObjType_RAM, BASE_PAGE_SIZE, L2_CNODE_SLOTS);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    // Create L2 cnode: SLOT_PAGECN
+    struct cnoderef slot_pagecn_ref;
+    err = cnode_create_foreign_l2(root_cnode_cap, ROOTCN_SLOT_PAGECN, &slot_pagecn_ref);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    return SYS_ERR_OK;
+    
+}
+
+
 // TODO(M2): Implement this function such that it starts a new process
 // TODO(M4): Build and pass a messaging channel to your child process
 errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
@@ -48,6 +160,13 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
 
     char *elf = buf;
     debug_printf("Mapped ELF into memory: 0x%x %c%c%c\n", elf[0], elf[1], elf[2], elf[3]);
+    
+    // Set up cspace
+    errval_t err_cspace = spawn_setup_cspace(si);
+    if (err_is_fail(err_cspace)) {
+        debug_printf("spawn: Failed setting up cspace: %s\n", err_getstring(err_cspace));
+        return err_cspace;
+    }
 
     return err;
 }
