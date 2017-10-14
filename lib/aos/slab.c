@@ -185,24 +185,25 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     size_t frame_size = bytes;
     
     // Allocate a new frame capability
-    errval_t err_frame = frame_alloc(frame, frame_size, &frame_size);
+    errval_t err_frame = frame_alloc(&frame, frame_size, &frame_size);
     if (!err_is_ok(err_frame)) {
         return err_frame;
     }
     
-    // Find a free address to allocate the new frame
-    //  TODO: Properly find a region in the virtual address space
-    //static lvaddr_t addr = VADDR_OFFSET;
-    //addr += frame_size;
-    paging_alloc(get_current_paging_state(), &frame, frame_size);
+    // Buffer pointer for return address
+    void *buf = NULL;
     
-    
-    // Map the new frame into the virtual memory
+    // Map the new frame into a free region in the virtual address space
+    //  FIXME: Unclear what to do with arg1 and arg2?
     //  TODO: Implement recovery from mapping failure
-    assert(err_is_ok( paging_map_fixed_attr(get_current_paging_state(), addr, frame, frame_size, VREGION_FLAGS_READ_WRITE) ));
+    errval_t err = paging_map_frame_attr(get_current_paging_state(), &buf,
+                                         frame_size, frame,
+                                         VREGION_FLAGS_READ_WRITE, NULL, NULL);
+    
+    assert(err_is_ok(err));
         
     // Grow the slab allocator using the new frame
-    slab_grow(slabs, (void *) addr, frame_size);
+    slab_grow(slabs, buf, frame_size);
     
     debug_printf("Done refilling slabs\n");
     
