@@ -11,7 +11,7 @@
 --------------------------------------------------------------------------
 
 let    -- Default list of modules to build/install
-    modules_common = [ "init" ]
+    modules_common = [ "init", "hello" ]
 
     -- ARMv7-a Pandaboard modules: ADd
     pandaModules = [ "/sbin/" ++ f | f <- [
