@@ -183,17 +183,19 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     
     struct capref frame;
     size_t frame_size = bytes;
-        
+    
     // Allocate a new frame capability
-    errval_t err_frame = frame_alloc(&frame, frame_size, &frame_size);
+    errval_t err_frame = frame_alloc(frame, frame_size, &frame_size);
     if (!err_is_ok(err_frame)) {
         return err_frame;
     }
     
     // Find a free address to allocate the new frame
     //  TODO: Properly find a region in the virtual address space
-    static lvaddr_t addr = VADDR_OFFSET;
-    addr += frame_size;
+    //static lvaddr_t addr = VADDR_OFFSET;
+    //addr += frame_size;
+    paging_alloc(get_current_paging_state(), &frame, frame_size);
+    
     
     // Map the new frame into the virtual memory
     //  TODO: Implement recovery from mapping failure
