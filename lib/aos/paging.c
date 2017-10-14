@@ -353,7 +353,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         int num_pages = bytes / BASE_PAGE_SIZE;
 
         // Allocate a new node for the new mapping
-        struct pt_cap_tree_node *map_node = slab_alloc(st->slabs);;
+        struct pt_cap_tree_node *map_node = slab_alloc(&st->slabs);;
 
         // Allocate a new slot for the mapping capability
         errval_t err_slot_alloc = slot_alloc(&map_node->mapping_cap);
