@@ -56,11 +56,10 @@ int main(int argc, char *argv[])
     }
     
     // Running all tests
-    // run_all_tests();
-    
+    //run_all_tests();
+
     struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
     spawn_load_by_name("hello", si);
-//    spawn_load_by_name("hello", si);
 
     debug_printf("Message handler loop\n");
     // Hang around
