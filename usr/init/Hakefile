@@ -17,7 +17,7 @@
                         "test.c"
                       ],
                       addLinkFlags = [ "-e _start_init"],
-                      addLibraries = [ "mm", "getopt", "elf" ],
+                      addLibraries = [ "mm", "getopt", "elf", "spawn" ],
                       architectures = allArchitectures
                     }
 ]

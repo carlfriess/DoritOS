@@ -30,5 +30,21 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     // - Setup environment
     // - Make dispatcher runnable
 
+    struct mem_region *mem = multiboot_find_module(bi, si->binary_name);
+
+    struct capref child_frame = {
+        .cnode = cnode_module,
+        .slot = mem->mrmod_slot
+    };
+
+    void *buf = NULL;
+
+    paging_map_frame_attr(get_current_paging_state(), &buf, mem->mrmod_size, child_frame, VREGION_FLAGS_READ, NULL, NULL);
+
+    char * ptr = buf;
+
+    debug_printf("%p\n", buf);
+    debug_printf("%x%c%c%c\n", ptr[0], ptr[1], ptr[2], ptr[3]);
+
     return err;
 }
