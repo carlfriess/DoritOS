@@ -51,6 +51,28 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     // TODO (M2): implement state struct initialization
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
+    
+    
+    // Storing the reference to the slot allocator
+    st->slot_alloc = ca;
+    
+    // Set the capability reference for the l1 page table
+    st->l1_pagetable = pdir;
+    
+    // Initialize the slab allocator for free vspace nodes
+    slab_init(&st->vspace_slabs, sizeof(struct free_vspace_node), slab_default_refill);
+    static char vspace_nodebuf[sizeof(struct free_vspace_node)*64];
+    slab_grow(&st->vspace_slabs, vspace_nodebuf, sizeof(vspace_nodebuf));
+    
+    // Set up state for vspace allocation
+    st->free_vspace_head = NULL;
+    st->free_vspace_base = start_vaddr;
+    
+    // Initialize the slab allocator for tree nodes
+    slab_init(&st->slabs, sizeof(struct pt_cap_tree_node), slab_default_refill);
+    static char nodebuf[sizeof(struct pt_cap_tree_node)*64];
+    slab_grow(&st->slabs, nodebuf, sizeof(nodebuf));
+    
     return SYS_ERR_OK;
 }
 
@@ -70,19 +92,16 @@ errval_t paging_init(void)
     // avoid code duplication.
     set_current_paging_state(&current);
     
-    // Storing the reference to the default slot allocator
-    current.slot_alloc = get_default_slot_allocator();
+    // Create the capability reference for the l1 page table at the default location in capability space
+    struct capref pdir = {
+        .cnode = cnode_page,
+        .slot = 0
+    };
     
-    // Set the capability reference for the l1 page table to the default location in capability space
-    current.l1_pagetable.cnode = cnode_page;
-    current.l1_pagetable.slot = 0;
-    
-    // Initialize the slab allocator for tree nodes
-    slab_init(&current.slabs, sizeof(struct pt_cap_tree_node), slab_default_refill);
-    static char nodebuf[sizeof(struct pt_cap_tree_node)*64];
-    slab_grow(&current.slabs, nodebuf, sizeof(nodebuf));
-    
-    return SYS_ERR_OK;
+    return paging_init_state(&current,
+                             VADDR_OFFSET,
+                             pdir,
+                             get_default_slot_allocator());
 }
 
 
@@ -172,46 +191,35 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
     }
     
     // Iterate free list and check for suitable address range
-    struct free_vspace_node *prev = NULL;
-    struct free_vspace_node *node = st->free_vspace_head;
-    while (node != NULL) {
-        if (node->size >= bytes) {
+    struct free_vspace_node **indirect = &st->free_vspace_head;
+    while ((*indirect) != NULL) {
+        if ((*indirect)->size >= bytes) {
             break;
         }
-        prev = node;
-        node = node->next;
+        indirect = &(*indirect)->next;
     }
     
     // Check if we found a free address range
-    if (node) {
-        
-        *buf = node->base
-        
+    if (*indirect) {
+        // Return the base address of the node
+        *buf = (void *) (*indirect)->base;
         // Check if free range needs to be split
-        if (node->bytes > bytes) {
-            
+        if ((*indirect)->size > bytes) {
             // Reconfigure the node
-            node->base += bytes;
-            node->size -= bytes;
-            
+            (*indirect)->base += bytes;
+            (*indirect)->size -= bytes;
         }
         else {
-            
             // Remove the node
-            prev->next = node->next;
-            
+            *indirect = (*indirect)->next;
             // Free the slab
-            slab_free(st->vspace_slabs, node);
-            
+            slab_free(&st->vspace_slabs, *indirect);
         }
-        
     }
     else {
-        
         // Alocate at the end of the currently managed address range
-        *buf = free_vspace_base;
-        free_vspace_base += bytes;
-        
+        *buf = (void *) st->free_vspace_base;
+        st->free_vspace_base += bytes;
     }
     
     // Summary
