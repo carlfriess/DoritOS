@@ -121,6 +121,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
         // Break if we found a free mmnode with sufficient size and correct alignment
         if (node->type == NodeType_Free &&
+            node->size >= padding &&    // Preventing underflow in next line
             node->size - padding >= size) {
             break;
         }
