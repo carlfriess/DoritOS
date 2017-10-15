@@ -14,8 +14,7 @@
                       cFiles = [
                         "main.c",
                         "mem_alloc.c",
-                        "m1_test.c",
-                        "m2_test.c"
+                        "m1_test.c"
                       ],
                       addLinkFlags = [ "-e _start_init"],
                       addLibraries = [ "mm", "getopt", "elf" ],

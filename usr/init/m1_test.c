@@ -1,5 +1,5 @@
 //
-//  test.c
+//  m1_test.c
 //  DoritOS
 //
 //  Created by Sebastian Winberg on 06.10.17.

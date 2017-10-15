@@ -1,12 +1,12 @@
 //
 //  m2_test.c
-//  Doritos
+//  DoritOS
 //
 //  Created by Sebastian Winberg on 14.10.17.
 //
 
 #include "m2_test.h"
-
+/*
 errval_t test_paging_alloc_n(size_t b) {
     PRINT_TEST_NAME;
 
@@ -15,12 +15,7 @@ errval_t test_paging_alloc_n(size_t b) {
     RETURN_TEST_SUCCESS;
 }
 
-
-
-
 void run_all_tests(void) {
-    
-    /* TESTS */
     
     printf("Test Phase 1: \n");
     
@@ -48,3 +43,4 @@ void run_all_tests(void) {
     test_frame_alloc_n(100, 8192);
     
 }
+*/

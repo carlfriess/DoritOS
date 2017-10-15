@@ -1,6 +1,6 @@
 //
 //  m2_test.h
-//  Doritos
+//  DoritOS
 //
 //  Created by Sebastian Winberg on 14.10.17.
 //

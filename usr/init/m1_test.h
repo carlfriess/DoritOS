@@ -1,12 +1,12 @@
 //
-//  test.h
+//  m1_test.h
 //  DoritOS
 //
 //  Created by Sebastian Winberg on 06.10.17.
 //
 
-#ifndef test_h
-#define test_h
+#ifndef m1_test_h
+#define m1_test_h
 
 #include <stdio.h>
 #include <stdlib.h>

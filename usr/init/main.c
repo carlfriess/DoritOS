@@ -21,9 +21,8 @@
 #include <aos/paging.h>
 
 #include <mm/mm.h>
-#include "mem_alloc.h"
-
 #include "m1_test.h"
+#include "mem_alloc.h"
 
 coreid_t my_core_id;
 struct bootinfo *bi;
@@ -55,7 +54,7 @@ int main(int argc, char *argv[])
     }
     
     // Running all tests
-    //run_all_tests();
+    run_all_tests();
     
     //struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
     //spawn_load_by_name((void *) "hello", si);
