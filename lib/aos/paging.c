@@ -48,7 +48,6 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca)
 {
     debug_printf("paging_init_state\n");
-    // TODO (M2): implement state struct initialization
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
     
@@ -83,7 +82,6 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
 errval_t paging_init(void)
 {
     debug_printf("paging_init\n");
-    // TODO (M2): Call paging_init_state for &current
     // TODO (M4): initialize self-paging handler
     // TIP: use thread_set_exception_handler() to setup a page fault handler
     // TIP: Think about the fact that later on, you'll have to make sure that
@@ -311,7 +309,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             node = slab_alloc(&st->slabs);
 
             // Allocate a new slot for the mapping capability
-            errval_t err_slot_alloc = slot_alloc(&node->mapping_cap);
+            errval_t err_slot_alloc = st->slot_alloc->alloc(st->slot_alloc, &node->mapping_cap);
             if (!err_is_ok(err_slot_alloc)) {
                 return err_slot_alloc;
             }
@@ -356,7 +354,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct pt_cap_tree_node *map_node = slab_alloc(&st->slabs);;
 
         // Allocate a new slot for the mapping capability
-        errval_t err_slot_alloc = slot_alloc(&map_node->mapping_cap);
+        errval_t err_slot_alloc = st->slot_alloc->alloc(st->slot_alloc, &map_node->mapping_cap);
         if (!err_is_ok(err_slot_alloc)) {
             return err_slot_alloc;
         }
