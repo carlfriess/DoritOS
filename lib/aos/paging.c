@@ -168,6 +168,9 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
 errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t bytes)
 {
     // TIP: you will need to keep track of possible holes in the region
+    
+    
+    
     return SYS_ERR_OK;
 }
 
@@ -378,7 +381,10 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         } else {
             struct pt_cap_tree_node *prev_map = st->mapping_tree_root;
             while (prev_map != NULL) {
-                if (mapping_offset < prev_map->offset) {
+                if (mapping_offset == prev_map->offset) {
+                    debug_printf("Mapping capability already in mapping tree\n");
+                }
+                else if (mapping_offset < prev_map->offset) {
                     if (prev_map->left != NULL) {
                         prev_map = prev_map->left;
                     } else {
@@ -409,5 +415,69 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
  */
 errval_t paging_unmap(struct paging_state *st, const void *region)
 {
+    
+    uintptr_t mapping_offset = ((uintptr_t) region) / BASE_PAGE_SIZE;
+    
+    // Search for mapping capability in the tree
+    struct pt_cap_tree_node **prev_indirect = &st->mapping_tree_root;
+    
+    // Find the entry
+    
+    while(*prev_indirect != NULL) {
+        
+        if (mapping_offset > (*prev_indirect)->offset) {
+            prev_indirect = &(*prev_indirect)->right;
+        } else if (mapping_offset < (*prev_indirect)->offset) {
+            prev_indirect = &(*prev_indirect)->left;
+        } else {
+            break;
+        }
+        
+    }
+    
+    if (*prev_indirect == NULL) {
+        
+        debug_printf("Not found");
+        return -1;
+        
+    }
+    
+    if ((*prev_indirect)->left != NULL && (*prev_indirect)->right) {
+        
+        // Finding Successor
+        struct pt_cap_tree_node **succ_indirect = prev_indirect;
+        while((*succ_indirect)->left != NULL) {
+            succ_indirect = &(*succ_indirect)->left;
+        }
+        
+        // Relink successor parent with successor child
+        struct pt_cap_tree_node *succ = *succ_indirect;
+        *succ_indirect = (*succ_indirect)->right;
+        
+        // Change children of actual successor to have children of deleted node
+        succ->left = (*prev_indirect)->left;
+        succ->right = (*prev_indirect)->right;
+        
+        // TODO: Free deleted node
+        
+        *prev_indirect = succ;
+        
+    } else if ((*prev_indirect)->left != NULL) {
+        
+        // TODO: Free deleted node
+        *prev_indirect = (*prev_indirect)->left;
+        
+    } else if ((*prev_indirect)->right != NULL) {
+        
+        // TODO: Free deleted node
+        *prev_indirect = (*prev_indirect)->right;
+        
+    } else {
+        
+        // TODO: Free deleted node
+        *prev_indirect = NULL;
+        
+    }
+    
     return SYS_ERR_OK;
 }
