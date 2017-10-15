@@ -279,18 +279,18 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
-
-    debug_printf("Mapping %d page(s) at 0x%x\n", bytes / BASE_PAGE_SIZE, vaddr);
-
+    
+    debug_printf("Mapping %d page(s) at 0x%x\n", bytes / BASE_PAGE_SIZE + (bytes % BASE_PAGE_SIZE ? 1 : 0), vaddr);
+    
     for(uintptr_t end_addr, addr = vaddr; addr < vaddr + bytes; addr = end_addr) {
-
+    
         // Find next boundary of L2 page table range
         end_addr = addr / (ARM_L2_MAX_ENTRIES * BASE_PAGE_SIZE);
         end_addr++;
         end_addr *= (ARM_L2_MAX_ENTRIES * BASE_PAGE_SIZE);
 
         // Calculate size of region to map within this L2 page table
-        size_t size = MIN(bytes, end_addr - addr);
+        size_t size = MIN(end_addr - addr, (vaddr + bytes) - addr);
 
 
         // Calculate the offsets for the given virtual address
@@ -362,9 +362,12 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
         // Calculate the number of pages that need to be allocated
         int num_pages = size / BASE_PAGE_SIZE;
+        if (size % BASE_PAGE_SIZE) {
+            num_pages++;
+        }
 
         // Allocate a new node for the new mapping
-        struct pt_cap_tree_node *map_node = slab_alloc(&st->slabs);;
+        struct pt_cap_tree_node *map_node = slab_alloc(&st->slabs);
 
         // Allocate a new slot for the mapping capability
         errval_t err_slot_alloc = st->slot_alloc->alloc(st->slot_alloc, &map_node->mapping_cap);
