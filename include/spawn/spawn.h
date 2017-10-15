@@ -26,6 +26,12 @@ struct spawninfo {
     // TODO: Use this structure to keep track
     // of information you need for building/starting
     // your new process!
+    
+    // Child's capabilites
+    struct cnoderef slot_pagecn_ref;    // SLOT_PAGECN
+    
+    // Parent's capabilities
+    
 };
 
 // Start a child process by binary name. Fills in si

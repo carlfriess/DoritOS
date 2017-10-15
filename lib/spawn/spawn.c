@@ -110,8 +110,7 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     }
 
     // Create L2 cnode: SLOT_PAGECN
-    struct cnoderef slot_pagecn_ref;
-    err = cnode_create_foreign_l2(root_cnode_cap, ROOTCN_SLOT_PAGECN, &slot_pagecn_ref);
+    err = cnode_create_foreign_l2(root_cnode_cap, ROOTCN_SLOT_PAGECN, &si->slot_pagecn_ref);
     if (err_is_fail(err)) {
         return err;
     }
@@ -120,6 +119,24 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     
 }
 
+// Set up the vspace for a child process
+static errval_t spawn_setup_vspace(struct spawninfo *si) {
+    
+    errval_t err = SYS_ERR_OK;
+    
+    // Creating L1 VNode
+    struct capref l1_pt_cap = {
+        .cnode = si->slot_pagecn_ref,
+        .slot = PAGECN_SLOT_VROOT
+    };
+    err = vnode_create(l1_pt_cap, ObjType_VNode_ARM_l1);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    return err;
+    
+}
 
 // TODO(M2): Implement this function such that it starts a new process
 // TODO(M4): Build and pass a messaging channel to your child process
@@ -162,10 +179,17 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     debug_printf("Mapped ELF into memory: 0x%x %c%c%c\n", elf[0], elf[1], elf[2], elf[3]);
     
     // Set up cspace
-    errval_t err_cspace = spawn_setup_cspace(si);
-    if (err_is_fail(err_cspace)) {
-        debug_printf("spawn: Failed setting up cspace: %s\n", err_getstring(err_cspace));
-        return err_cspace;
+    err = spawn_setup_cspace(si);
+    if (err_is_fail(err)) {
+        debug_printf("spawn: Failed setting up cspace: %s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Set up cspace
+    err = spawn_setup_vspace(si);
+    if (err_is_fail(err)) {
+        debug_printf("spawn: Failed setting up vspace: %s\n", err_getstring(err));
+        return err;
     }
 
     return err;
