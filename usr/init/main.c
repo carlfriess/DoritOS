@@ -23,7 +23,7 @@
 #include <mm/mm.h>
 #include "mem_alloc.h"
 
-#include "test.h"
+#include "m1_test.h"
 
 coreid_t my_core_id;
 struct bootinfo *bi;

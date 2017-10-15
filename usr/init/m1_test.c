@@ -5,7 +5,7 @@
 //  Created by Sebastian Winberg on 06.10.17.
 //
 
-#include "test.h"
+#include "m1_test.h"
 
 errval_t test_alloc_free(size_t b) {
     PRINT_TEST_NAME;
