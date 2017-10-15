@@ -194,13 +194,13 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     void *buf = NULL;
     
     // Map the new frame into a free region in the virtual address space
-    //  FIXME: Unclear what to do with arg1 and arg2?
     //  TODO: Implement recovery from mapping failure
     errval_t err = paging_map_frame_attr(get_current_paging_state(), &buf,
                                          frame_size, frame,
                                          VREGION_FLAGS_READ_WRITE, NULL, NULL);
-    
-    assert(err_is_ok(err));
+    if (err_is_fail(err)) {
+        return err;
+    }
         
     // Grow the slab allocator using the new frame
     slab_grow(slabs, buf, frame_size);

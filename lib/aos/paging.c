@@ -58,19 +58,32 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     // Set the capability reference for the l1 page table
     st->l1_pagetable = pdir;
     
-    // Initialize the slab allocator for free vspace nodes
-    slab_init(&st->vspace_slabs, sizeof(struct free_vspace_node), slab_default_refill);
-    static char vspace_nodebuf[sizeof(struct free_vspace_node)*64];
-    slab_grow(&st->vspace_slabs, vspace_nodebuf, sizeof(vspace_nodebuf));
-    
     // Set up state for vspace allocation
     st->free_vspace_head = NULL;
     st->free_vspace_base = start_vaddr;
+
+    // Initialize the slab allocator for free vspace nodes
+    slab_init(&st->vspace_slabs, sizeof(struct free_vspace_node), slab_default_refill);
+    static int first_call = 1;
+    if (first_call) {
+        static char vspace_nodebuf[sizeof(struct free_vspace_node)*64];
+        slab_grow(&st->vspace_slabs, vspace_nodebuf, sizeof(vspace_nodebuf));
+    }
+    else {
+        slab_default_refill(&st->vspace_slabs);
+    }
     
     // Initialize the slab allocator for tree nodes
     slab_init(&st->slabs, sizeof(struct pt_cap_tree_node), slab_default_refill);
-    static char nodebuf[sizeof(struct pt_cap_tree_node)*64];
-    slab_grow(&st->slabs, nodebuf, sizeof(nodebuf));
+    if (first_call) {
+        static char nodebuf[sizeof(struct pt_cap_tree_node)*64];
+        slab_grow(&st->slabs, nodebuf, sizeof(nodebuf));
+    }
+    else {
+        slab_default_refill(&st->slabs);
+    }
+    
+    first_call = 0;
     
     return SYS_ERR_OK;
 }
