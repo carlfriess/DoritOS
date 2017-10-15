@@ -48,7 +48,6 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca)
 {
     debug_printf("paging_init_state\n");
-    // TODO (M2): implement state struct initialization
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
     
@@ -59,19 +58,32 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     // Set the capability reference for the l1 page table
     st->l1_pagetable = pdir;
     
-    // Initialize the slab allocator for free vspace nodes
-    slab_init(&st->vspace_slabs, sizeof(struct free_vspace_node), slab_default_refill);
-    static char vspace_nodebuf[sizeof(struct free_vspace_node)*64];
-    slab_grow(&st->vspace_slabs, vspace_nodebuf, sizeof(vspace_nodebuf));
-    
     // Set up state for vspace allocation
     st->free_vspace_head = NULL;
     st->free_vspace_base = start_vaddr;
+
+    // Initialize the slab allocator for free vspace nodes
+    slab_init(&st->vspace_slabs, sizeof(struct free_vspace_node), slab_default_refill);
+    static int first_call = 1;
+    if (first_call) {
+        static char vspace_nodebuf[sizeof(struct free_vspace_node)*64];
+        slab_grow(&st->vspace_slabs, vspace_nodebuf, sizeof(vspace_nodebuf));
+    }
+    else {
+        slab_default_refill(&st->vspace_slabs);
+    }
     
     // Initialize the slab allocator for tree nodes
     slab_init(&st->slabs, sizeof(struct pt_cap_tree_node), slab_default_refill);
-    static char nodebuf[sizeof(struct pt_cap_tree_node)*64];
-    slab_grow(&st->slabs, nodebuf, sizeof(nodebuf));
+    if (first_call) {
+        static char nodebuf[sizeof(struct pt_cap_tree_node)*64];
+        slab_grow(&st->slabs, nodebuf, sizeof(nodebuf));
+    }
+    else {
+        slab_default_refill(&st->slabs);
+    }
+    
+    first_call = 0;
     
     return SYS_ERR_OK;
 }
@@ -83,7 +95,6 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
 errval_t paging_init(void)
 {
     debug_printf("paging_init\n");
-    // TODO (M2): Call paging_init_state for &current
     // TODO (M4): initialize self-paging handler
     // TIP: use thread_set_exception_handler() to setup a page fault handler
     // TIP: Think about the fact that later on, you'll have to make sure that
@@ -271,18 +282,18 @@ slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size
 errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
-
-    debug_printf("Mapping %d page(s) at 0x%x\n", bytes / BASE_PAGE_SIZE, vaddr);
-
+    
+    debug_printf("Mapping %d page(s) at 0x%x\n", bytes / BASE_PAGE_SIZE + (bytes % BASE_PAGE_SIZE ? 1 : 0), vaddr);
+    
     for(uintptr_t end_addr, addr = vaddr; addr < vaddr + bytes; addr = end_addr) {
-
+    
         // Find next boundary of L2 page table range
         end_addr = addr / (ARM_L2_MAX_ENTRIES * BASE_PAGE_SIZE);
         end_addr++;
         end_addr *= (ARM_L2_MAX_ENTRIES * BASE_PAGE_SIZE);
 
         // Calculate size of region to map within this L2 page table
-        size_t size = MIN(bytes, end_addr - addr);
+        size_t size = MIN(end_addr - addr, (vaddr + bytes) - addr);
 
 
         // Calculate the offsets for the given virtual address
@@ -314,7 +325,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             node = slab_alloc(&st->slabs);
 
             // Allocate a new slot for the mapping capability
-            errval_t err_slot_alloc = slot_alloc(&node->mapping_cap);
+            errval_t err_slot_alloc = st->slot_alloc->alloc(st->slot_alloc, &node->mapping_cap);
             if (!err_is_ok(err_slot_alloc)) {
                 return err_slot_alloc;
             }
@@ -354,12 +365,15 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
         // Calculate the number of pages that need to be allocated
         int num_pages = size / BASE_PAGE_SIZE;
+        if (size % BASE_PAGE_SIZE) {
+            num_pages++;
+        }
 
         // Allocate a new node for the new mapping
-        struct pt_cap_tree_node *map_node = slab_alloc(&st->slabs);;
+        struct pt_cap_tree_node *map_node = slab_alloc(&st->slabs);
 
         // Allocate a new slot for the mapping capability
-        errval_t err_slot_alloc = slot_alloc(&map_node->mapping_cap);
+        errval_t err_slot_alloc = st->slot_alloc->alloc(st->slot_alloc, &map_node->mapping_cap);
         if (!err_is_ok(err_slot_alloc)) {
             return err_slot_alloc;
         }

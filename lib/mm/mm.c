@@ -98,9 +98,19 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
     assert(alignment != 0);
     assert(size != 0);
     
-    // TODO: Always allocate multiple of page size
+    /*gensize_t avail, total;
+    mm_available(mm, &avail, &total);
+    debug_printf("Free memory: %llu\n", avail);*/
     
     debug_printf("Allocating %zu bytes with alignment %zu\n", size, alignment);
+    
+    // Make the size is a multiple of the base page size
+    if (size % BASE_PAGE_SIZE) {
+        size_t tempSize = size / BASE_PAGE_SIZE;
+        tempSize++;
+        tempSize *= BASE_PAGE_SIZE;
+        size = tempSize;
+    }
     
     // Check the alignment is a multiple of the base page size
     if (alignment % BASE_PAGE_SIZE) {
@@ -121,6 +131,7 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
 
         // Break if we found a free mmnode with sufficient size and correct alignment
         if (node->type == NodeType_Free &&
+            node->size >= padding &&    // Preventing underflow in next line
             node->size - padding >= size) {
             break;
         }

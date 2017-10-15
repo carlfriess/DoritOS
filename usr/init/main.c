@@ -19,6 +19,7 @@
 #include <aos/waitset.h>
 #include <aos/morecore.h>
 #include <aos/paging.h>
+#include <spawn/spawn.h>
 
 #include <mm/mm.h>
 #include "m1_test.h"
@@ -54,11 +55,11 @@ int main(int argc, char *argv[])
     }
     
     // Running all tests
-    run_all_tests();
-    
-    //struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-    //spawn_load_by_name((void *) "hello", si);
-    
+    //run_all_tests();
+
+    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+    spawn_load_by_name("hello", si);
+
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();

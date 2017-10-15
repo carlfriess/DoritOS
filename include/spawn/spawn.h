@@ -26,6 +26,23 @@ struct spawninfo {
     // TODO: Use this structure to keep track
     // of information you need for building/starting
     // your new process!
+    
+    struct paging_state child_paging_state; // Child's paging state
+    void *got_addr;                     // Address of the global offset table
+    genvaddr_t entry_addr;              // Entry address to child program
+    
+    // Child's capabilites
+    struct cnoderef taskcn_ref;         // TASKCN
+    struct capref slot_rootcn_cap;      // Root cnode capability
+    struct cnoderef slot_pagecn_ref;    // SLOT_PAGECN
+    struct capref l1_pt_cap;            // L1 pagetable capability
+    struct capref slot_dispframe_cap;   // Capability to the dispatcher frame
+    
+    // Parent's capabilities
+    struct capref child_rootcn_cap;     // Capability to the child's L1 cnode
+    struct capref child_root_pt_cap;    // Capability to the child's L1 pagetable
+    struct capref child_dispatcher_cap; // Capability to the child's dispatcher
+
 };
 
 // Start a child process by binary name. Fills in si
