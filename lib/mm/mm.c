@@ -6,8 +6,9 @@
 #include <mm/mm.h>
 #include <aos/debug.h>
 
-void coalesce_next(struct mm *mm, struct mmnode *node);
+#define PRINT_DEBUG 0
 
+void coalesce_next(struct mm *mm, struct mmnode *node);
 
 /**
  * Initialize the memory manager.
@@ -62,7 +63,9 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
 {
     assert(mm != NULL);
     
+#if PRINT_DEBUG
     debug_printf("Adding %zu bytes of memory at 0x%llx\n", size, base);
+#endif
 
     // Allocating new block for mmnode:
     struct mmnode *newNode = slab_alloc((struct slab_allocator *)&mm->slabs);
@@ -94,15 +97,20 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
  */
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
+    
     // Disallow alignments and sizes of 0
     assert(alignment != 0);
     assert(size != 0);
     
-    /*gensize_t avail, total;
+#if 0
+    gensize_t avail, total;
     mm_available(mm, &avail, &total);
-    debug_printf("Free memory: %llu\n", avail);*/
+    debug_printf("Free memory: %llu\n", avail);
+#endif
     
+#if PRINT_DEBUG
     debug_printf("Allocating %zu bytes with alignment %zu\n", size, alignment);
+#endif
     
     // Make the size is a multiple of the base page size
     if (size % BASE_PAGE_SIZE) {
@@ -229,7 +237,9 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         }
         
         // Summary
+#if PRINT_DEBUG
         debug_printf("Allocated %llu bytes at %llx with alignment %zu\n", node->size, node->base, alignment);
+#endif
         
         return SYS_ERR_OK;
     }
@@ -261,7 +271,9 @@ errval_t mm_alloc(struct mm *mm, size_t size, struct capref *retcap)
 errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t size)
 {
     
+#if PRINT_DEBUG
     debug_printf("Freeing %llu bytes of memory at 0x%llx\n", size, base);
+#endif
     
     struct mmnode *node;
 
@@ -296,7 +308,9 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         node->cap.base == node->prev->cap.base &&
         node->cap.size == node->prev->cap.size) {
 
+#if PRINT_DEBUG
         debug_printf("Coalescing with previous node\n");
+#endif
 
         //Moving to previous node
         node = node->prev;
@@ -311,14 +325,18 @@ errval_t mm_free(struct mm *mm, struct capref cap, genpaddr_t base, gensize_t si
         node->cap.base == node->next->cap.base &&
         node->cap.size == node->next->cap.size) {
 
+#if PRINT_DEBUG
         debug_printf("Coalescing with next node\n");
+#endif
 
         // Coalesce with next node
         coalesce_next(mm, node);
     }
 
     // Summary
+#if PRINT_DEBUG
     debug_printf("Done! Free block of %llu bytes at 0x%llx\n", node->size, node->base);
+#endif
 
     return SYS_ERR_OK;
 }

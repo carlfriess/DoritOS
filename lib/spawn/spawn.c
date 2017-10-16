@@ -10,88 +10,6 @@
 extern struct bootinfo *bi;
 
 
-// Node for linked list of capability refereces
-struct capref_node {
-    struct capref cap;
-    struct capref_node *next;
-};
-
-// Minimal implementation of a slot allocator for allocating slots in SLOT_PAGECN of the child
-struct child_slot_allocator {
-    struct slot_allocator a;    ///< Public data
-    struct capref_node *caprefs_head;   // Linked list to keep track of allocated capability slots                    //
-};
-
-// Alloc funtion for out minimal slot allocator
-static errval_t child_slot_alloc(struct slot_allocator *ca, struct capref *cap) {
-    
-    errval_t err = SYS_ERR_OK;
-    struct child_slot_allocator *csa = (struct child_slot_allocator *) ca;
-    
-    // Allocate new node
-    struct capref_node *new_node = malloc(sizeof(struct capref_node));
-    if (new_node == NULL) {
-        return LIB_ERR_MALLOC_FAIL;
-    }
-    
-    // Allocate new slot in parent's cspace
-    err = slot_alloc(cap);
-    if (err_is_fail(err)) {
-        free(new_node);
-        return err;
-    }
-
-    // Keep track of the capability reference
-    new_node->cap.cnode = cap->cnode;
-    new_node->cap.slot = cap->slot;
-    new_node->next = csa->caprefs_head;
-    csa->caprefs_head = new_node;
-    
-    return err;
-    
-    /*struct child_slot_allocator *csa = (struct child_slot_allocator *) ca;
-    
-    // Increment to the next free slot
-    csa->slot++;
-    
-    // Check we haven't run out of slots
-    if (csa->slot >= L2_CNODE_SLOTS) {
-        return LIB_ERR_SLOT_ALLOC_NO_SPACE;
-    }
-    
-    // Return the capref;
-    cap->cnode = csa->cnode;
-    cap->slot = csa->slot;
-    
-    return SYS_ERR_OK;*/
-    
-}
-
-static errval_t child_slot_alloc_copy_caps(struct slot_allocator *ca, struct capref dest) {
-
-    struct child_slot_allocator *csa = (struct child_slot_allocator *) ca;
-    
-    // Iterate through all stored capability references
-    while (csa->caprefs_head != NULL) {
-        
-        // Copy capability to destination
-        errval_t err = cap_copy(dest, csa->caprefs_head->cap);
-        if (err_is_fail(err)) {
-            return err;
-        }
-        
-        dest.slot++;
-        //struct capref_node *prev = csa->caprefs_head;
-        csa->caprefs_head = csa->caprefs_head->next;
-        //free(prev);
-        
-    }
-    
-    return SYS_ERR_OK;
-    
-}
-
-
 // Set up the cspace for a child process
 static errval_t spawn_setup_cspace(struct spawninfo *si) {
     
@@ -214,16 +132,6 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
         return err;
     }
     
-    // Allocate child slot allocator
-    struct child_slot_allocator *csa = (struct child_slot_allocator *) malloc(sizeof(struct child_slot_allocator));
-    if (csa == NULL) {
-        return LIB_ERR_MALLOC_FAIL;
-    }
-    
-    // Initialize the slot allocator
-    csa->a.alloc = &child_slot_alloc;
-    csa->caprefs_head = NULL;
-    
     // Copy capability to child's L1 pagetable into parent's cspace
     slot_alloc(&si->child_root_pt_cap);
     cap_copy(si->child_root_pt_cap, si->l1_pt_cap);
@@ -235,7 +143,7 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
                             //  - Argspace (1 page)
                             VADDR_OFFSET - 128 * BASE_PAGE_SIZE,
                             si->child_root_pt_cap,
-                            (struct slot_allocator *)csa);
+                            get_default_slot_allocator());
     if (err_is_fail(err)) {
         return err;
     }
@@ -348,7 +256,6 @@ static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
     
     // Set address of first instruction
     disabled_area->named.pc = si->entry_addr;
-    debug_printf("IP: %p %p\n", si->entry_addr, disabled_area->named.pc);
     
     // Initialize offest register
     disp_arm->got_base = (lvaddr_t) si->got_addr;
@@ -405,10 +312,6 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
     struct spawn_domain_params *params = (struct spawn_domain_params *) argspace_addr_parent;
     
     void *argspace_offset = argspace_addr_parent + sizeof(struct spawn_domain_params);
-    
-    // Allocate argv
-    /*params->argv = (char *) argspace_offset;
-    argspace_offset += sizeof(params->argv);*/
     
     // Get length of argstring
     size_t len = strlen(argstring);
@@ -543,17 +446,6 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     err = spawn_setup_args(si, argstring);
     if (err_is_fail(err)) {
         debug_printf("spawn: Failed setting up the arguments: %s\n", err_getstring(err));
-        return err;
-    }
-    
-    // Copy vspace capabilites to child's cspace
-    struct capref dest = {
-        .cnode = si->slot_pagecn_ref,
-        .slot = PAGECN_SLOT_VROOT + 1
-    };
-    err = child_slot_alloc_copy_caps(si->child_paging_state.slot_alloc, dest);
-    if (err_is_fail(err)) {
-        debug_printf("spawn: Failed copying vspace capabilities: %s\n", err_getstring(err));
         return err;
     }
     
