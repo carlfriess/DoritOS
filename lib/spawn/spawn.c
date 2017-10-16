@@ -246,6 +246,7 @@ static errval_t elf_allocator_callback(void *state, genvaddr_t base, size_t size
     errval_t err = SYS_ERR_OK;
     struct spawninfo *si = (struct spawninfo *) state;
 
+    // Aligning to page boundry in child's virtual memory
     genvaddr_t real_base = base / BASE_PAGE_SIZE;
     real_base *= BASE_PAGE_SIZE;
     size_t offset = base - real_base;
@@ -263,6 +264,8 @@ static errval_t elf_allocator_callback(void *state, genvaddr_t base, size_t size
     if (err_is_fail(err)) {
         return err;
     }
+    
+    // Adding offset to target address
     *ret += offset;
 
     // Map the memory region into child's virtual address space.
