@@ -230,7 +230,10 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
     
     // Initialize the child paging state
     err = paging_init_state(&si->child_paging_state,
-                            VADDR_OFFSET,
+                            // Subtract 128 pages for:
+                            //  - DCB (64 pages)
+                            //  - Argspace (1 page)
+                            VADDR_OFFSET - 128 * BASE_PAGE_SIZE,
                             si->child_root_pt_cap,
                             (struct slot_allocator *)csa);
     if (err_is_fail(err)) {
@@ -311,8 +314,7 @@ static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
     }
     
     // Map the memory into parent's virtual address space
-    void *dcb_addr_parent;
-    err = paging_map_frame_attr(get_current_paging_state(), &dcb_addr_parent, dcb_size, dcb_frame_cap, VREGION_FLAGS_READ_WRITE, NULL, NULL);
+    err = paging_map_frame_attr(get_current_paging_state(), &si->dcb_addr_parent, dcb_size, dcb_frame_cap, VREGION_FLAGS_READ_WRITE, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
@@ -330,7 +332,7 @@ static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
     cap_copy(si->slot_dispframe_cap, dcb_frame_cap);
     
     // Get references to dispatcher structs
-    dispatcher_handle_t dcb_addr_parent_handle = (dispatcher_handle_t) dcb_addr_parent;
+    dispatcher_handle_t dcb_addr_parent_handle = (dispatcher_handle_t) si->dcb_addr_parent;
     struct dispatcher_shared_generic *disp = get_dispatcher_shared_generic(dcb_addr_parent_handle);
     struct dispatcher_generic *disp_gen = get_dispatcher_generic(dcb_addr_parent_handle);
     struct dispatcher_shared_arm *disp_arm = get_dispatcher_shared_arm(dcb_addr_parent_handle);
@@ -438,6 +440,11 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
     
     // Terminate envp
     params->envp[0] = NULL;
+    
+    // Set argument address in register r0 in enabled state of child
+    dispatcher_handle_t dcb_addr_parent_handle = (dispatcher_handle_t) si->dcb_addr_parent;
+    arch_registers_state_t *enabled_area = dispatcher_get_enabled_save_area(dcb_addr_parent_handle);
+    enabled_area->named.r0 = (uint32_t) argspace_addr_child;
     
     return err;
     
