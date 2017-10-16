@@ -331,7 +331,7 @@ void coalesce_next(struct mm *mm, struct mmnode *node) {
     // Update size
     node->size += node->next->size;
 
-    struct mmnode* next_node = node->next;
+    struct mmnode *next_node = node->next;
 
     // Remove the next node from the linked list
     node->next = node->next->next;
