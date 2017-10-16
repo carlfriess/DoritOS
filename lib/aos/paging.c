@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define PRINT_DEBUG 0
+
 static struct paging_state current;
 
 /**
@@ -192,7 +194,9 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
     
     // TODO: Initialize the state for this
     
+#if PRINT_DEBUG
     debug_printf("Allocating %zu bytes of virtual address space...\n", bytes);
+#endif
     
     // Round up to next page boundary
     if (bytes % BASE_PAGE_SIZE) {
@@ -234,7 +238,9 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
     }
     
     // Summary
+#if PRINT_DEBUG
     debug_printf("Allocated %zu bytes of virtual address space at 0x%x\n", bytes, *buf);
+#endif
     
     return SYS_ERR_OK;
 }
@@ -280,7 +286,9 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct capref frame, size_t bytes, int flags)
 {
     
+#if PRINT_DEBUG
     debug_printf("Mapping %d page(s) at 0x%x\n", bytes / BASE_PAGE_SIZE + (bytes % BASE_PAGE_SIZE ? 1 : 0), vaddr);
+#endif
     
     for(uintptr_t end_addr, addr = vaddr; addr < vaddr + bytes; addr = end_addr) {
     
@@ -417,7 +425,9 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         // Check that there are sufficient slabs left in the slab allocator
         size_t freecount = slab_freecount((struct slab_allocator *)&st->slabs);
         if (freecount <= 2 && !st->slabs_is_refilling) {
+#if PRINT_DEBUG
             debug_printf("Paging slabs allocator refilling...");
+#endif
             st->slabs_is_refilling = 1;
             slab_default_refill((struct slab_allocator *)&st->slabs);
             st->slabs_is_refilling = 0;

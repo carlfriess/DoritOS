@@ -19,6 +19,8 @@
 #include <aos/slab.h>
 #include <aos/static_assert.h>
 
+#define PRINT_DEBUG 0
+
 struct block_head {
     struct block_head *next;///< Pointer to next block in free list
 };
@@ -179,7 +181,9 @@ size_t slab_freecount(struct slab_allocator *slabs)
 static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
 {
     
+#if PRINT_DEBUG
     debug_printf("Refilling slabs\n");
+#endif
     
     struct capref frame;
     size_t frame_size = bytes;
@@ -205,7 +209,9 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     // Grow the slab allocator using the new frame
     slab_grow(slabs, buf, frame_size);
     
+#if PRINT_DEBUG
     debug_printf("Done refilling slabs\n");
+#endif
     
     return SYS_ERR_OK;
 }
