@@ -22,8 +22,10 @@
 #include <spawn/spawn.h>
 
 #include <mm/mm.h>
-#include "m1_test.h"
 #include "mem_alloc.h"
+#include "m1_test.h"
+#include "m2_test.h"
+
 
 coreid_t my_core_id;
 struct bootinfo *bi;
@@ -55,10 +57,12 @@ int main(int argc, char *argv[])
     }
     
     // Running all tests
-    //run_all_tests();
+    //run_all_m1_tests();
+    
+    run_all_m2_tests();
 
-    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-    spawn_load_by_name("hello", si);
+    //struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+    //spawn_load_by_name("hello", si);
 
     debug_printf("Message handler loop\n");
     // Hang around

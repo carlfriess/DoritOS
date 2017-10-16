@@ -41,7 +41,7 @@ errval_t test_frame_alloc(size_t);
 
 errval_t test_frame_alloc_n(int, size_t);
 
-void run_all_tests(void);
+void run_all_m1_tests(void);
 
 #define PRINT_TEST_NAME         printf("Test %s: ", __FUNCTION__)
 #define RETURN_TEST_SUCCESS        do { printf("\033[37m\033[42mSUCCESS\033[49m\033[39m\n"); return SYS_ERR_OK; } while(0)

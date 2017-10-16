@@ -242,7 +242,7 @@ errval_t test_frame_alloc_n(int n, size_t b) {
 }
 
 
-void run_all_tests(void) {
+void run_all_m1_tests(void) {
     
     /* TESTS */
     

@@ -459,8 +459,8 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
         
     }
     
-    if ((*node_indirect)->left != NULL && (*node_indirect)->right) {
-        
+    if ((*node_indirect)->left != NULL && (*node_indirect)->right != NULL) {
+        debug_printf("HAS LEFT AND RIGHT CHILD\n");
         // Finding Successor
         struct pt_cap_tree_node **succ_indirect = node_indirect;
         while((*succ_indirect)->left != NULL) {
@@ -480,19 +480,19 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
         *node_indirect = succ;
         
     } else if ((*node_indirect)->left != NULL) {
-        
+        debug_printf("HAS LEFT CHILD\n");
         // TODO: Free deleted node
         free_deleted_node(st, *node_indirect);
         *node_indirect = (*node_indirect)->left;
         
     } else if ((*node_indirect)->right != NULL) {
-        
+        debug_printf("HAS RIGHT CHILD\n");
         // TODO: Free deleted node
         free_deleted_node(st, *node_indirect);
         *node_indirect = (*node_indirect)->right;
         
     } else {
-        
+        debug_printf("HAS NO CHILDREN\n");
         // TODO: Free deleted node
         free_deleted_node(st, *node_indirect);
         *node_indirect = NULL;
@@ -504,14 +504,25 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
 
 void free_deleted_node(struct paging_state *st, struct pt_cap_tree_node *node){
     
+    debug_printf("Freeing slab of to be deleted tree node\n");
+    
     lvaddr_t base = node->offset;
     size_t size = BASE_PAGE_SIZE;
     
+    debug_printf("Inserting new space in free vspace linked list\n");
+    
+    // Inserting new space in free vspace linked list
     insert_free_vspace_node(st, base, size);
     
+    // Deleting node mapping capability
     cap_delete(node->mapping_cap);
     
+    // Deleting node capability
+    cap_delete(node->cap);
+    
+    // Freeing tree node slab
     slab_free(&st->slabs, node);
+    debug_printf("Freed slab of to be deleted tree node\n");
     
 }
 
