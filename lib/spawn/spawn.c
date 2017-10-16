@@ -245,23 +245,28 @@ static errval_t elf_allocator_callback(void *state, genvaddr_t base, size_t size
     
     errval_t err = SYS_ERR_OK;
     struct spawninfo *si = (struct spawninfo *) state;
-    
+
+    genvaddr_t real_base = base / BASE_PAGE_SIZE;
+    real_base *= BASE_PAGE_SIZE;
+    size_t offset = base - real_base;
+
     // Allocating memory for section in ELF
     struct capref frame_cap;
     size_t ret_size;
-    err = frame_alloc(&frame_cap, size, &ret_size);
+    err = frame_alloc(&frame_cap, size + offset, &ret_size);
     if (err_is_fail(err)) {
         return err;
     }
-        
+
     // Map the memory region into parent virtual address space
-    err = paging_map_frame_attr(get_current_paging_state(), ret, size, frame_cap, VREGION_FLAGS_READ_WRITE, NULL, NULL);
+    err = paging_map_frame_attr(get_current_paging_state(), ret, ret_size, frame_cap, VREGION_FLAGS_READ_WRITE, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
-    
+    *ret += offset;
+
     // Map the memory region into child's virtual address space.
-    err = paging_map_fixed_attr(&si->child_paging_state, base, frame_cap, size, flags);
+    err = paging_map_fixed_attr(&si->child_paging_state, real_base, frame_cap, ret_size, flags);
     if (err_is_fail(err)) {
         return err;
     }

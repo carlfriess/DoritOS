@@ -335,7 +335,6 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             }
 
             // Map L2 pagetable to appropriate slot in L1 pagetable
-            //  TODO: (M2) Frames going over multiple l2_pagetables
             errval_t err_l2_map = vnode_map(st->l1_pagetable, node->cap, l1_offset, flags, 0, 1, node->mapping_cap);
             if (!err_is_ok(err_l2_map)) {
                 slot_free(node->mapping_cap);
@@ -376,7 +375,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         }
 
         // Map the frame into the appropriate slot in the L2 pagetable
-        errval_t err_frame_map = vnode_map(node->cap, frame, l2_offset, flags, 0, num_pages, map_node->mapping_cap);
+        errval_t err_frame_map = vnode_map(node->cap, frame, l2_offset, flags, addr - vaddr, num_pages, map_node->mapping_cap);
         if (!err_is_ok(err_frame_map)) {
             slot_free(map_node->mapping_cap);
             return err_frame_map;
