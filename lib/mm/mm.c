@@ -94,6 +94,12 @@ errval_t mm_add(struct mm *mm, struct capref cap, genpaddr_t base, size_t size)
  */
 errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct capref *retcap)
 {
+    
+    /*gensize_t available;
+    gensize_t total;
+    mm_available(mm, &available, &total);
+    debug_printf("FREE MEM: %llu\n", available);*/
+    
     // Disallow alignments and sizes of 0
     assert(alignment != 0);
     assert(size != 0);

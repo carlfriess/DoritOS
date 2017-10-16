@@ -320,6 +320,8 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
             // Allocate the new tree node
             node = slab_alloc(&st->slabs);
+            node->left = NULL;
+            node->right = NULL;
 
             // Allocate a new slot for the mapping capability
             errval_t err_slot_alloc = st->slot_alloc->alloc(st->slot_alloc, &node->mapping_cap);
@@ -367,6 +369,8 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
         // Allocate a new node for the new mapping
         struct pt_cap_tree_node *map_node = slab_alloc(&st->slabs);
+        map_node->left = NULL;
+        map_node->right = NULL;
 
         // Allocate a new slot for the mapping capability
         errval_t err_slot_alloc = st->slot_alloc->alloc(st->slot_alloc, &map_node->mapping_cap);
@@ -408,6 +412,15 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                     }
                 }
             }
+        }
+        
+        // Check that there are sufficient slabs left in the slab allocator
+        size_t freecount = slab_freecount((struct slab_allocator *)&st->slabs);
+        if (freecount <= 2 && !st->slabs_is_refilling) {
+            debug_printf("Paging slabs allocator refilling...");
+            st->slabs_is_refilling = 1;
+            slab_default_refill((struct slab_allocator *)&st->slabs);
+            st->slabs_is_refilling = 0;
         }
 
     }

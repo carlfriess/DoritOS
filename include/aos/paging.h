@@ -53,6 +53,7 @@ struct paging_state {
     struct free_vspace_node *free_vspace_head;  // Free list of free vspace regions
     lvaddr_t free_vspace_base;                  // Base address of free vspace
     struct slab_allocator slabs;                // Slab allocator for pt_cap_tree_node
+    int slabs_is_refilling;                     // Keep track when refilling
     struct pt_cap_tree_node *l2_tree_root;      // Tree of all L2 page table caps
     struct pt_cap_tree_node *mapping_tree_root; // Tree of all mapping
 };
