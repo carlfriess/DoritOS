@@ -47,7 +47,7 @@ errval_t test_map_unmap_n(size_t b, int n) {
     for (int i = 0; i < n; ++i) {
         paging_unmap(get_current_paging_state(), (void *)buf_array[i]);
         
-        debug_printf("---------->*buf_array[i]: %d\n", *buf_array[i]);
+        //debug_printf("---------->*buf_array[i]: %d\n", *buf_array[i]);
 
     }
         
