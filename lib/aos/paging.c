@@ -192,8 +192,6 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
 errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
 {
     
-    // TODO: Initialize the state for this
-    
 #if PRINT_DEBUG
     debug_printf("Allocating %zu bytes of virtual address space...\n", bytes);
 #endif
@@ -343,31 +341,75 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                 slot_free(node->mapping_cap);
                 return err_l2_alloc;
             }
-
-            // Map L2 pagetable to appropriate slot in L1 pagetable
-            errval_t err_l2_map = vnode_map(st->l1_pagetable, node->cap, l1_offset, flags, 0, 1, node->mapping_cap);
-            if (!err_is_ok(err_l2_map)) {
-                slot_free(node->mapping_cap);
-                return err_l2_map;
+            
+            // Check for reentrant call of this function
+            int skip_l2_creation = 0;
+            if (prev && prev->offset > l1_offset && prev->left != NULL) {
+                struct pt_cap_tree_node *same_node = prev->left;
+                while (same_node != NULL) {
+                    // Check if reentrant call created a node for this offset
+                    if (l1_offset == same_node->offset) {
+                        slab_free(&st->slabs, node);
+                        node = same_node;
+                        skip_l2_creation = 1;
+                        break;
+                    }
+                    // Move prev to avoid overwriting an existing node
+                    prev = same_node;
+                    if (l1_offset < same_node->offset) {
+                        same_node = same_node->left;
+                    }
+                    else if (l1_offset > same_node->offset) {
+                        same_node = same_node->right;
+                    }
+                }
             }
-
-            // Set the offset for the new node
-            node->offset = l1_offset;
-
-            // Store new node in the tree
-            if (st->l2_tree_root == NULL) {
-                st->l2_tree_root = node;
+            else if (prev && prev->offset < l1_offset && prev->right != NULL) {
+                struct pt_cap_tree_node *same_node = prev->right;
+                while (same_node != NULL) {
+                    // Check if reentrant call created a node for this offset
+                    if (l1_offset == same_node->offset) {
+                        slab_free(&st->slabs, node);
+                        node = same_node;
+                        skip_l2_creation = 1;
+                        break;
+                    }
+                    // Move prev to avoid overwriting an existing node
+                    prev = same_node;
+                    if (l1_offset < same_node->offset) {
+                        same_node = same_node->left;
+                    }
+                    else if (l1_offset > same_node->offset) {
+                        same_node = same_node->right;
+                    }
+                }
             }
-            else if (prev->offset > l1_offset) {
-                prev->left = node;
-            }
-            else {
-                prev->right = node;
+            if (!skip_l2_creation) {
+                
+                // Map L2 pagetable to appropriate slot in L1 pagetable
+                errval_t err_l2_map = vnode_map(st->l1_pagetable, node->cap, l1_offset, flags, 0, 1, node->mapping_cap);
+                if (!err_is_ok(err_l2_map)) {
+                    slot_free(node->mapping_cap);
+                    return err_l2_map;
+                }
+                
+                // Set the offset for the new node
+                node->offset = l1_offset;
+
+                // Store new node in the tree
+                if (st->l2_tree_root == NULL) {
+                    st->l2_tree_root = node;
+                }
+                else if (prev->offset > l1_offset) {
+                    prev->left = node;
+                }
+                else {
+                    prev->right = node;
+                }
+                
             }
 
         }
-
-        // Map the memory region into the l2_pagetable in chunks
 
         // Calculate the number of pages that need to be allocated
         int num_pages = size / BASE_PAGE_SIZE;
@@ -424,17 +466,22 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         
         // Check that there are sufficient slabs left in the slab allocator
         size_t freecount = slab_freecount((struct slab_allocator *)&st->slabs);
-        if (freecount <= 2 && !st->slabs_is_refilling) {
+        if (freecount <= 6 && !st->slabs_prevent_refill) {
 #if PRINT_DEBUG
-            debug_printf("Paging slabs allocator refilling...");
+            debug_printf("Paging slabs allocator refilling...\n");
 #endif
-            st->slabs_is_refilling = 1;
+            st->slabs_prevent_refill = 1;
             slab_default_refill((struct slab_allocator *)&st->slabs);
-            st->slabs_is_refilling = 0;
+            st->slabs_prevent_refill = 0;
         }
 
     }
-        
+    
+    // Summary
+#if PRINT_DEBUG
+    debug_printf("Finished mapping!\n");
+#endif
+    
     return SYS_ERR_OK;
 }
 
