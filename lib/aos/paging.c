@@ -166,10 +166,10 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
     errval_t err = SYS_ERR_OK;
     
     // Round up to next page boundary
-    if (bytes % BASE_PAGE_SIZE) {
-        size_t pages = bytes / BASE_PAGE_SIZE;
+    if (req_size % BASE_PAGE_SIZE) {
+        size_t pages = req_size / BASE_PAGE_SIZE;
         pages++;
-        bytes = pages * BASE_PAGE_SIZE;
+        req_size = pages * BASE_PAGE_SIZE;
     }
     
     lvaddr_t end_addr = pr->base_addr + pr->region_size;
