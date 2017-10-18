@@ -24,7 +24,7 @@
 #define PRINT_DEBUG 0
 
 void insert_free_vspace_node(struct paging_state *st, lvaddr_t base, size_t size);
-errval_t free_deleted_node(struct paging_state *st, struct pt_cap_tree_node *node, struct pt_cap_tree_node *l2_node);
+errval_t free_deletion_node(struct paging_state *st, struct pt_cap_tree_node *node, struct pt_cap_tree_node *l2_node);
 
 static struct paging_state current;
 
@@ -32,7 +32,6 @@ static struct paging_state current;
  * \brief Helper function that allocates a slot and
  *        creates a ARM l2 page table capability
  */
-__attribute__((unused))
 static errval_t arml2_alloc(struct paging_state * st, struct capref *ret)
 {
     errval_t err;
@@ -503,11 +502,12 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
         return -1;
     }
     
+    // Check children of deletion node
     if ((*node_indirect)->left != NULL && (*node_indirect)->right != NULL) {
         
         debug_printf("HAS LEFT AND RIGHT CHILD\n");
         
-        // Finding successor to swap with deleted node
+        // Finding successor to swap with deletion node
         struct pt_cap_tree_node **succ_indirect = node_indirect;
         while((*succ_indirect)->left != NULL) {
             succ_indirect = &(*succ_indirect)->left;
@@ -517,36 +517,36 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
         struct pt_cap_tree_node *succ = *succ_indirect;
         *succ_indirect = (*succ_indirect)->right;
         
-        // Change children of actual successor to have children of deleted node
+        // Change children of actual successor to have children of deletion node
         succ->left = (*node_indirect)->left;
         succ->right = (*node_indirect)->right;
         
-        // Free deleted node
-        free_deleted_node(st, *node_indirect, l2_node);
+        // Free deletion node and add space to vspace linked list
+        free_deletion_node(st, *node_indirect, l2_node);
         *node_indirect = succ;
         
     } else if ((*node_indirect)->left != NULL) {
         
         debug_printf("HAS LEFT CHILD\n");
         
-        // Free deleted node
-        free_deleted_node(st, *node_indirect, l2_node);
+        // Free deletion node and add space to vspace linked list
+        free_deletion_node(st, *node_indirect, l2_node);
         *node_indirect = (*node_indirect)->left;
         
     } else if ((*node_indirect)->right != NULL) {
         
         debug_printf("HAS RIGHT CHILD\n");
         
-        // Free deleted node
-        free_deleted_node(st, *node_indirect, l2_node);
+        // Free deletion node and add space to vspace linked list
+        free_deletion_node(st, *node_indirect, l2_node);
         *node_indirect = (*node_indirect)->right;
         
     } else {
         
         debug_printf("HAS NO CHILDREN\n");
         
-        // Free deleted node
-        free_deleted_node(st, *node_indirect, l2_node);
+        // Free deletion node and add space to vspace linked list
+        free_deletion_node(st, *node_indirect, l2_node);
         *node_indirect = NULL;
         
     }
@@ -554,14 +554,14 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
     return SYS_ERR_OK;
 }
 
-errval_t free_deleted_node(struct paging_state *st, struct pt_cap_tree_node *node, struct pt_cap_tree_node *l2_node) {
+errval_t free_deletion_node(struct paging_state *st, struct pt_cap_tree_node *node, struct pt_cap_tree_node *l2_node) {
     
     errval_t err;
     
-    debug_printf("Freeing slab of to be deleted tree node\n");
+    debug_printf("Freeing slab of deletion node\n");
     
     lvaddr_t base = node->offset;
-    size_t size = BASE_PAGE_SIZE;       // FIXME: node can have more than BASE_PAGE_SIZE many bytes?!?
+    size_t size = BASE_PAGE_SIZE;       // FIXME: node can have more than BASE_PAGE_SIZE many bytes?!?!?
     
     debug_printf("Inserting new space in free vspace linked list\n");
     
@@ -593,7 +593,7 @@ errval_t free_deleted_node(struct paging_state *st, struct pt_cap_tree_node *nod
     
     // Freeing tree node slab
     slab_free(&st->slabs, node);
-    debug_printf("Freed slab of to be deleted tree node\n");
+    debug_printf("Freed slab of deletion node\n");
     
     return SYS_ERR_OK;
 }
