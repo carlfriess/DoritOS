@@ -145,7 +145,7 @@ errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
  */
 errval_t paging_unmap(struct paging_state *st, const void *region);
 
-errval_t paging_free(struct paging_state *st, void *region, size_t *ret_size);
+errval_t paging_free(struct paging_state *st, const void *region, size_t *ret_size);
 
 errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t bytes);
 

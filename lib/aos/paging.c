@@ -587,17 +587,17 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
     }
 
     // Actually unmapping region in memory (possibly over multiple l2 pagetables)
-    err = paging_unmap_fixed(st, (vaddr_t) region, ret_size);
+    err = paging_unmap_fixed(st, (lvaddr_t) region, ret_size);
     
     return err;
 }
 
-errval_t paging_free(struct paging_state *st, void *region, size_t *ret_size) {
+errval_t paging_free(struct paging_state *st, const void *region, size_t *ret_size) {
     
     errval_t err;
     
     // Searching for node in alloc linked list
-    struct vspace_node ret_node;
+    struct vspace_node *ret_node;
     err = delete_vspace_alloc_node(st, (lvaddr_t) region, &ret_node);
     if (err_is_fail(err)) {
         return err;
@@ -627,7 +627,7 @@ errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t byte
         
         // Calculate the offsets for the given virtual address
         uintptr_t l1_offset = ARM_L1_OFFSET(addr);
-        uintptr_t l2_offset = ARM_L2_OFFSET(addr);
+        //uintptr_t l2_offset = ARM_L2_OFFSET(addr);            // TODO: Use l2_offset instead of mapping_offset as key in subtee
         uintptr_t mapping_offset = addr / BASE_PAGE_SIZE;
         
         // Searching for l2 pagetable capability in the l2 tree with l1_offset as key
@@ -787,7 +787,7 @@ static errval_t delete_vspace_alloc_node(struct paging_state *st, lvaddr_t base,
     *ret_node = *node_indirect;
     
     // Cleaning up ret_node->next needed?
-    ret_node->next = NULL;
+    (*ret_node)->next = NULL;
     
     // Remove node from linked list by changing next of previous node
     *node_indirect = (*node_indirect)->next;
@@ -815,7 +815,7 @@ static errval_t insert_vspace_free_node(struct paging_state *st, struct vspace_n
         st->free_vspace_head->size += new_node->size;
         
         // Free the memory/slab for new_node
-        slab_free(&st->vspace_slabs, next_node);
+        slab_free(&st->vspace_slabs, new_node);
 
         return SYS_ERR_OK;
         
