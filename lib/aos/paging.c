@@ -196,6 +196,23 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
 errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
 {
     
+    // Check that the free list is empty
+    //  FIXME: Maybe support changing the free list
+    assert(st->free_vspace_head == NULL);
+    
+    // Check page alignment
+    assert(!((lvaddr_t) buf % BASE_PAGE_SIZE));
+    
+    // Round up size to next page boundary
+    if (bytes % BASE_PAGE_SIZE) {
+        size_t pages = bytes / BASE_PAGE_SIZE;
+        pages++;
+        bytes = pages * BASE_PAGE_SIZE;
+    }
+    
+    // Check that the virtual address range can be put into the allocated list
+    assert((lvaddr_t) buf + bytes < st->free_vspace_base);
+    
     // Register the allocation in the alloc list
     struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
     new_node->base = (uintptr_t) buf;
