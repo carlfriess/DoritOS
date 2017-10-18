@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
         spawn_load_by_name("hello", si);
         free(si);
     }
-    */
+    
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();

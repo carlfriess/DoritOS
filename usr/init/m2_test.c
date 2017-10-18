@@ -58,8 +58,8 @@ errval_t test_map_unmap_n(size_t b, int n) {
     RETURN_TEST_SUCCESS;
 }
 
-errval_t test_map_unmap_random() {
-    
+errval_t test_map_unmap_random(void) {
+    return 0;
 }
 
 void run_all_m2_tests(void) {

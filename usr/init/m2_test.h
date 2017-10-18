@@ -23,6 +23,8 @@ errval_t test_paging_alloc_n(size_t b);
 
 errval_t test_map_unmap_n(size_t b, int n);
 
+errval_t test_map_unmap_random(void);
+
 void run_all_m2_tests(void);
 
 #define PRINT_TEST_NAME         printf("Test %s: ", __FUNCTION__)
