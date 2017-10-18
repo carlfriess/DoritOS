@@ -494,3 +494,4 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
 {
     return SYS_ERR_OK;
 }
+
