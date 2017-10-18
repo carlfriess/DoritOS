@@ -46,6 +46,13 @@ struct spawninfo {
 
 };
 
+struct process_info {
+    struct process_info *next;
+    struct process_info *prev;
+    char *name;
+    struct capref *dispatcher_cap;
+};
+
 // Start a child process by binary name. Fills in si
 errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si);
 

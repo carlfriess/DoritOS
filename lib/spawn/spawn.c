@@ -9,6 +9,7 @@
 
 extern struct bootinfo *bi;
 
+struct process_info *process_list = NULL;
 
 // Set up the cspace for a child process
 static errval_t spawn_setup_cspace(struct spawninfo *si) {
@@ -39,7 +40,7 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     if (err_is_fail(err)) {
         return err;
     }
-    
+
     //  Copy the SLOT_DISPATCHER capability to parent cspace
     slot_alloc(&si->child_dispatcher_cap);
     err = cap_copy(si->child_dispatcher_cap, slot_dispatcher_cap);
@@ -321,25 +322,46 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
     // Allocate args
     char *args = (char *) argspace_offset;
     argspace_offset += len;
-    
+
     // Initialization
     params->argc = 0;
     params->argv[params->argc++] = args;
-    
+
+
     // Copy argstring to args
+    uint8_t escaped = 0;
+    char quote = '\0';
+    size_t j = 0;
     for (size_t i = 0; i < len && params->argc < MAX_CMDLINE_ARGS; i++) {
-        // Check if we found a new argument
-        if (argstring[i] == ' ') {
-            args[i] = '\0';
-            if (i < len && params->argc < MAX_CMDLINE_ARGS) {
-                params->argv[params->argc++] = args + 1;
+        // If escaped, copy and reset escape flag
+        if (escaped) {
+            args[j++] = argstring[i];
+            escaped = !escaped;
+        } else {
+            // If quote is null
+            if (quote == '\0') {
+                // Check if quote or space or escape, else copy
+                if (argstring[i] == '"' || argstring[i] == '\'') {
+                    quote = argstring[i];
+                } else if(argstring[i] == ' ') {
+                    args[j++] = '\0';
+                    params->argv[params->argc++] = args + j;
+                } else if (argstring[i] == '\\') {
+                    escaped = !escaped;
+                } else {
+                    args[j++] = argstring[i];
+                }
+            } else {
+                // Check if matching quote, else copy
+                if (argstring[i] == quote) {
+                    quote = '\0';
+                } else {
+                    args[j++] = argstring[i];
+                }
             }
         }
-        else {
-            args[i] = argstring[i];
-        }
     }
-    
+
     // Terminate argv
     params->argv[params->argc] = NULL;
     
@@ -358,14 +380,31 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
 static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
  
     errval_t err = SYS_ERR_OK;
-    
+
+    struct process_info *process = malloc(sizeof(struct process_info));
+
+    process->name = si->binary_name;
+    process->dispatcher_cap = &si->child_dispatcher_cap;
+
+    if (process_list == NULL) {
+        process_list = process;
+    } else {
+        struct process_info *i;
+        for(i = process_list; i->next != NULL; i = i->next);
+        i->next = process;
+        process->prev = i;
+    }
+
+
+
+
     err = invoke_dispatcher(si->child_dispatcher_cap,
                             cap_dispatcher,
                             si->child_rootcn_cap,
                             si->l1_pt_cap,
                             si->slot_dispframe_cap,
                             true);
-    
+
     return err;
     
 }
