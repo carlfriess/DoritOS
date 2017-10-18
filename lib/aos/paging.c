@@ -151,6 +151,7 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, s
     pr->base_addr    = (lvaddr_t)base;
     pr->current_addr = pr->base_addr;
     pr->region_size  = size;
+    pr->paging_state = st;
     return SYS_ERR_OK;
 }
 
@@ -162,6 +163,15 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, s
 errval_t paging_region_map(struct paging_region *pr, size_t req_size,
                            void **retbuf, size_t *ret_size)
 {
+    errval_t err = SYS_ERR_OK;
+    
+    // Round up to next page boundary
+    if (bytes % BASE_PAGE_SIZE) {
+        size_t pages = bytes / BASE_PAGE_SIZE;
+        pages++;
+        bytes = pages * BASE_PAGE_SIZE;
+    }
+    
     lvaddr_t end_addr = pr->base_addr + pr->region_size;
     ssize_t rem = end_addr - pr->current_addr;
     if (rem > req_size) {
@@ -178,6 +188,17 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
     } else {
         return LIB_ERR_VSPACE_MMU_AWARE_NO_SPACE;
     }
+    
+    // Allocating frame
+    struct capref frame_cap;
+    err = frame_alloc(&frame_cap, *ret_size, ret_size);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Mapping frame into virtual memory
+    err = paging_map_fixed(pr->paging_state, (lvaddr_t) *retbuf, frame_cap, *ret_size);
+    
     return SYS_ERR_OK;
 }
 
