@@ -555,7 +555,7 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
         debug_printf("HAS LEFT AND RIGHT CHILD\n");
         
         // Finding successor to swap with deletion node
-        struct pt_cap_tree_node **succ_indirect = node_indirect;
+        struct pt_cap_tree_node **succ_indirect = &(*node_indirect)->right;
         while((*succ_indirect)->left != NULL) {
             succ_indirect = &(*succ_indirect)->left;
         }
@@ -601,7 +601,7 @@ errval_t paging_unmap(struct paging_state *st, const void *region)
     return SYS_ERR_OK;
 }
 
-errval_t free_deletion_node(struct paging_state *st, struct pt_cap_tree_node *node, struct pt_cap_tree_node *l2_node) {
+static errval_t free_deletion_node(struct paging_state *st, struct pt_cap_tree_node *node, struct pt_cap_tree_node *l2_node) {
     
     errval_t err;
     
@@ -631,6 +631,8 @@ errval_t free_deletion_node(struct paging_state *st, struct pt_cap_tree_node *no
         return err;
     }
     
+    // TODO: Free slots
+    
     // Deleting node capability
     err = cap_delete(node->cap);
     if (err_is_fail(err)) {
@@ -653,6 +655,7 @@ void insert_free_vspace_node(struct paging_state *st, lvaddr_t base, size_t size
         // Add new_node to head of the linked list
         struct free_vspace_node *new_node = (struct free_vspace_node *) slab_alloc(&st->vspace_slabs);
         new_node->base = base;
+        new_node->size = size;
         new_node->next = st->free_vspace_head;
         st->free_vspace_head = new_node;
         return;
@@ -706,6 +709,7 @@ void insert_free_vspace_node(struct paging_state *st, lvaddr_t base, size_t size
             // Add new_node to the linked list between node and node->next (which is potentially null)
             struct free_vspace_node *new_node = (struct free_vspace_node *) slab_alloc(&st->vspace_slabs);
             new_node->base = base;
+            new_node->size = size;
             new_node->next = node->next;
             node->next = new_node;
             break;
@@ -714,8 +718,7 @@ void insert_free_vspace_node(struct paging_state *st, lvaddr_t base, size_t size
 
     }
 
-    // Update the free_vspace_base in the paging state
-    st->free_vspace_base = MAX(st->free_vspace_base, base + size);
+
     
 }
 

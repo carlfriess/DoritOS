@@ -185,9 +185,11 @@ errval_t test_random_seq(void) {
     
     for (int i = 0; i < 200; i++) {
         if (seq[i] > 0) {
-            assert(err_is_ok( ram_alloc(&(retcap[seq[i]-1]), seq[i]*100) ));
+            errval_t err = ram_alloc(&(retcap[seq[i]-1]), seq[i]*100);
+            assert(err_is_ok(err));
         } else {
-            assert(err_is_ok( aos_ram_free(retcap[(-seq[i])-1], (-seq[i])*100) ));
+            errval_t err = aos_ram_free(retcap[(-seq[i])-1], (-seq[i])*100);
+            assert(err_is_ok(err));
         }
     }
     

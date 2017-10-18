@@ -31,27 +31,35 @@ errval_t test_map_unmap_n(size_t b, int n) {
         struct capref frame;
         size_t ret_bytes;
         frame_alloc(&frame, b, &ret_bytes);
-        debug_printf("---------->ret_bytes: %d\n", ret_bytes);
-
         paging_map_frame(get_current_paging_state(), (void **)&(buf_array[i]), ret_bytes, frame, NULL, NULL);
-        
-        debug_printf("---------->buf_array[i]: %x\n", buf_array[i]);
-        
-        *buf_array[i] = '*';
-        
-        debug_printf("---------->*buf_array[i]: %d\n", *buf_array[i]);
-
+        *buf_array[i] = '*';    // ASCII 42
         
     }
     
     for (int i = 0; i < n; ++i) {
-        paging_unmap(get_current_paging_state(), (void *)buf_array[i]);
         
-        //debug_printf("---------->*buf_array[i]: %d\n", *buf_array[i]);
-
+        paging_unmap(get_current_paging_state(), (void *)buf_array[i]);
+    
     }
+    
+    /*
+     for (int i = 0; i < 200; i++) {
+     if (seq[i] > 0) {
+     errval_t err = ram_alloc(&(retcap[seq[i]-1]), seq[i]*100);
+     assert(err_is_ok(err));
+     } else {
+     errval_t err = aos_ram_free(retcap[(-seq[i])-1], (-seq[i])*100);
+     assert(err_is_ok(err));
+     }
+     }
+     */
+    
         
     RETURN_TEST_SUCCESS;
+}
+
+errval_t test_map_unmap_random() {
+    
 }
 
 void run_all_m2_tests(void) {
