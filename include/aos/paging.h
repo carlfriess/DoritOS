@@ -50,8 +50,8 @@ struct paging_state {
     // TODO: add struct members to keep track of the page tables etc
     struct capref l1_pagetable;
     struct slab_allocator vspace_slabs;         // Slab allocator for free_vspace_node
-    struct free_vspace_node *alloc_vspace_head; // Alloc list of allocated vspace regions
-    struct free_vspace_node *free_vspace_head;  // Free list of free vspace regions
+    struct vspace_node *alloc_vspace_head; // Alloc list of allocated vspace regions
+    struct vspace_node *free_vspace_head;  // Free list of free vspace regions
     lvaddr_t free_vspace_base;                  // Base address of free vspace
     struct slab_allocator slabs;                // Slab allocator for pt_cap_tree_node
     int slabs_prevent_refill;                   // Keep track when to prevent refill
@@ -59,7 +59,7 @@ struct paging_state {
 };
 
 // struct for list of free virtual address regions
-struct free_vspace_node {
+struct vspace_node {
     struct free_vspace_node *next;
     lvaddr_t base;
     size_t size;
