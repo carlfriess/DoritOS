@@ -57,14 +57,10 @@ int main(int argc, char *argv[])
     }
     
     // Running all tests
-    //run_all_m1_tests();
-    run_all_m2_tests();
-
-    //struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-    //spawn_load_by_name("hello", si);
-    //spawn_load_by_name("hello", si);
-    /*
-    for (int i = 0; i < 10; i++) {
+    //run_all_tests();
+    
+    for (int i = 0; i < 100; i++) {
+        debug_printf("===== %d =====\n", i+1);
         struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
         spawn_load_by_name("hello", si);
         free(si);
