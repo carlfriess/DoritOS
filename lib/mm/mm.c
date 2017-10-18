@@ -231,6 +231,9 @@ errval_t mm_alloc_aligned(struct mm *mm, size_t size, size_t alignment, struct c
         // Check that there are sufficient slabs left in the slab allocator
         size_t freecount = slab_freecount((struct slab_allocator *)&mm->slabs);
         if (freecount <= 4 && !mm->is_refilling) {
+#if PRINT_DEBUG
+            debug_printf("MM slab allocator refilling...\n");
+#endif
             mm->is_refilling = 1;
             slab_default_refill((struct slab_allocator *)&mm->slabs);
             mm->is_refilling = 0;

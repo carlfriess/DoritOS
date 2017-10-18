@@ -405,7 +405,11 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
 
     // Mapping the ELF image into the virtual address space
     void *elf_buf = NULL;
-    paging_map_frame_attr(get_current_paging_state(), &elf_buf, mem->mrmod_size, child_frame, VREGION_FLAGS_READ, NULL, NULL);
+    err = paging_map_frame_attr(get_current_paging_state(), &elf_buf, mem->mrmod_size, child_frame, VREGION_FLAGS_READ, NULL, NULL);
+    if (err_is_fail(err)) {
+        debug_printf("spawn: Failed mapping ELF into virtual memory: %s\n", err_getstring(err));
+        return err;
+    }
 
     char *elf = elf_buf;
     debug_printf("Mapped ELF into memory: 0x%x %c%c%c\n", elf[0], elf[1], elf[2], elf[3]);
