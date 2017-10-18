@@ -23,7 +23,7 @@
 
 #define PRINT_DEBUG 0
 
-void insert_free_vspace_node(struct paging_state *st, lvaddr_t base, size_t size);
+void insert_vspace_node(struct paging_state *st, lvaddr_t base, size_t size);
 errval_t free_deletion_node(struct paging_state *st, struct pt_cap_tree_node *node, struct pt_cap_tree_node *l2_node);
 
 static struct paging_state current;
@@ -67,10 +67,10 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     st->free_vspace_base = start_vaddr;
 
     // Initialize the slab allocator for free vspace nodes
-    slab_init(&st->vspace_slabs, sizeof(struct free_vspace_node), slab_default_refill);
+    slab_init(&st->vspace_slabs, sizeof(struct vspace_node), slab_default_refill);
     static int first_call = 1;
     if (first_call) {
-        static char vspace_nodebuf[sizeof(struct free_vspace_node)*64];
+        static char vspace_nodebuf[sizeof(struct vspace_node)*64];
         slab_grow(&st->vspace_slabs, vspace_nodebuf, sizeof(vspace_nodebuf));
     }
     else {
@@ -209,7 +209,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
     }
     
     // Iterate free list and check for suitable address range
-    struct free_vspace_node **indirect = &st->free_vspace_head;
+    struct vspace_node **indirect = &st->free_vspace_head;
     while ((*indirect) != NULL) {
         if ((*indirect)->size >= bytes) {
             break;
@@ -613,7 +613,7 @@ static errval_t free_deletion_node(struct paging_state *st, struct pt_cap_tree_n
     debug_printf("Inserting new space in free vspace linked list\n");
     
     // Inserting new space in free vspace linked list
-    insert_free_vspace_node(st, base, size);
+    insert_vspace_node(st, base, size);
     
     // Unmapping from l2 pagetable
     err = vnode_unmap(l2_node->cap, node->mapping_cap);
@@ -647,13 +647,13 @@ static errval_t free_deletion_node(struct paging_state *st, struct pt_cap_tree_n
     return SYS_ERR_OK;
 }
 
-void insert_free_vspace_node(struct paging_state *st, lvaddr_t base, size_t size) {
+void insert_vspace_node(struct paging_state *st, lvaddr_t base, size_t size) {
     
     // Check if list empty or node would have to get new head
     if (st->free_vspace_head == NULL || base + size < st->free_vspace_head->base) {
         
         // Add new_node to head of the linked list
-        struct free_vspace_node *new_node = (struct free_vspace_node *) slab_alloc(&st->vspace_slabs);
+        struct vspace_node *new_node = (struct vspace_node *) slab_alloc(&st->vspace_slabs);
         new_node->base = base;
         new_node->size = size;
         new_node->next = st->free_vspace_head;
@@ -672,7 +672,7 @@ void insert_free_vspace_node(struct paging_state *st, lvaddr_t base, size_t size
     
     // Iterating through loop adding node if necessary
     // Otherwise coalescing by changing base and size of exisiting node
-    struct free_vspace_node *node;
+    struct vspace_node *node;
     for (node = st->free_vspace_head; node != NULL; node = node->next) {
         
         if (node->next != NULL &&
@@ -682,7 +682,7 @@ void insert_free_vspace_node(struct paging_state *st, lvaddr_t base, size_t size
             // Coalescing with back of node and front of node->next
             node->size += size + node->next->size;
             // Remove the node->next from the linked list
-            struct free_vspace_node *next_node = node->next;
+            struct vspace_node *next_node = node->next;
             node->next = node->next->next;
             // Free the memory for the removed node
             slab_free(&st->vspace_slabs, next_node);
@@ -707,7 +707,7 @@ void insert_free_vspace_node(struct paging_state *st, lvaddr_t base, size_t size
         else if (node->base + node->size < base){
             
             // Add new_node to the linked list between node and node->next (which is potentially null)
-            struct free_vspace_node *new_node = (struct free_vspace_node *) slab_alloc(&st->vspace_slabs);
+            struct vspace_node *new_node = (struct vspace_node *) slab_alloc(&st->vspace_slabs);
             new_node->base = base;
             new_node->size = size;
             new_node->next = node->next;
