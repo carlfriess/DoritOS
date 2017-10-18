@@ -23,8 +23,9 @@
 
 #define PRINT_DEBUG 0
 
-void insert_vspace_node(struct paging_state *st, lvaddr_t base, size_t size);
-errval_t free_deletion_node(struct paging_state *st, struct pt_cap_tree_node *node, struct pt_cap_tree_node *l2_node);
+static errval_t delete_vspace_alloc_node(struct paging_state *st, lvaddr_t base, struct vspace_node **ret_node);
+static errval_t insert_vspace_free_node(struct paging_state *st, struct vspace_node *new_node);
+
 
 static struct paging_state current;
 
@@ -293,17 +294,17 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
     debug_printf("Mapping %d page(s) at 0x%x\n", bytes / BASE_PAGE_SIZE + (bytes % BASE_PAGE_SIZE ? 1 : 0), vaddr);
 #endif
     
-    for(uintptr_t end_addr, addr = vaddr; addr < vaddr + bytes; addr = end_addr) {
+    for (uintptr_t end_addr, addr = vaddr; addr < vaddr + bytes; addr = end_addr) {
     
         // Find next boundary of L2 page table range
         end_addr = addr / (ARM_L2_MAX_ENTRIES * BASE_PAGE_SIZE);
         end_addr++;
         end_addr *= (ARM_L2_MAX_ENTRIES * BASE_PAGE_SIZE);
-
+        
         // Calculate size of region to map within this L2 page table
         size_t size = MIN(end_addr - addr, (vaddr + bytes) - addr);
-
-
+        
+        
         // Calculate the offsets for the given virtual address
         uintptr_t l1_offset = ARM_L1_OFFSET(addr);
         uintptr_t l2_offset = ARM_L2_OFFSET(addr);
@@ -500,224 +501,311 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
  */
 errval_t paging_unmap(struct paging_state *st, const void *region)
 {
+    errval_t err;
     
-    // Setting to be searched key l1_offset
-    uintptr_t l1_offset = ARM_L1_OFFSET((lvaddr_t)region);
-
-    // Searching for l2 pagetable capability in the l2 tree
-    struct pt_cap_tree_node *l2_node = st->l2_tree_root;
-    
-    while (l2_node != NULL) {
-        
-        if (l1_offset < l2_node->offset) {
-            l2_node = l2_node->left;
-        } else if (l1_offset > l2_node->offset) {
-            l2_node = l2_node->right;
-        } else {
-            break;
-        }
-        
-    }
-    
-    // Check if l2 tree node was found
-    if (l2_node == NULL) {
-        debug_printf("l2 pagetable capability not found");
-        return -1;
+    // Free memory by moving node from vspace free list to vspace alloc list
+    size_t ret_size;
+    err = paging_free(st, region, &ret_size);
+    if (err_is_fail(err)) {
+        return err;
     }
 
-    // Setting to be searched key mapping_offset
-    uintptr_t mapping_offset = ((uintptr_t) region) / BASE_PAGE_SIZE;
+    // Actually unmapping region in memory (possibly over multiple l2 pagetables)
+    err = paging_unmap_fixed(st, (vaddr_t) region, ret_size);
     
-    // Searching for mapping capability in the mapping tree
-    struct pt_cap_tree_node **node_indirect = &st->mapping_tree_root;
-
-    while (*node_indirect != NULL) {
-        
-        if (mapping_offset > (*node_indirect)->offset) {
-            node_indirect = &(*node_indirect)->right;
-        } else if (mapping_offset < (*node_indirect)->offset) {
-            node_indirect = &(*node_indirect)->left;
-        } else {
-            break;
-        }
-        
-    }
-    
-    // Check if mapping tree node was found
-    if (*node_indirect == NULL) {
-        debug_printf("mapping capabilitiy not found");
-        return -1;
-    }
-    
-    // Check children of deletion node
-    if ((*node_indirect)->left != NULL && (*node_indirect)->right != NULL) {
-        
-        debug_printf("HAS LEFT AND RIGHT CHILD\n");
-        
-        // Finding successor to swap with deletion node
-        struct pt_cap_tree_node **succ_indirect = &(*node_indirect)->right;
-        while((*succ_indirect)->left != NULL) {
-            succ_indirect = &(*succ_indirect)->left;
-        }
-        
-        // Relink successor parent with successor child
-        struct pt_cap_tree_node *succ = *succ_indirect;
-        *succ_indirect = (*succ_indirect)->right;
-        
-        // Change children of actual successor to have children of deletion node
-        succ->left = (*node_indirect)->left;
-        succ->right = (*node_indirect)->right;
-        
-        // Free deletion node and add space to vspace linked list
-        free_deletion_node(st, *node_indirect, l2_node);
-        *node_indirect = succ;
-        
-    } else if ((*node_indirect)->left != NULL) {
-        
-        debug_printf("HAS LEFT CHILD\n");
-        
-        // Free deletion node and add space to vspace linked list
-        free_deletion_node(st, *node_indirect, l2_node);
-        *node_indirect = (*node_indirect)->left;
-        
-    } else if ((*node_indirect)->right != NULL) {
-        
-        debug_printf("HAS RIGHT CHILD\n");
-        
-        // Free deletion node and add space to vspace linked list
-        free_deletion_node(st, *node_indirect, l2_node);
-        *node_indirect = (*node_indirect)->right;
-        
-    } else {
-        
-        debug_printf("HAS NO CHILDREN\n");
-        
-        // Free deletion node and add space to vspace linked list
-        free_deletion_node(st, *node_indirect, l2_node);
-        *node_indirect = NULL;
-        
-    }
-    
-    return SYS_ERR_OK;
+    return err;
 }
 
-static errval_t free_deletion_node(struct paging_state *st, struct pt_cap_tree_node *node, struct pt_cap_tree_node *l2_node) {
+errval_t paging_free(struct paging_state *st, void *region, size_t *ret_size) {
     
     errval_t err;
     
-    debug_printf("Freeing slab of deletion node\n");
-    
-    lvaddr_t base = node->offset;
-    size_t size = BASE_PAGE_SIZE;       // FIXME: node can have more than BASE_PAGE_SIZE many bytes?!?!?
-    
-    debug_printf("Inserting new space in free vspace linked list\n");
-    
-    // Inserting new space in free vspace linked list
-    insert_vspace_node(st, base, size);
-    
-    // Unmapping from l2 pagetable
-    err = vnode_unmap(l2_node->cap, node->mapping_cap);
+    // Searching for node in alloc linked list
+    struct vspace_node ret_node;
+    err = delete_vspace_alloc_node(st, (lvaddr_t) region, &ret_node);
     if (err_is_fail(err)) {
-        debug_printf("vnode unmap failed: %s", err_getstring(err));
         return err;
     }
     
-    //  TODO: Decide weather to use cap_destroy or cap_delete
+    // Returning size of freed memory
+    *ret_size = ret_node->size;
     
-    // Deleting node mapping capability
-    err = cap_delete(node->mapping_cap);
-    if (err_is_fail(err)) {
-        debug_printf("mapping_cap delete failed: %s", err_getstring(err));
-        return err;
-    }
+    // Insert ret_node in vspace free linked list (coalescing included)
+    err = insert_vspace_free_node(st, ret_node);
     
-    // TODO: Free slots
-    
-    // Deleting node capability
-    err = cap_delete(node->cap);
-    if (err_is_fail(err)) {
-        debug_printf("cap delete failed: %s", err_getstring(err));
-        return err;
-    }
-    
-    // Freeing tree node slab
-    slab_free(&st->slabs, node);
-    debug_printf("Freed slab of deletion node\n");
-    
-    return SYS_ERR_OK;
+    return err;
 }
 
-void insert_vspace_node(struct paging_state *st, lvaddr_t base, size_t size) {
+errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t bytes) {
+
+#if PRINT_DEBUG
+    debug_printf("Unmapping %d page(s) at 0x%x\n", bytes / BASE_PAGE_SIZE + (bytes % BASE_PAGE_SIZE ? 1 : 0), vaddr);
+#endif
+    
+    for (uintptr_t end_addr, addr = vaddr; addr < vaddr + bytes; addr = end_addr) {
+        
+        // Find next boundary of L2 page table range
+        end_addr = addr / (ARM_L2_MAX_ENTRIES * BASE_PAGE_SIZE);
+        end_addr++;
+        end_addr *= (ARM_L2_MAX_ENTRIES * BASE_PAGE_SIZE);
+        
+        // Calculate the offsets for the given virtual address
+        uintptr_t l1_offset = ARM_L1_OFFSET(addr);
+        uintptr_t l2_offset = ARM_L2_OFFSET(addr);
+        uintptr_t mapping_offset = addr / BASE_PAGE_SIZE;
+        
+        // Searching for l2 pagetable capability in the l2 tree with l1_offset as key
+        struct pt_cap_tree_node *l2_node = st->l2_tree_root;
+        while (l2_node != NULL) {
+            
+            if (l1_offset < l2_node->offset) {
+                l2_node = l2_node->left;
+            } else if (l1_offset > l2_node->offset) {
+                l2_node = l2_node->right;
+            } else {
+                break;
+            }
+            
+        }
+        
+        // Check if l2 tree node was found
+        if (l2_node == NULL) {
+            debug_printf("l2 node in l2 tree not found");
+            return MM_ERR_NOT_FOUND;
+        }
+        
+        // Searching for mapping capability in the subtree of l2 node with mapping_offset as key
+        struct pt_cap_tree_node **node_indirect = &l2_node->subtree;
+        while (*node_indirect != NULL) {
+            
+            if (mapping_offset > (*node_indirect)->offset) {
+                node_indirect = &(*node_indirect)->right;
+            } else if (mapping_offset < (*node_indirect)->offset) {
+                node_indirect = &(*node_indirect)->left;
+            } else {
+                break;
+            }
+            
+        }
+        
+        // Check if mapping tree node was found
+        if (*node_indirect == NULL) {
+            debug_printf("mapping node in subtree not found");
+            return MM_ERR_NOT_FOUND;
+        }
+        
+        struct pt_cap_tree_node *deletion_node = NULL;
+        
+        // Check children of deletion node
+        if ((*node_indirect)->left != NULL && (*node_indirect)->right != NULL) {
+            
+            debug_printf("HAS LEFT AND RIGHT CHILD\n");
+            
+            // Finding successor to swap with deletion node
+            struct pt_cap_tree_node **succ_indirect = &(*node_indirect)->right;
+            while((*succ_indirect)->left != NULL) {
+                succ_indirect = &(*succ_indirect)->left;
+            }
+            
+            // Relink successor parent with successor child
+            struct pt_cap_tree_node *succ = *succ_indirect;
+            *succ_indirect = (*succ_indirect)->right;
+            
+            // Change children of actual successor to have children of deletion node
+            succ->left = (*node_indirect)->left;
+            succ->right = (*node_indirect)->right;
+            
+            deletion_node = *node_indirect;
+            
+            // Setting new child of parent node
+            *node_indirect = succ;
+            
+        } else if ((*node_indirect)->left != NULL) {
+            
+            debug_printf("HAS LEFT CHILD\n");
+            
+            deletion_node = *node_indirect;
+            
+            // Setting new child of parent node
+            *node_indirect = (*node_indirect)->left;
+            
+        } else if ((*node_indirect)->right != NULL) {
+            
+            debug_printf("HAS RIGHT CHILD\n");
+            
+            deletion_node = *node_indirect;
+            
+            // Setting new child of parent node
+            *node_indirect = (*node_indirect)->right;
+            
+        } else {
+            
+            debug_printf("HAS NO CHILDREN\n");
+            
+            deletion_node = *node_indirect;
+            
+            // Setting new child of parent node
+            *node_indirect = NULL;
+            
+        }
+        
+        // Freeing capabilites cap and mapping_cap of deletion_node and tree node slab
+        debug_printf("Deleting capabilities and freeing slab/slots of deletion node\n");
+        
+        errval_t err;
+        
+        // Unmapping mapping_cap from l2 pagetable
+        err = vnode_unmap(l2_node->cap, deletion_node->mapping_cap);
+        if (err_is_fail(err)) {
+            return err;
+        }
+        
+        // Deleting deletion_node mapping capability
+        err = cap_delete(deletion_node->mapping_cap);
+        if (err_is_fail(err)) {
+            return err;
+        }
+        
+        // Freeing deletion_node mapping capability slot
+        slot_free(deletion_node->mapping_cap);
+        
+        // Deleting deletion_node capability
+        err = cap_delete(deletion_node->cap);
+        if (err_is_fail(err)) {
+            return err;
+        }
+        
+        // Freeing deletion_node capability slot
+        slot_free(deletion_node->cap);
+        
+        // Freeing tree deletion_node slab
+        slab_free(&st->slabs, deletion_node);
+        
+        debug_printf("Deleted capabilities and freed slab/slots of deletion node\n");
+        
+    }
+    
+    debug_printf("Unmapped %d page(s) at 0x%x\n", bytes / BASE_PAGE_SIZE + (bytes % BASE_PAGE_SIZE ? 1 : 0), vaddr);
+
+    return SYS_ERR_OK;
+
+}
+
+static errval_t delete_vspace_alloc_node(struct paging_state *st, lvaddr_t base, struct vspace_node **ret_node) {
+    
+    // Searching through alloc linked list
+    struct vspace_node **node_indirect = &st->alloc_vspace_head;
+    while (*node_indirect != NULL) {
+        
+        if ((*node_indirect)->base == base) {
+            break;
+        }
+        
+    }
+    
+    if (*node_indirect == NULL) {
+        debug_printf("alloc node was not found");
+        return LIB_ERR_VSPACE_VREGION_NOT_FOUND;
+    }
+    
+    *ret_node = *node_indirect;
+    
+    // Cleaning up ret_node->next needed?
+    ret_node->next = NULL;
+    
+    // Remove node from linked list by changing next of previous node
+    *node_indirect = (*node_indirect)->next;
+    
+    return SYS_ERR_OK;
+    
+}
+
+static errval_t insert_vspace_free_node(struct paging_state *st, struct vspace_node *new_node) {
     
     // Check if list empty or node would have to get new head
-    if (st->free_vspace_head == NULL || base + size < st->free_vspace_head->base) {
+    if (st->free_vspace_head == NULL || new_node->base + new_node->size < st->free_vspace_head->base) {
         
         // Add new_node to head of the linked list
-        struct vspace_node *new_node = (struct vspace_node *) slab_alloc(&st->vspace_slabs);
-        new_node->base = base;
-        new_node->size = size;
         new_node->next = st->free_vspace_head;
         st->free_vspace_head = new_node;
-        return;
+        
+        return SYS_ERR_OK;
         
     }
-    else if (base + size == st->free_vspace_head->base) {
+    else if (new_node->base + new_node->size == st->free_vspace_head->base) {
         
         // Coalescing with front of head
-        st->free_vspace_head->base = base;
-        st->free_vspace_head->size += size;
-        return;
+        st->free_vspace_head->base = new_node->base;
+        st->free_vspace_head->size += new_node->size;
+        
+        // Free the memory/slab for new_node
+        slab_free(&st->vspace_slabs, next_node);
+
+        return SYS_ERR_OK;
         
     }
     
-    // Iterating through loop adding node if necessary
-    // Otherwise coalescing by changing base and size of exisiting node
+    // Iterating through loop adding new_node if necessary,
+    // otherwise coalescing by changing base and size of exisiting node
+    // and freeing slab of new_node
     struct vspace_node *node;
     for (node = st->free_vspace_head; node != NULL; node = node->next) {
         
         if (node->next != NULL &&
-            node->base + node->size == base &&
-            base + size == node->next->base) {
+            node->base + node->size == new_node->base &&
+            new_node->base + new_node->size == node->next->base) {
             
             // Coalescing with back of node and front of node->next
-            node->size += size + node->next->size;
+            node->size += new_node->size + node->next->size;
             // Remove the node->next from the linked list
             struct vspace_node *next_node = node->next;
             node->next = node->next->next;
-            // Free the memory for the removed node
+            
+            // Free the memory/slab for node->next
             slab_free(&st->vspace_slabs, next_node);
+            
+            // Free the memory/slab for new_node
+            slab_free(&st->vspace_slabs, new_node);
+            
             break;
             
         }
         else if (node->next != NULL &&
-                 base + size == node->next->base) {
+                 new_node->base + new_node->size == node->next->base) {
             
             // Coalescing with front of node->next
-            node->next->base = base;
-            node->next->size += size;
+            node->next->base = new_node->base;
+            node->next->size += new_node->size;
+            
+            // Free the memory/slab for new_node
+            slab_free(&st->vspace_slabs, new_node);
+            
             break;
         }
-        else if (node->base + node->size == base) {
+        else if (node->base + node->size == new_node->base) {
             
             // Coalescing with back of node
-            node->size += size;
+            node->size += new_node->size;
+            
+            // Free the memory/slab for new_node
+            slab_free(&st->vspace_slabs, new_node);
+            
             break;
         
         }
-        else if (node->base + node->size < base){
+        else if (node->base + node->size < new_node->base){
             
             // Add new_node to the linked list between node and node->next (which is potentially null)
-            struct vspace_node *new_node = (struct vspace_node *) slab_alloc(&st->vspace_slabs);
-            new_node->base = base;
-            new_node->size = size;
             new_node->next = node->next;
             node->next = new_node;
+            
             break;
             
         }
 
     }
     
+    return SYS_ERR_OK;
     
 }
 
