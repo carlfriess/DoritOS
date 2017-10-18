@@ -60,15 +60,20 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     // Set the capability reference for the l1 page table
     st->l1_pagetable = pdir;
     
+    // Initialize L2 page table tree
+    st->l2_tree_root = NULL;
+    
     // Set up state for vspace allocation
     st->free_vspace_head = NULL;
+    st->alloc_vspace_head = NULL;
     st->free_vspace_base = start_vaddr;
 
     // Initialize the slab allocator for free vspace nodes
-    slab_init(&st->vspace_slabs, sizeof(struct free_vspace_node), slab_default_refill);
+    st->vspace_slabs_prevent_refill = 0;
+    slab_init(&st->vspace_slabs, sizeof(struct vspace_node), slab_default_refill);
     static int first_call = 1;
     if (first_call) {
-        static char vspace_nodebuf[sizeof(struct free_vspace_node)*64];
+        static char vspace_nodebuf[sizeof(struct vspace_node)*64];
         slab_grow(&st->vspace_slabs, vspace_nodebuf, sizeof(vspace_nodebuf));
     }
     else {
@@ -76,6 +81,7 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     }
     
     // Initialize the slab allocator for tree nodes
+    st->slabs_prevent_refill = 0;
     slab_init(&st->slabs, sizeof(struct pt_cap_tree_node), slab_default_refill);
     if (first_call) {
         static char nodebuf[sizeof(struct pt_cap_tree_node)*64];
@@ -204,7 +210,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
     }
     
     // Iterate free list and check for suitable address range
-    struct free_vspace_node **indirect = &st->free_vspace_head;
+    struct vspace_node **indirect = &st->free_vspace_head;
     while ((*indirect) != NULL) {
         if ((*indirect)->size >= bytes) {
             break;
@@ -235,6 +241,24 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
         st->free_vspace_base += bytes;
     }
     
+    // Register the allocation in the alloc list
+    struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
+    new_node->base = (uintptr_t) *buf;
+    new_node->base = bytes;
+    new_node->next = st->alloc_vspace_head;
+    st->alloc_vspace_head = new_node;
+    
+    // Check that there are sufficient slabs left in the slab allocator
+    size_t freecount = slab_freecount((struct slab_allocator *)&st->vspace_slabs);
+    if (freecount <= 6 && !st->vspace_slabs_prevent_refill) {
+#if PRINT_DEBUG
+        debug_printf("Vspace slab allocator refilling...\n");
+#endif
+        st->vspace_slabs_prevent_refill = 1;
+        slab_default_refill((struct slab_allocator *)&st->vspace_slabs);
+        st->vspace_slabs_prevent_refill = 0;
+    }
+    
     // Summary
 #if PRINT_DEBUG
     debug_printf("Allocated %zu bytes of virtual address space at 0x%x\n", bytes, *buf);
@@ -258,8 +282,7 @@ errval_t paging_map_frame_attr(struct paging_state *st, void **buf,
     return paging_map_fixed_attr(st, (lvaddr_t)(*buf), frame, bytes, flags);
 }
 
-errval_t
-slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size_t minbytes)
+errval_t slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size_t minbytes)
 {
     // Refill the two-level slot allocator without causing a page-fault
     
@@ -328,10 +351,12 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             node = slab_alloc(&st->slabs);
             node->left = NULL;
             node->right = NULL;
+            node->subtree = NULL;
 
             // Allocate a new slot for the mapping capability
             errval_t err_slot_alloc = st->slot_alloc->alloc(st->slot_alloc, &node->mapping_cap);
-            if (!err_is_ok(err_slot_alloc)) {
+            if (err_is_fail(err_slot_alloc)) {
+                slab_free(&st->slabs, node);
                 return err_slot_alloc;
             }
 
@@ -339,6 +364,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
             errval_t err_l2_alloc = arml2_alloc(st, &node->cap);
             if (!err_is_ok(err_l2_alloc)) {
                 slot_free(node->mapping_cap);
+                slab_free(&st->slabs, node);
                 return err_l2_alloc;
             }
             
@@ -389,7 +415,9 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                 // Map L2 pagetable to appropriate slot in L1 pagetable
                 errval_t err_l2_map = vnode_map(st->l1_pagetable, node->cap, l1_offset, flags, 0, 1, node->mapping_cap);
                 if (!err_is_ok(err_l2_map)) {
+                    slot_free(node->cap);
                     slot_free(node->mapping_cap);
+                    slab_free(&st->slabs, node);
                     return err_l2_map;
                 }
                 
@@ -421,10 +449,12 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         struct pt_cap_tree_node *map_node = slab_alloc(&st->slabs);
         map_node->left = NULL;
         map_node->right = NULL;
+        map_node->subtree = NULL;
 
         // Allocate a new slot for the mapping capability
         errval_t err_slot_alloc = st->slot_alloc->alloc(st->slot_alloc, &map_node->mapping_cap);
         if (!err_is_ok(err_slot_alloc)) {
+            slab_free(&st->slabs, map_node);
             return err_slot_alloc;
         }
 
@@ -432,6 +462,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         errval_t err_frame_map = vnode_map(node->cap, frame, l2_offset, flags, addr - vaddr, num_pages, map_node->mapping_cap);
         if (!err_is_ok(err_frame_map)) {
             slot_free(map_node->mapping_cap);
+            slab_free(&st->slabs, map_node);
             return err_frame_map;
         }
 
@@ -440,10 +471,10 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
         map_node->offset = mapping_offset;
 
         // Store the new node in the mapping capability tree
-        if (st->mapping_tree_root == NULL) {
-            st->mapping_tree_root = map_node;
+        if (node->subtree == NULL) {
+            node->subtree = map_node;
         } else {
-            struct pt_cap_tree_node *prev_map = st->mapping_tree_root;
+            struct pt_cap_tree_node *prev_map = node->subtree;
             while (prev_map != NULL) {
                 if (mapping_offset < prev_map->offset) {
                     if (prev_map->left != NULL) {
