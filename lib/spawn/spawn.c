@@ -180,6 +180,8 @@ static errval_t elf_allocator_callback(void *state, genvaddr_t base, size_t size
     *ret += offset;
 
     // Map the memory region into child's virtual address space.
+    uint32_t real_base_addr = real_base;
+    paging_alloc_fixed(&si->child_paging_state, (void *) real_base_addr, ret_size);
     err = paging_map_fixed_attr(&si->child_paging_state, real_base, frame_cap, ret_size, flags);
     if (err_is_fail(err)) {
         return err;

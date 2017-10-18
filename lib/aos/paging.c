@@ -191,6 +191,34 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
 }
 
 /**
+ * \brief Allocate a fixed area in the virtual address space.
+ */
+errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
+{
+    
+    // Register the allocation in the alloc list
+    struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
+    new_node->base = (uintptr_t) buf;
+    new_node->base = bytes;
+    new_node->next = st->alloc_vspace_head;
+    st->alloc_vspace_head = new_node;
+    
+    // Check that there are sufficient slabs left in the slab allocator
+    size_t freecount = slab_freecount((struct slab_allocator *)&st->vspace_slabs);
+    if (freecount <= 6 && !st->vspace_slabs_prevent_refill) {
+#if PRINT_DEBUG
+        debug_printf("Vspace slab allocator refilling...\n");
+#endif
+        st->vspace_slabs_prevent_refill = 1;
+        slab_default_refill((struct slab_allocator *)&st->vspace_slabs);
+        st->vspace_slabs_prevent_refill = 0;
+    }
+    
+    return SYS_ERR_OK;
+    
+}
+
+/**
  *
  * \brief Find a bit of free virtual address space that is large enough to
  *        accomodate a buffer of size `bytes`.

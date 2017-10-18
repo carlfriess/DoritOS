@@ -111,6 +111,11 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
 errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t bytes);
 
 /**
+ * \brief Allocate a fixed area in the virtual address space.
+ */
+errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes);
+
+/**
  * \brief Find a bit of free virtual address space that is large enough to
  *        accomodate a buffer of size `bytes`.
  */
