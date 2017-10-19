@@ -301,10 +301,11 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
             (*indirect)->size -= bytes;
         }
         else {
+            struct vspace_node *old_node = *indirect;
             // Remove the node
             *indirect = (*indirect)->next;
             // Free the slab
-            slab_free(&st->vspace_slabs, *indirect);
+            slab_free(&st->vspace_slabs, old_node);
         }
     }
     else {
@@ -316,7 +317,7 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
     // Register the allocation in the alloc list
     struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
     new_node->base = (uintptr_t) *buf;
-    new_node->base = bytes;
+    new_node->size = bytes;
     new_node->next = st->alloc_vspace_head;
     st->alloc_vspace_head = new_node;
     
@@ -797,6 +798,7 @@ static errval_t delete_vspace_alloc_node(struct paging_state *st, lvaddr_t base,
         if ((*node_indirect)->base == base) {
             break;
         }
+        node_indirect = &(*node_indirect)->next;
         
     }
     
