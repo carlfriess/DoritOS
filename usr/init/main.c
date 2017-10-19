@@ -30,8 +30,6 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
-extern struct process_info *process_list;
-
 int main(int argc, char *argv[])
 {
     errval_t err;
@@ -71,23 +69,7 @@ int main(int argc, char *argv[])
     struct waitset *default_ws = get_default_waitset();
     while (true) {
 
-        struct process_info *i;
-        for (i = process_list; i != NULL; i = i->next) {
-            debug_printf("Currently running process: %s\n", i->name);
-            debug_printf("Attempting to kill 🔪\n");
-            err = cap_revoke(*i->dispatcher_cap);
-            if (err_is_fail(err)) {
-                DEBUG_ERR(err, "in process list cap revoke");
-            } else {
-                if (i->next != NULL) {
-                    i->prev->next = i->next;
-                    i->next->prev = i->prev;
-                } else {
-                    i->prev->next = NULL;
-                }
-                free(i);
-            }
-        }
+        print_process_list();
 
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {

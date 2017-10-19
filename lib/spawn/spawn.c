@@ -11,6 +11,8 @@ extern struct bootinfo *bi;
 
 struct process_info *process_list = NULL;
 
+static size_t pid = 0;
+
 static void add_parent_mapping(struct spawninfo *si, void *addr) {
     // Check if parent_mappings exists
     if (si->parent_mappings.addr == NULL) {
@@ -63,7 +65,7 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     if (err_is_fail(err)) {
         return err;
     }
-    
+
     //  Retype SLOT_DISPATCHER capability into SLOT_SELFEP
     capref_beta.cnode = si->taskcn_ref;
     capref_beta.slot = TASKCN_SLOT_SELFEP;
@@ -407,6 +409,7 @@ static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
 
     process->name = si->binary_name;
     process->dispatcher_cap = &si->child_dispatcher_cap;
+    process->id = ++pid;
 
     if (process_list == NULL) {
         process_list = process;
@@ -547,4 +550,17 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     }
 
     return err;
+}
+
+void print_process_list(void) {
+    size_t counter = 1;
+
+    struct process_info *i;
+    debug_printf("Currently running processes:\n");
+    debug_printf("\t%3d\t%s\n", 0, "init");
+    for (i = process_list; i != NULL; i = i->next) {
+        debug_printf("\t%3d\t%s\n", i->id, i->name);
+        counter++;
+    }
+    debug_printf("Total number of processes: %d\n", counter);
 }
