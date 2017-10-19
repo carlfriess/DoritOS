@@ -813,9 +813,6 @@ static errval_t delete_vspace_alloc_node(struct paging_state *st, lvaddr_t base,
     
     *ret_node = *node_indirect;
     
-    // Cleaning up ret_node->next needed?
-    (*ret_node)->next = NULL;
-    
     // Remove node from linked list by changing next of previous node
     *node_indirect = (*node_indirect)->next;
     

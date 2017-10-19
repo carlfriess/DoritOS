@@ -56,15 +56,13 @@ int main(int argc, char *argv[])
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
     
-    // Running all tests
-    //run_all_tests();
+    // Run tests:
     
-    for (int i = 0; i < 100; i++) {
-        debug_printf("===== %d =====\n", i+1);
-        struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-        spawn_load_by_name("hello", si);
-        free(si);
-    }
+    // Milestone 1:
+    //run_all_m1_tests();
+    
+    // Milestone 2:
+    run_all_m2_tests();
     
     debug_printf("Message handler loop\n");
     // Hang around
