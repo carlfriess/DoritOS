@@ -163,7 +163,6 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
     }
     
     // Map the frames into parent's virtual address space
-    //  TODO: Unmap these
     err = paging_map_frame(get_current_paging_state(), (void **) &si->child_paging_state, paging_state_frame_size, paging_state_frame_cap, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
@@ -179,9 +178,11 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
         return err;
     }
     
+    // Unmap these frames later
+    add_parent_mapping(si, si->child_paging_state);
+    add_parent_mapping(si, slab_frame_1_addr);
+    add_parent_mapping(si, slab_frame_2_addr);
     
-    
-    debug_printf(">>>>> %p, %p\n", slab_frame_1_addr, slab_frame_2_addr);
     
     // Creating L1 VNode
     si->l1_pt_cap.cnode = si->slot_pagecn_ref;
