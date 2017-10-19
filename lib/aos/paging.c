@@ -758,8 +758,8 @@ errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t byte
             return err;
         }
         
-        // Deleting deletion_node mapping capability
-        err = cap_delete(deletion_node->mapping_cap);
+        // Destroying deletion_node mapping capability
+        err = cap_destroy(deletion_node->mapping_cap);
         if (err_is_fail(err)) {
             return err;
         }
