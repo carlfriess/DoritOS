@@ -767,15 +767,6 @@ errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t byte
         // Freeing deletion_node mapping capability slot
         slot_free(deletion_node->mapping_cap);
         
-        // Deleting deletion_node capability
-        err = cap_delete(deletion_node->cap);
-        if (err_is_fail(err)) {
-            return err;
-        }
-        
-        // Freeing deletion_node capability slot
-        slot_free(deletion_node->cap);
-        
         // Freeing tree deletion_node slab
         slab_free(&st->slabs, deletion_node);
         
