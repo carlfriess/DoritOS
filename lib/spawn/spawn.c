@@ -11,16 +11,33 @@ extern struct bootinfo *bi;
 
 struct process_info *process_list = NULL;
 
+static void add_parent_mapping(struct spawninfo *si, void *addr) {
+    // Check if parent_mappings exists
+    if (si->parent_mappings.addr == NULL) {
+        si->parent_mappings.addr = addr;
+    } else {
+        // Iterate to last entry, allocate new mapping, assign
+        struct parent_mapping *i;
+        for(i = &si->parent_mappings; i->next != NULL; i = i->next);
+        struct parent_mapping *mapping = (struct parent_mapping *) malloc(sizeof(struct parent_mapping));
+        mapping->addr = addr;
+        i->next = mapping;
+    }
+}
+
 // Set up the cspace for a child process
 static errval_t spawn_setup_cspace(struct spawninfo *si) {
     
-    // TODO: Reduce caprefs on stack!!!
-    
     errval_t err;
-    
+
+    // Placeholder cnoderef/capref to reduce stack size
+    struct cnoderef cnoderef_alpha;
+
+    struct capref capref_alpha;
+    struct capref capref_beta;
+
     // Create a L1 cnode
-    struct cnoderef root_cnode_ref;
-    err = cnode_create_l1(&si->child_rootcn_cap, &root_cnode_ref);
+    err = cnode_create_l1(&si->child_rootcn_cap, &cnoderef_alpha);
     if (err_is_fail(err)) {
         return err;
     }
@@ -32,83 +49,79 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     }
 
     //  Create SLOT_DISPATCHER capability
-    struct capref slot_dispatcher_cap = {
-        .cnode = si->taskcn_ref,
-        .slot = TASKCN_SLOT_DISPATCHER
-    };
-    err = dispatcher_create(slot_dispatcher_cap);
+    capref_alpha.cnode = si->taskcn_ref;
+    capref_alpha.slot = TASKCN_SLOT_DISPATCHER;
+
+    err = dispatcher_create(capref_alpha);
     if (err_is_fail(err)) {
         return err;
     }
 
     //  Copy the SLOT_DISPATCHER capability to parent cspace
     slot_alloc(&si->child_dispatcher_cap);
-    err = cap_copy(si->child_dispatcher_cap, slot_dispatcher_cap);
+    err = cap_copy(si->child_dispatcher_cap, capref_alpha);
     if (err_is_fail(err)) {
         return err;
     }
     
     //  Retype SLOT_DISPATCHER capability into SLOT_SELFEP
-    struct capref slot_selfep_cap = {
-        .cnode = si->taskcn_ref,
-        .slot = TASKCN_SLOT_SELFEP
-    };
-    err = cap_retype(slot_selfep_cap, slot_dispatcher_cap, 0, ObjType_EndPoint, 0, 1);
+    capref_beta.cnode = si->taskcn_ref;
+    capref_beta.slot = TASKCN_SLOT_SELFEP;
+
+    err = cap_retype(capref_beta, capref_alpha, 0, ObjType_EndPoint, 0, 1);
     if (err_is_fail(err)) {
         return err;
     }
-    
+    cap_delete(capref_alpha);
+
     //  Copy root cnode capability into SLOT_ROOTCN
     si->slot_rootcn_cap.cnode = si->taskcn_ref;
     si->slot_rootcn_cap.slot = TASKCN_SLOT_ROOTCN;
     cap_copy(si->slot_rootcn_cap, si->child_rootcn_cap);
-    
-    
+
+
     // Create L2 cnode: SLOT_ALLOC0
-    struct cnoderef slot_alloc0_ref;
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, &slot_alloc0_ref);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, &cnoderef_alpha);
     if (err_is_fail(err)) {
         return err;
     }
 
     
     // Create L2 cnode: SLOT_ALLOC1
-    struct cnoderef slot_alloc1_ref;
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC1, &slot_alloc1_ref);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC1, &cnoderef_alpha);
     if (err_is_fail(err)) {
         return err;
     }
     
     
     // Create L2 cnode: SLOT_ALLOC2
-    struct cnoderef slot_alloc2_ref;
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC2, &slot_alloc2_ref);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC2, &cnoderef_alpha);
     if (err_is_fail(err)) {
         return err;
     }
     
     
     // Create L2 cnode: SLOT_BASE_PAGE_CN
-    struct cnoderef slot_base_page_ref;
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_BASE_PAGE_CN, &slot_base_page_ref);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_BASE_PAGE_CN, &cnoderef_alpha);
     if (err_is_fail(err)) {
         return err;
     }
     
     //  Create RAM capabilities for SLOT_BASE_PAGE_CN
-    struct capref ram_cap;
-    err = ram_alloc(&ram_cap, BASE_PAGE_SIZE * L2_CNODE_SLOTS);
+    err = ram_alloc(&capref_alpha, BASE_PAGE_SIZE * L2_CNODE_SLOTS);
     if (err_is_fail(err)) {
         return err;
     }
-    struct capref base_page_ram_cap = {
-        .cnode = slot_base_page_ref,
-        .slot = 0
-    };
-    err = cap_retype(base_page_ram_cap, ram_cap, 0, ObjType_RAM, BASE_PAGE_SIZE, L2_CNODE_SLOTS);
+
+    capref_beta.cnode = cnoderef_alpha;
+    capref_beta.slot = 0;
+
+    err = cap_retype(capref_beta, capref_alpha, 0, ObjType_RAM, BASE_PAGE_SIZE, L2_CNODE_SLOTS);
     if (err_is_fail(err)) {
         return err;
     }
+
+    cap_delete(capref_alpha);
 
     // Create L2 cnode: SLOT_PAGECN
     err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_PAGECN, &si->slot_pagecn_ref);
@@ -176,7 +189,10 @@ static errval_t elf_allocator_callback(void *state, genvaddr_t base, size_t size
     if (err_is_fail(err)) {
         return err;
     }
-    
+
+    // Add mapping to parent mappings list
+    add_parent_mapping(si, *ret);
+
     // Adding offset to target address
     *ret += offset;
 
@@ -229,6 +245,9 @@ static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
     if (err_is_fail(err)) {
         return err;
     }
+
+    // Add mapping to parent mappings list
+    add_parent_mapping(si, si->dcb_addr_parent);
     
     // Map the memory region into child's virtual address space.
     void *dcb_addr_child;
@@ -241,7 +260,7 @@ static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
     si->slot_dispframe_cap.cnode = si->taskcn_ref;
     si->slot_dispframe_cap.slot = TASKCN_SLOT_DISPFRAME;
     cap_copy(si->slot_dispframe_cap, dcb_frame_cap);
-    
+
     // Get references to dispatcher structs
     dispatcher_handle_t dcb_addr_parent_handle = (dispatcher_handle_t) si->dcb_addr_parent;
     struct dispatcher_shared_generic *disp = get_dispatcher_shared_generic(dcb_addr_parent_handle);
@@ -293,6 +312,9 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
     if (err_is_fail(err)) {
         return err;
     }
+
+    // Add mapping to parent mappings list
+    add_parent_mapping(si, argspace_addr_parent);
     
     // Map the memory region into child's virtual address space.
     void *argspace_addr_child;
@@ -372,7 +394,7 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
     dispatcher_handle_t dcb_addr_parent_handle = (dispatcher_handle_t) si->dcb_addr_parent;
     arch_registers_state_t *enabled_area = dispatcher_get_enabled_save_area(dcb_addr_parent_handle);
     enabled_area->named.r0 = (uint32_t) argspace_addr_child;
-    
+
     return err;
     
 }
@@ -395,9 +417,6 @@ static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
         process->prev = i;
     }
 
-
-
-
     err = invoke_dispatcher(si->child_dispatcher_cap,
                             cap_dispatcher,
                             si->child_rootcn_cap,
@@ -409,7 +428,23 @@ static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
     
 }
 
+static errval_t spawn_cleanup(struct spawninfo *si) {
 
+    errval_t err = SYS_ERR_OK;
+
+    struct parent_mapping *i;
+    for (i = &si->parent_mappings; i != NULL; i = i->next) {
+        err = paging_unmap(get_current_paging_state(), i->addr);
+        if (err_is_fail(err)) {
+            return err;
+        }
+    }
+
+    cap_delete(si->child_rootcn_cap);
+    cap_delete(si->child_root_pt_cap);
+
+    return err;
+}
 
 // TODO(M2): Implement this function such that it starts a new process
 // TODO(M4): Build and pass a messaging channel to your child process
@@ -451,6 +486,9 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
         debug_printf("spawn: Failed mapping ELF into virtual memory: %s\n", err_getstring(err));
         return err;
     }
+
+    // Add mapping to parent mappings list
+    add_parent_mapping(si, elf_buf);
 
     char *elf = elf_buf;
     debug_printf("Mapped ELF into memory: 0x%x %c%c%c\n", elf[0], elf[1], elf[2], elf[3]);
@@ -498,6 +536,13 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     err = spawn_invoke_dispatcher(si);
     if (err_is_fail(err)) {
         debug_printf("spawn: Failed invoking the dispatcher: %s\n", err_getstring(err));
+        return err;
+    }
+
+    // Cleanup 
+    err = spawn_cleanup(si);
+    if (err_is_fail(err)) {
+        debug_printf("spawn: Failed cleanup: %s\n", err_getstring(err));
         return err;
     }
 
