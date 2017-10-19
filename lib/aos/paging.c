@@ -697,7 +697,9 @@ errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t byte
         // Check children of deletion node
         if ((*node_indirect)->left != NULL && (*node_indirect)->right != NULL) {
             
+#if PRINT_DEBUG
             debug_printf("HAS LEFT AND RIGHT CHILD\n");
+#endif
             
             // Finding successor to swap with deletion node
             struct pt_cap_tree_node **succ_indirect = &(*node_indirect)->right;
@@ -720,7 +722,9 @@ errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t byte
             
         } else if ((*node_indirect)->left != NULL) {
             
+#if PRINT_DEBUG
             debug_printf("HAS LEFT CHILD\n");
+#endif
             
             deletion_node = *node_indirect;
             
@@ -729,7 +733,9 @@ errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t byte
             
         } else if ((*node_indirect)->right != NULL) {
             
+#if PRINT_DEBUG
             debug_printf("HAS RIGHT CHILD\n");
+#endif
             
             deletion_node = *node_indirect;
             
@@ -738,7 +744,9 @@ errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t byte
             
         } else {
             
+#if PRINT_DEBUG
             debug_printf("HAS NO CHILDREN\n");
+#endif
             
             deletion_node = *node_indirect;
             
@@ -747,8 +755,9 @@ errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t byte
             
         }
         
-        // Freeing capabilites cap and mapping_cap of deletion_node and tree node slab
+#if PRINT_DEBUG
         debug_printf("Deleting capabilities and freeing slab/slots of deletion node\n");
+#endif
         
         errval_t err;
         
@@ -770,11 +779,15 @@ errval_t paging_unmap_fixed(struct paging_state *st, lvaddr_t vaddr, size_t byte
         // Freeing tree deletion_node slab
         slab_free(&st->slabs, deletion_node);
         
+#if PRINT_DEBUG
         debug_printf("Deleted capabilities and freed slab/slots of deletion node\n");
+#endif
         
     }
     
+#if PRINT_DEBUG
     debug_printf("Unmapped %d page(s) at 0x%x\n", bytes / BASE_PAGE_SIZE + (bytes % BASE_PAGE_SIZE ? 1 : 0), vaddr);
+#endif
 
     return SYS_ERR_OK;
 
