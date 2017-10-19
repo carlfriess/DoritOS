@@ -31,8 +31,8 @@ struct spawninfo {
     // TODO: Use this structure to keep track
     // of information you need for building/starting
     // your new process!
-
-    struct paging_state child_paging_state; // Child's paging state
+    
+    struct paging_state *child_paging_state; // Child's paging state
     void *got_addr;                     // Address of the global offset table
     genvaddr_t entry_addr;              // Entry address to child program
     void *dcb_addr_parent;              // Address of DCB (parent's vspace)

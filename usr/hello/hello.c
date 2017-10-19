@@ -15,9 +15,19 @@
 
 
 #include <stdio.h>
+#include <stdlib.h>
+
+#include <aos/aos.h>
+#include <aos/paging.h>
 
 int main(int argc, char *argv[])
 {
+    
     printf("Hello, world! from userspace\n");
+    
+    void *buf;
+    paging_alloc(get_current_paging_state(), &buf, BASE_PAGE_SIZE);
+    printf("Allocated virtual address space at: %p\n", buf);
+    
     return 0;
 }

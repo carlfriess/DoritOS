@@ -76,22 +76,24 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     slab_init(&st->vspace_slabs, sizeof(struct vspace_node), slab_default_refill);
     static int first_call = 1;
     if (first_call) {
+        // Add memory to slab allocator the first time, as this is the paging state for init.
         static char vspace_nodebuf[sizeof(struct vspace_node)*64];
         slab_grow(&st->vspace_slabs, vspace_nodebuf, sizeof(vspace_nodebuf));
     }
     else {
-        slab_default_refill(&st->vspace_slabs);
+        //slab_default_refill(&st->vspace_slabs);
     }
     
     // Initialize the slab allocator for tree nodes
     st->slabs_prevent_refill = 0;
     slab_init(&st->slabs, sizeof(struct pt_cap_tree_node), slab_default_refill);
     if (first_call) {
+        // Add memory to slab allocator the first time, as this is the paging state for init.
         static char nodebuf[sizeof(struct pt_cap_tree_node)*64];
         slab_grow(&st->slabs, nodebuf, sizeof(nodebuf));
     }
     else {
-        slab_default_refill(&st->slabs);
+        //slab_default_refill(&st->slabs);
     }
     
     first_call = 0;
@@ -112,18 +114,41 @@ errval_t paging_init(void)
     // you can handle page faults in any thread of a domain.
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
-    set_current_paging_state(&current);
     
-    // Create the capability reference for the l1 page table at the default location in capability space
-    struct capref pdir = {
-        .cnode = cnode_page,
-        .slot = 0
-    };
+    // Check if we are in the init process
+    if (!strcmp(disp_name(), "init")) {
     
-    return paging_init_state(&current,
-                             VADDR_OFFSET,
-                             pdir,
-                             get_default_slot_allocator());
+        set_current_paging_state(&current);
+        
+        // Create the capability reference for the l1 page table at the default location in capability space
+        struct capref pdir = {
+            .cnode = cnode_page,
+            .slot = 0
+        };
+        
+        return paging_init_state(&current,
+                                 VADDR_OFFSET,
+                                 pdir,
+                                 get_default_slot_allocator());
+        
+    }
+    else {
+        
+        struct paging_state *st = (struct paging_state *) VADDR_OFFSET;
+        
+        set_current_paging_state(st);
+        
+        struct capref pdir = {
+            .cnode = cnode_page,
+            .slot = 0
+        };
+        
+        st->l1_pagetable = pdir;
+        st->slot_alloc = get_default_slot_allocator();
+        
+        return SYS_ERR_OK;
+        
+    }
 }
 
 
@@ -218,7 +243,9 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
 }
 
 /**
- * \brief Allocate a fixed area in the virtual address space.
+ * \brief Allocate a fixed area in the virtual address space. Only
+ * use this function directly after initialization. Do not use other
+ * functions until calling paging_alloc_fixed_commit and thereafter.
  */
 errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
 {
@@ -238,7 +265,7 @@ errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
     }
     
     // Check that the virtual address range can be put into the allocated list
-    assert((lvaddr_t) buf + bytes < st->free_vspace_base);
+    assert((lvaddr_t) buf + bytes <= st->free_vspace_base);
     
     // Register the allocation in the alloc list
     struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
@@ -257,6 +284,51 @@ errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
         slab_default_refill((struct slab_allocator *)&st->vspace_slabs);
         st->vspace_slabs_prevent_refill = 0;
     }
+    
+    return SYS_ERR_OK;
+    
+}
+
+errval_t paging_alloc_fixed_commit(struct paging_state *st) {
+    
+    lvaddr_t start = 0;
+    
+    while (true) {
+        
+        lvaddr_t lowest_base = UINT_MAX;
+        size_t lowest_size = UINT_MAX;
+        
+        struct vspace_node *node = st->alloc_vspace_head;
+        while (node != NULL) {
+            
+            if (node->base < lowest_base && node->base > start) {
+                lowest_base = node->base;
+                lowest_size = node->size;
+            }
+            node = node->next;
+            
+        }
+        
+        if (lowest_base == UINT_MAX) {
+            break;
+        }
+        
+        struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
+        new_node->base = lowest_base;
+        new_node->size = lowest_base - start;
+        new_node->next = NULL;
+        
+        struct vspace_node **indirect = &st->free_vspace_head;
+        while (*indirect != NULL) {
+            indirect = &(*indirect)->next;
+        }
+        *indirect = new_node;
+        
+        start = lowest_base + lowest_size;
+        
+    }
+    
+    st->free_vspace_base = start;
     
     return SYS_ERR_OK;
     

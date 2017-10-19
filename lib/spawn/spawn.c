@@ -140,6 +140,49 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
     
     errval_t err = SYS_ERR_OK;
     
+    // Allocate a frame for the child's paging state
+    struct capref paging_state_frame_cap;
+    size_t paging_state_frame_size = sizeof(struct paging_state);
+    err = frame_alloc(&paging_state_frame_cap, paging_state_frame_size, &paging_state_frame_size);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Allocate a two frames for the child's paging state slab allocators
+    struct capref slab_frame_1_cap;
+    struct capref slab_frame_2_cap;
+    size_t slab_frame_1_size = BASE_PAGE_SIZE;
+    size_t slab_frame_2_size = BASE_PAGE_SIZE;
+    err = frame_alloc(&slab_frame_1_cap, slab_frame_1_size, &slab_frame_1_size);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    err = frame_alloc(&slab_frame_2_cap, slab_frame_2_size, &slab_frame_2_size);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Map the frames into parent's virtual address space
+    //  TODO: Unmap these
+    err = paging_map_frame(get_current_paging_state(), (void **) &si->child_paging_state, paging_state_frame_size, paging_state_frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    void *slab_frame_1_addr;
+    err = paging_map_frame(get_current_paging_state(), (void **) &slab_frame_1_addr, slab_frame_1_size, slab_frame_1_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    void *slab_frame_2_addr;
+    err = paging_map_frame(get_current_paging_state(), (void **) &slab_frame_2_addr, slab_frame_2_size, slab_frame_2_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    
+    
+    debug_printf(">>>>> %p, %p\n", slab_frame_1_addr, slab_frame_2_addr);
+    
     // Creating L1 VNode
     si->l1_pt_cap.cnode = si->slot_pagecn_ref;
     si->l1_pt_cap.slot = PAGECN_SLOT_VROOT;
@@ -153,13 +196,33 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
     cap_copy(si->child_root_pt_cap, si->l1_pt_cap);
     
     // Initialize the child paging state
-    err = paging_init_state(&si->child_paging_state,
-                            // Subtract 128 pages for:
-                            //  - DCB (64 pages)
-                            //  - Argspace (1 page)
-                            VADDR_OFFSET - 128 * BASE_PAGE_SIZE,
+    err = paging_init_state(si->child_paging_state,
+                            MAX((lvaddr_t) slab_frame_1_addr + BASE_PAGE_SIZE, (lvaddr_t) slab_frame_2_addr + BASE_PAGE_SIZE),
                             si->child_root_pt_cap,
                             get_default_slot_allocator());
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Map the slab allocator frames into the child's virtual memory
+    paging_alloc_fixed(si->child_paging_state, slab_frame_1_addr, BASE_PAGE_SIZE);
+    err = paging_map_fixed(si->child_paging_state, (lvaddr_t) slab_frame_1_addr, slab_frame_1_cap, BASE_PAGE_SIZE);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    paging_alloc_fixed(si->child_paging_state, slab_frame_2_addr, BASE_PAGE_SIZE);
+    err = paging_map_fixed(si->child_paging_state, (lvaddr_t) slab_frame_2_addr, slab_frame_2_cap, BASE_PAGE_SIZE);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Add memory to slab allocators
+    slab_grow(&si->child_paging_state->vspace_slabs, slab_frame_1_addr, BASE_PAGE_SIZE);
+    slab_grow(&si->child_paging_state->slabs, slab_frame_2_addr, BASE_PAGE_SIZE);
+    
+    // Map the paging state into the child's memory at VADDR_OFFSET
+    paging_alloc_fixed(si->child_paging_state, (void *) VADDR_OFFSET, paging_state_frame_size);
+    err = paging_map_fixed(si->child_paging_state, VADDR_OFFSET, paging_state_frame_cap, paging_state_frame_size);
     if (err_is_fail(err)) {
         return err;
     }
@@ -200,8 +263,8 @@ static errval_t elf_allocator_callback(void *state, genvaddr_t base, size_t size
 
     // Map the memory region into child's virtual address space.
     uint32_t real_base_addr = real_base;
-    paging_alloc_fixed(&si->child_paging_state, (void *) real_base_addr, ret_size);
-    err = paging_map_fixed_attr(&si->child_paging_state, real_base, frame_cap, ret_size, flags);
+    paging_alloc_fixed(si->child_paging_state, (void *) real_base_addr, ret_size);
+    err = paging_map_fixed_attr(si->child_paging_state, real_base, frame_cap, ret_size, flags);
     if (err_is_fail(err)) {
         return err;
     }
@@ -253,7 +316,7 @@ static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
     
     // Map the memory region into child's virtual address space.
     void *dcb_addr_child;
-    err = paging_map_frame_attr(&si->child_paging_state, &dcb_addr_child, dcb_size, dcb_frame_cap, VREGION_FLAGS_READ_WRITE, NULL, NULL);
+    err = paging_map_frame_attr(si->child_paging_state, &dcb_addr_child, dcb_size, dcb_frame_cap, VREGION_FLAGS_READ_WRITE, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
@@ -320,7 +383,7 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
     
     // Map the memory region into child's virtual address space.
     void *argspace_addr_child;
-    err = paging_map_frame_attr(&si->child_paging_state, &argspace_addr_child, size, argspace_frame_cap, VREGION_FLAGS_READ_WRITE, NULL, NULL);
+    err = paging_map_frame_attr(si->child_paging_state, &argspace_addr_child, size, argspace_frame_cap, VREGION_FLAGS_READ_WRITE, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
@@ -524,6 +587,9 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
         debug_printf("spawn: Failed setting up the dispatcher: %s\n", err_getstring(err));
         return err;
     }
+    
+    // Commit fixed vspace allocations
+    paging_alloc_fixed_commit(si->child_paging_state);
     
     // Get arguments string from multiboot
     const char *argstring = multiboot_module_opts(mem);
