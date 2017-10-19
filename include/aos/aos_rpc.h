@@ -35,7 +35,7 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string);
  * \brief request a RAM capability with >= request_bits of size over the given
  * channel.
  */
-errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t bytes,
+errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t bytes, size_t align,
                              struct capref *retcap, size_t *ret_bytes);
 
 /**
@@ -88,8 +88,30 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr, size_t byte
                                 struct capref *frame);
 /**
  * \brief Initialize given rpc channel.
- * TODO: you may want to change the inteface of your init function
+ * TODO: you may want to change the inteface of your init function, depending
+ * on how you design your message passing code.
  */
 errval_t aos_rpc_init(struct aos_rpc *rpc);
+
+
+/**
+ * \brief Returns the RPC channel to init.
+ */
+struct aos_rpc *aos_rpc_get_init_channel(void);
+
+/**
+ * \brief Returns the channel to the memory server
+ */
+struct aos_rpc *aos_rpc_get_memory_channel(void);
+
+/**
+ * \brief Returns the channel to the process manager
+ */
+struct aos_rpc *aos_rpc_get_process_channel(void);
+
+/**
+ * \brief Returns the channel to the serial console
+ */
+struct aos_rpc *aos_rpc_get_serial_channel(void);
 
 #endif // _LIB_BARRELFISH_AOS_MESSAGES_H

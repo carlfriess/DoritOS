@@ -72,7 +72,7 @@ struct terminal_state;
 struct domain_state;
 struct spawn_state;
 struct monitor_binding;
-struct aos_chan;
+struct aos_rpc;
 struct mem_rpc_client;
 struct spawn_rpc_client;
 struct paging_state;
@@ -80,7 +80,7 @@ struct paging_state;
 struct core_state_generic {
     struct waitset default_waitset;
     struct monitor_binding *monitor_binding;
-    struct aos_chan *init_chan;
+    struct aos_rpc *init_rpc;
     struct morecore_state morecore_state;
     struct paging_state *paging_state;
     struct ram_alloc_state ram_alloc_state;

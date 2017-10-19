@@ -13,6 +13,9 @@ module /armv7/sbin/cpu_omap44xx
 # Add modules here
 module /armv7/sbin/init
 
+# milestone 3
+module /armv7/sbin/memeater
+
 # For pandaboard, use following values.
 mmap map 0x40000000 0x40000000 13 # Devices
 mmap map 0x80000000 0x40000000  1

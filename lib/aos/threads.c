@@ -1124,11 +1124,6 @@ static int bootstrap_thread(struct spawn_domain_params *params)
     }
     slab_init(&thread_slabs, blocksize, refill_thread_slabs);
 
-    // XXX: FIXME: verify this
-#if MILESTONE <= 3
-    // we aren't prepared to run real threads yet
-    main_thread(params);
-#else
     if (init_domain_global) {
         // run main() on this thread, since we can't allocate
         if (tls_block_total_len > 0) {
@@ -1140,7 +1135,6 @@ static int bootstrap_thread(struct spawn_domain_params *params)
         struct thread *thread = thread_create(main_thread, params);
         assert(thread != NULL);
     }
-#endif
 
     return 0; // ignored
 }

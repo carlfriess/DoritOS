@@ -155,15 +155,17 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         return SYS_ERR_OK;
     }
 
-    // TODO STEP 3: register ourselves with init
+    // TODO MILESTONE 3: register ourselves with init
     /* allocate lmp channel structure */
     /* create local endpoint */
     /* set remote endpoint to init's endpoint */
     /* set receive handler */
     /* send local ep to init */
     /* wait for init to acknowledge receiving the endpoint */
+    /* initialize init RPC client with lmp channel */
+    /* set init RPC client in our program state */
 
-    /* TODO STEP 5: now we should have a channel with init set up and can
+    /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
 
     // right now we don't have the nameservice & don't need the terminal

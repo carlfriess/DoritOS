@@ -185,8 +185,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 }
 
 /**
- * \brief unmap a user provided frame, and return the VA of the mapped
- *        frame in `buf`.
+ * \brief unmap region starting at address `region`.
  * NOTE: Implementing this function is optional.
  */
 errval_t paging_unmap(struct paging_state *st, const void *region)
