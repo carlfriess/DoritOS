@@ -25,6 +25,10 @@ int main(int argc, char *argv[])
     
     printf("Hello, world! from userspace\n");
     
+    for (int i = 0; i < argc; i++) {
+        printf("Argument %d: %s\n", i, argv[i]);
+    }
+    
     void *buf;
     paging_alloc(get_current_paging_state(), &buf, BASE_PAGE_SIZE);
     printf("Allocated virtual address space at: %p\n", buf);
