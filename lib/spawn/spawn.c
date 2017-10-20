@@ -413,7 +413,7 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
 
     // Initialization
     params->argc = 0;
-    params->argv[params->argc++] = args;
+    params->argv[params->argc++] = argspace_addr_child + sizeof(struct spawn_domain_params);
 
 
     // Copy argstring to args
@@ -433,7 +433,7 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
                     quote = argstring[i];
                 } else if(argstring[i] == ' ') {
                     args[j++] = '\0';
-                    params->argv[params->argc++] = args + j;
+                    params->argv[params->argc++] = params->argv[0] + j;
                 } else if (argstring[i] == '\\') {
                     escaped = !escaped;
                 } else {
