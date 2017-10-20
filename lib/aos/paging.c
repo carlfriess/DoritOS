@@ -147,6 +147,9 @@ errval_t paging_init(void)
         st->l1_pagetable = pdir;
         st->slot_alloc = get_default_slot_allocator();
         
+        st->vspace_slabs.refill_func = slab_default_refill;
+        st->slabs.refill_func = slab_default_refill;
+        
         return SYS_ERR_OK;
         
     }
