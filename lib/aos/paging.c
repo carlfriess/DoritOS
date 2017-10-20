@@ -172,7 +172,6 @@ void paging_init_onthread(struct thread *t)
 errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, size_t size)
 {
     void *base;
-    printf("3\n");
     errval_t err = paging_alloc(st, &base, size);
     if (err_is_fail(err)) {
         debug_printf("paging_region_init: paging_alloc failed\n");
