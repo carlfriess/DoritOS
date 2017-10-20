@@ -294,6 +294,7 @@ errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
 errval_t paging_alloc_fixed_commit(struct paging_state *st) {
     
     lvaddr_t start = 0;
+    int first_time = 1;
     
     while (true) {
         
