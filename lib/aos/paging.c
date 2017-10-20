@@ -298,16 +298,16 @@ errval_t paging_alloc_fixed_commit(struct paging_state *st) {
     // First page in virtual address space is not used and thus should not be mapped
     lvaddr_t start = BASE_PAGE_SIZE;
     
-    // Walking through free linked list and getting indirect pointer to the end
+    // Iterating through free linked list and getting indirect pointer to the end
     struct vspace_node **indirect = &st->free_vspace_head;
     while (*indirect != NULL) {
         indirect = &(*indirect)->next;
     }
     
-    // Walking through alloc linked list and insert the holes into the free linked list
+    // Walking through alloc linked list and insert the holes inbetween into the free linked list
     while (true) {
         
-        // Assign lowest_base and lowest_size to max unsigned int value
+        // Assigning lowest_base and lowest_size to max unsigned int value
         lvaddr_t lowest_base = UINT_MAX;
         size_t lowest_size = UINT_MAX;
         
@@ -315,10 +315,10 @@ errval_t paging_alloc_fixed_commit(struct paging_state *st) {
         struct vspace_node *node = st->alloc_vspace_head;
         while (node != NULL) {
             
-            // Check that allocated block doesn't overlap with first page in virtual address space
+            // Checking that allocated block doesn't overlap with first page in virtual address space
             assert(node->base >= BASE_PAGE_SIZE);
             
-            // Setting lowest_base and lowest_size to be of the lowest allocated node over start
+            // Assigning lowest_base and lowest_size to be of the lowest allocated node over start (least upper bound)
             if (node->base < lowest_base && node->base > start) {
                 lowest_base = node->base;
                 lowest_size = node->size;
@@ -327,27 +327,27 @@ errval_t paging_alloc_fixed_commit(struct paging_state *st) {
             node = node->next;
         }
         
-        // In case we have gone through all alloc linked list elements
+        // Checking ig we have gone through all alloc linked list elements
         if (lowest_base == UINT_MAX) {
             break;
         }
         
-        // In case two blocks are next to each other
+        // Checking if two alloc blocks are next to each other
         if (lowest_base - start == 0) {
             continue;
         }
         
-        // Allocate and create a new node to be inserted into the free linked list
+        // Allocating and create a new node to be inserted into the free linked list
         struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
         new_node->base = start;
         new_node->size = lowest_base - start;
         new_node->next = NULL;
     
-        // Append new node to end of free linked list
+        // Appeningd new node to end of free linked list
         *indirect = new_node;
         indirect = &(*indirect)->next;
 
-        // Set new start address threshold to be end of the allocated block
+        // Updating new start address threshold to be end of the allocated block
         start = lowest_base + lowest_size;
     }
     
@@ -370,14 +370,14 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
     debug_printf("Allocating %zu bytes of virtual address space...\n", bytes);
 #endif
     
-    // Round up to next page boundary
+    // Rounding up to next page boundary
     if (bytes % BASE_PAGE_SIZE) {
         size_t pages = bytes / BASE_PAGE_SIZE;
         pages++;
         bytes = pages * BASE_PAGE_SIZE;
     }
     
-    // Iterate free list and check for suitable address range
+    // Iterating free list and check for suitable address range
     struct vspace_node **indirect = &st->free_vspace_head;
     while ((*indirect) != NULL) {
         if ((*indirect)->size >= bytes) {
@@ -386,38 +386,38 @@ errval_t paging_alloc(struct paging_state *st, void **buf, size_t bytes)
         indirect = &(*indirect)->next;
     }
     
-    // Check if we found a free address range
+    // Checking if we found a free address range
     if (*indirect) {
         // Return the base address of the node
         *buf = (void *) (*indirect)->base;
-        // Check if free range needs to be split
+        // Checking if free range needs to be split
         if ((*indirect)->size > bytes) {
-            // Reconfigure the node
+            // Reconfiguring the node
             (*indirect)->base += bytes;
             (*indirect)->size -= bytes;
         }
         else {
             struct vspace_node *old_node = *indirect;
-            // Remove the node
+            // Removing the node
             *indirect = (*indirect)->next;
-            // Free the slab
+            // Freeing the slab
             slab_free(&st->vspace_slabs, old_node);
         }
     }
     else {
-        // Alocate at the end of the currently managed address range
+        // Alocating at the end of the currently managed address range
         *buf = (void *) st->free_vspace_base;
         st->free_vspace_base += bytes;
     }
     
-    // Register the allocation in the alloc list
+    // Registering the allocation in the alloc list
     struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
     new_node->base = (uintptr_t) *buf;
     new_node->size = bytes;
     new_node->next = st->alloc_vspace_head;
     st->alloc_vspace_head = new_node;
     
-    // Check that there are sufficient slabs left in the slab allocator
+    // Checking that there are sufficient slabs left in the slab allocator
     size_t freecount = slab_freecount((struct slab_allocator *)&st->vspace_slabs);
     if (freecount <= 6 && !st->vspace_slabs_prevent_refill) {
 #if PRINT_DEBUG
