@@ -148,7 +148,7 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
         return err;
     }
     
-    // Allocate a two frames for the child's paging state slab allocators
+    // Allocate two frames for the child's paging state slab allocators
     struct capref slab_frame_1_cap;
     struct capref slab_frame_2_cap;
     size_t slab_frame_1_size = BASE_PAGE_SIZE;

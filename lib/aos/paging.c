@@ -56,6 +56,7 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
     
+    memset(st, 0, sizeof(struct paging_state));
     
     // Storing the reference to the slot allocator
     st->slot_alloc = ca;
@@ -168,6 +169,7 @@ void paging_init_onthread(struct thread *t)
 errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, size_t size)
 {
     void *base;
+    printf("3\n");
     errval_t err = paging_alloc(st, &base, size);
     if (err_is_fail(err)) {
         debug_printf("paging_region_init: paging_alloc failed\n");
@@ -270,7 +272,7 @@ errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
     // Register the allocation in the alloc list
     struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
     new_node->base = (uintptr_t) buf;
-    new_node->base = bytes;
+    new_node->size = bytes;
     new_node->next = st->alloc_vspace_head;
     st->alloc_vspace_head = new_node;
     
@@ -314,7 +316,7 @@ errval_t paging_alloc_fixed_commit(struct paging_state *st) {
         }
         
         struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
-        new_node->base = lowest_base;
+        new_node->base = start;
         new_node->size = lowest_base - start;
         new_node->next = NULL;
         
@@ -322,10 +324,14 @@ errval_t paging_alloc_fixed_commit(struct paging_state *st) {
         while (*indirect != NULL) {
             indirect = &(*indirect)->next;
         }
-        *indirect = new_node;
+        
+        // Incase two blocks are next to each other
+        if (new_node->size > 0 && !first_time) {
+            *indirect = new_node;
+        }
         
         start = lowest_base + lowest_size;
-        
+        first_time = 0;
     }
     
     st->free_vspace_base = start;
@@ -672,16 +678,35 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 errval_t paging_unmap(struct paging_state *st, const void *region)
 {
     errval_t err;
-    
+    /*
+    //changed paging_unmap to not use paging_free any more
     // Free memory by moving node from vspace free list to vspace alloc list
     size_t ret_size;
     err = paging_free(st, region, &ret_size);
     if (err_is_fail(err)) {
         return err;
+    }*/
+    
+    // Searching for node in alloc linked list
+    struct vspace_node *ret_node;
+    err = delete_vspace_alloc_node(st, (lvaddr_t) region, &ret_node);
+    if (err_is_fail(err)) {
+        return err;
     }
-
+    
     // Actually unmapping region in memory (possibly over multiple l2 pagetables)
-    err = paging_unmap_fixed(st, (lvaddr_t) region, ret_size);
+    err = paging_unmap_fixed(st, (lvaddr_t) region, ret_node->size);
+    if (err_is_fail(err)) {
+        debug_printf("Error calling paging_unmap_fixed");
+        return err;
+    }
+    
+    // Insert ret_node in vspace free linked list (coalescing included)
+    err = insert_vspace_free_node(st, ret_node);
+    if (err_is_fail(err)) {
+        debug_printf("Error calling insert_vspace_free_node");
+        return err;
+    }
     
     return err;
 }
