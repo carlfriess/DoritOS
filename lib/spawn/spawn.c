@@ -20,7 +20,7 @@ static void add_parent_mapping(struct spawninfo *si, void *addr) {
     } else {
         // Iterate to last entry, allocate new mapping, assign
         struct parent_mapping *i;
-        for(i = &si->parent_mappings; i->next != NULL; i = i->next);
+        for (i = &si->parent_mappings; i->next != NULL; i = i->next);
         struct parent_mapping *mapping = (struct parent_mapping *) malloc(sizeof(struct parent_mapping));
         mapping->addr = addr;
         i->next = mapping;
@@ -198,28 +198,28 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
     
     // Initialize the child paging state
     err = paging_init_state(si->child_paging_state,
-                            MAX((lvaddr_t) slab_frame_1_addr + BASE_PAGE_SIZE, (lvaddr_t) slab_frame_2_addr + BASE_PAGE_SIZE),
+                            MAX((lvaddr_t) slab_frame_1_addr + slab_frame_1_size, (lvaddr_t) slab_frame_2_addr + slab_frame_2_size),
                             si->child_root_pt_cap,
                             get_default_slot_allocator());
     if (err_is_fail(err)) {
         return err;
     }
     
-    // Map the slab allocator frames into the child's virtual memory
-    paging_alloc_fixed(si->child_paging_state, slab_frame_1_addr, BASE_PAGE_SIZE);
-    err = paging_map_fixed(si->child_paging_state, (lvaddr_t) slab_frame_1_addr, slab_frame_1_cap, BASE_PAGE_SIZE);
-    if (err_is_fail(err)) {
-        return err;
-    }
-    paging_alloc_fixed(si->child_paging_state, slab_frame_2_addr, BASE_PAGE_SIZE);
-    err = paging_map_fixed(si->child_paging_state, (lvaddr_t) slab_frame_2_addr, slab_frame_2_cap, BASE_PAGE_SIZE);
-    if (err_is_fail(err)) {
-        return err;
-    }
-    
     // Add memory to slab allocators
-    slab_grow(&si->child_paging_state->vspace_slabs, slab_frame_1_addr, BASE_PAGE_SIZE);
-    slab_grow(&si->child_paging_state->slabs, slab_frame_2_addr, BASE_PAGE_SIZE);
+    slab_grow(&si->child_paging_state->vspace_slabs, slab_frame_1_addr, slab_frame_1_size);
+    slab_grow(&si->child_paging_state->slabs, slab_frame_2_addr, slab_frame_2_size);
+    
+    // Map the slab allocator frames into the child's virtual memory
+    paging_alloc_fixed(si->child_paging_state, slab_frame_1_addr, slab_frame_1_size);
+    err = paging_map_fixed(si->child_paging_state, (lvaddr_t) slab_frame_1_addr, slab_frame_1_cap, slab_frame_1_size);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    paging_alloc_fixed(si->child_paging_state, slab_frame_2_addr, slab_frame_2_size);
+    err = paging_map_fixed(si->child_paging_state, (lvaddr_t) slab_frame_2_addr, slab_frame_2_cap, slab_frame_2_size);
+    if (err_is_fail(err)) {
+        return err;
+    }
     
     // Map the paging state into the child's memory at VADDR_OFFSET
     paging_alloc_fixed(si->child_paging_state, (void *) VADDR_OFFSET, paging_state_frame_size);

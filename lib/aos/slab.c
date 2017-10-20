@@ -210,7 +210,7 @@ static errval_t slab_refill_pages(struct slab_allocator *slabs, size_t bytes)
     slab_grow(slabs, buf, frame_size);
     
 #if PRINT_DEBUG
-    debug_printf("Done refilling slabs\n");
+    debug_printf("Done refilling slabs at %p\n", buf);
 #endif
     
     return SYS_ERR_OK;

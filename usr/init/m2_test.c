@@ -146,28 +146,22 @@ static errval_t test_spawn_n(size_t n) {
 void run_all_m2_tests(void) {
     
     printf("Test Phase 1: Simple map/unmap\n");
-    if (false)
-        test_map_unmap(BASE_PAGE_SIZE);
-    
+    test_map_unmap(BASE_PAGE_SIZE);
+        
     printf("Test Phase 2: Repeat map/unmap\n");
-    if (false)
-        test_map_unmap_n(BASE_PAGE_SIZE, 200);
+    test_map_unmap_n(BASE_PAGE_SIZE, 200);
     
     printf("Test Phase 3: Large simple map/unmap\n");
-    if (false)
-        test_map_unmap(BASE_PAGE_SIZE * 512);
+    test_map_unmap(BASE_PAGE_SIZE * 512);
     
     printf("Test Phase 4: Large repeat map/unmap\n");
-    if (false)
-        test_map_unmap_n(BASE_PAGE_SIZE * 300, 500);
+    test_map_unmap_n(BASE_PAGE_SIZE * 300, 500);
     
     printf("Test Phase 5: Random map/unmap\n");
-    if (false)
-        test_map_unmap_random(BASE_PAGE_SIZE*3);
-    
+    test_map_unmap_random(BASE_PAGE_SIZE*3);
+
     printf("Test Phase 6: Spawn children\n");
-    if (true)
-        test_spawn_n(10);
+    test_spawn_n(10);
     
 }
 
