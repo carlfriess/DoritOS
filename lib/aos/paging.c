@@ -292,48 +292,63 @@ errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
 
 errval_t paging_alloc_fixed_commit(struct paging_state *st) {
     
-    lvaddr_t start = 0;
-    int first_time = 1;
+    // First page in virtual address space is not used and thus should not be mapped
+    lvaddr_t start = BASE_PAGE_SIZE;
     
+    // Walking through free linked list and getting indirect pointer to the end
+    struct vspace_node **indirect = &st->free_vspace_head;
+    while (*indirect != NULL) {
+        indirect = &(*indirect)->next;
+    }
+    
+    // Walking through alloc linked list and insert the holes into the free linked list
     while (true) {
         
+        // Assign lowest_base and lowest_size to max unsigned int value
         lvaddr_t lowest_base = UINT_MAX;
         size_t lowest_size = UINT_MAX;
         
+        // Finding least upper bound base with threshold start in alloc linked list
         struct vspace_node *node = st->alloc_vspace_head;
         while (node != NULL) {
             
+            // Check that allocated block doesn't overlap with first page in virtual address space
+            assert(node->base >= BASE_PAGE_SIZE);
+            
+            // Setting lowest_base and lowest_size to be of the lowest allocated node over start
             if (node->base < lowest_base && node->base > start) {
                 lowest_base = node->base;
                 lowest_size = node->size;
             }
-            node = node->next;
             
+            node = node->next;
         }
         
+        // In case we have gone through all alloc linked list elements
         if (lowest_base == UINT_MAX) {
             break;
         }
         
+        // In case two blocks are next to each other
+        if (lowest_base - start == 0) {
+            continue;
+        }
+        
+        // Allocate and create a new node to be inserted into the free linked list
         struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
         new_node->base = start;
         new_node->size = lowest_base - start;
         new_node->next = NULL;
-        
-        struct vspace_node **indirect = &st->free_vspace_head;
-        while (*indirect != NULL) {
-            indirect = &(*indirect)->next;
-        }
-        
-        // Incase two blocks are next to each other
-        if (new_node->size > 0 && !first_time) {
-            *indirect = new_node;
-        }
-        
+    
+        // Append new node to end of free linked list
+        *indirect = new_node;
+        indirect = &(*indirect)->next;
+
+        // Set new start address threshold to be end of the allocated block
         start = lowest_base + lowest_size;
-        first_time = 0;
     }
     
+    // Updating free_vspace_base of paging state
     st->free_vspace_base = start;
     
     return SYS_ERR_OK;
