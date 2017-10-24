@@ -28,8 +28,8 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
     return SYS_ERR_OK;
 }
 
-errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t request_bits,
-                             struct capref *retcap, size_t *ret_bits)
+errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
+                             struct capref *retcap, size_t *ret_size)
 {
     // TODO: implement functionality to request a RAM capability over the
     // given channel and wait until it is delivered.
@@ -84,4 +84,36 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
 {
     // TODO: Initialize given rpc channel
     return SYS_ERR_OK;
+}
+
+/**
+ * \brief Returns the RPC channel to init.
+ */
+struct aos_rpc *aos_rpc_get_init_channel(void)
+{
+    return NULL;
+}
+
+/**
+ * \brief Returns the channel to the memory server
+ */
+struct aos_rpc *aos_rpc_get_memory_channel(void)
+{
+    return NULL;
+}
+
+/**
+ * \brief Returns the channel to the process manager
+ */
+struct aos_rpc *aos_rpc_get_process_channel(void)
+{
+    return NULL;
+}
+
+/**
+ * \brief Returns the channel to the serial console
+ */
+struct aos_rpc *aos_rpc_get_serial_channel(void)
+{
+    return NULL;
 }

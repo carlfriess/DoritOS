@@ -142,7 +142,7 @@ errval_t slab_refill_no_pagefault(struct slab_allocator *slabs,
                                   struct capref frame, size_t minbytes);
 
 /**
- * \brief unmap a user provided frame
+ * \brief unmap region starting at address `region`.
  * NOTE: this function is currently here to make libbarrelfish compile. As
  * noted on paging_region_unmap we ignore unmap requests right now.
  */

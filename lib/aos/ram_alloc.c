@@ -87,7 +87,7 @@ errval_t ram_alloc_aligned(struct capref *ret, size_t size, size_t alignment)
  * \brief Allocates memory in the form of a RAM capability
  *
  * \param ret Pointer to capref struct, filled-in with allocated cap location
- * \param size Amount of RAM to allocate, as a power of two
+ * \param size Amount of RAM to allocate, in bytes.
  *              slot used for the cap in #ret, if any
  */
 errval_t ram_alloc(struct capref *ret, size_t size)
