@@ -95,6 +95,7 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
         .slot = TASKCN_SLOT_DISPATCHER,
     };
     err = cap_retype(a_capref, dispatcher_cap, 0, ObjType_EndPoint, 0, 1);
+    debug_printf("%s\n", err_getstring(err));
     if (err_is_fail(err)) {
         debug_printf("WHATTT\n\n\n\n\n\n\n\n\n\n\n");
         return err;
