@@ -79,7 +79,7 @@ errval_t debug_cap_identify(struct capref cap, struct capability *ret)
         // we have kernel cap, return result;
         return SYS_ERR_OK;
     }
-
+    debug_printf("debug_cap_identify: %s\n", err_getstring(err));
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 

@@ -62,7 +62,11 @@ int main(int argc, char *argv[])
     //run_all_m1_tests();
     
     // Milestone 2:
-    run_all_m2_tests();
+    //run_all_m2_tests();
+   
+    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+    spawn_load_by_name("memeater", si);
+    free(si);
 
     debug_printf("Message handler loop\n");
     // Hang around

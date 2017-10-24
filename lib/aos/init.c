@@ -164,6 +164,19 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     /* wait for init to acknowledge receiving the endpoint */
     /* initialize init RPC client with lmp channel */
     /* set init RPC client in our program state */
+    
+    struct capref initep_cap = {
+        .cnode = {
+            .croot = CPTR_ROOTCN,
+            .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_TASKCN),
+            .level = CNODE_TYPE_OTHER,
+        },
+        .slot = TASKCN_SLOT_INITEP,
+    };
+    
+    char buf[100];
+    debug_print_cap_at_capref(buf, 100, initep_cap);
+    printf(">>> %s\n", buf);
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */

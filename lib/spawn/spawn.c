@@ -74,12 +74,34 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     if (err_is_fail(err)) {
         return err;
     }
-    cap_delete(capref_alpha);
+    //cap_delete(capref_alpha);
 
     //  Copy root cnode capability into SLOT_ROOTCN
     si->slot_rootcn_cap.cnode = si->taskcn_ref;
     si->slot_rootcn_cap.slot = TASKCN_SLOT_ROOTCN;
     cap_copy(si->slot_rootcn_cap, si->child_rootcn_cap);
+    
+    //  Copy init's endpoint capability into
+    //  TODO: Check this
+    struct capref a_capref;
+    a_capref.cnode = si->taskcn_ref;
+    a_capref.slot =  TASKCN_SLOT_INITEP;
+    struct capref dispatcher_cap = {
+        .cnode = {
+            .croot = CPTR_ROOTCN,
+            .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_TASKCN),
+            .level = CNODE_TYPE_OTHER,
+        },
+        .slot = TASKCN_SLOT_DISPATCHER,
+    };
+    err = cap_retype(a_capref, dispatcher_cap, 0, ObjType_EndPoint, 0, 1);
+    if (err_is_fail(err)) {
+        debug_printf("WHATTT\n\n\n\n\n\n\n\n\n\n\n");
+        return err;
+    }
+    char buf[100];
+    debug_print_cap_at_capref(buf, 100, a_capref);
+    debug_printf("###### %s\n", buf);
 
 
     // Create L2 cnode: SLOT_ALLOC0
@@ -123,7 +145,7 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
         return err;
     }
 
-    cap_delete(capref_alpha);
+    //cap_delete(capref_alpha);
 
     // Create L2 cnode: SLOT_PAGECN
     err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_PAGECN, &si->slot_pagecn_ref);
@@ -507,8 +529,8 @@ static errval_t spawn_cleanup(struct spawninfo *si) {
         }
     }
 
-    cap_delete(si->child_rootcn_cap);
-    cap_delete(si->child_root_pt_cap);
+    //cap_delete(si->child_rootcn_cap);
+    //cap_delete(si->child_root_pt_cap);
 
     return err;
 }
