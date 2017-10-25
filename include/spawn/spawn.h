@@ -36,7 +36,7 @@ struct spawninfo {
     void *got_addr;                     // Address of the global offset table
     genvaddr_t entry_addr;              // Entry address to child program
     void *dcb_addr_parent;              // Address of DCB (parent's vspace)
-    struct parent_mapping parent_mappings;              // Unneeded paging regions
+    struct parent_mapping *parent_mappings;              // Unneeded paging regions
 
     // Child's capabilites
     struct cnoderef taskcn_ref;         // TASKCN
