@@ -16,7 +16,7 @@
 
 errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 {
-    // TODO: implement functionality to send a number ofer the channel
+    // TODO: implement functionality to send a number over the channel
     // given channel and wait until the ack gets returned.
     return SYS_ERR_OK;
 }

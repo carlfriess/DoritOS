@@ -30,6 +30,12 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
+void simple_handler(void *arg);
+
+void simple_handler(void *arg) {
+    debug_printf("\n\n\nOH SHIT!\n\n\n");
+}
+
 int main(int argc, char *argv[])
 {
     errval_t err;
@@ -55,15 +61,31 @@ int main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
-    
+
+    err = cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPoint, 0, 1);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
     // Run tests:
-    
+
     // Milestone 1:
     //run_all_m1_tests();
-    
+
     // Milestone 2:
     //run_all_m2_tests();
-   
+
+    // Allocate and initialize lmp channel
+    struct lmp_chan *lmp_channel = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
+
+    // Open channel to messages
+    err = lmp_chan_accept(lmp_channel, LMP_RECV_LENGTH, NULL_CAP);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
     struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
     spawn_load_by_name("memeater", si);
     free(si);
@@ -71,9 +93,23 @@ int main(int argc, char *argv[])
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
+
+    // Register callback handler
+    err = lmp_chan_register_recv(lmp_channel, get_default_waitset(), MKCLOSURE(simple_handler, (void *) lmp_channel));
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
+    err = lmp_chan_alloc_recv_slot(lmp_channel);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
     while (true) {
 
-        print_process_list();
+//        print_process_list();
 
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {

@@ -164,19 +164,31 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     /* wait for init to acknowledge receiving the endpoint */
     /* initialize init RPC client with lmp channel */
     /* set init RPC client in our program state */
-    
-    struct capref initep_cap = {
-        .cnode = {
-            .croot = CPTR_ROOTCN,
-            .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_TASKCN),
-            .level = CNODE_TYPE_OTHER,
-        },
-        .slot = TASKCN_SLOT_INITEP,
-    };
-    
-    char buf[100];
-    debug_print_cap_at_capref(buf, 100, initep_cap);
-    printf(">>> %s\n", buf);
+
+
+    // Allocate and initialize lmp channel
+    struct lmp_chan *lmp_channel = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
+
+    // Create local lmp endpoint
+//    err = endpoint_create(LMP_RECV_LENGTH, &lmp_channel->local_cap, &lmp_channel->endpoint);
+//    if (err_is_fail(err)) {
+//        debug_printf("%s\n", err_getstring(err));
+//        return err;
+//    }
+
+    // Open channel to messages
+    err = lmp_chan_accept(lmp_channel, LMP_RECV_LENGTH, cap_initep);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
+    // Send test message
+    err = lmp_chan_send1(lmp_channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, 69); // Ayy lmao
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
