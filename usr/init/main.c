@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
     struct waitset *default_ws = get_default_waitset();
 
     // Register callback handler
-    err = lmp_chan_register_recv(lmp_channel, get_default_waitset(), MKCLOSURE(simple_handler, (void *) lmp_channel));
+    err = lmp_chan_register_recv(lmp_channel, default_ws, MKCLOSURE(simple_handler, (void *) lmp_channel));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;

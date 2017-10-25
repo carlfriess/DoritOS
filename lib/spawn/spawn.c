@@ -85,7 +85,6 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     capref_beta.slot = TASKCN_SLOT_INITEP;
 
     struct lmp_endpoint *endpoint;
-
     err = endpoint_create(LMP_RECV_LENGTH, &capref_alpha, &endpoint);
 
     err = cap_copy(capref_beta, capref_alpha);
