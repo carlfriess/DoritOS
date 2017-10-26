@@ -116,12 +116,14 @@ void lmp_server_memory(struct lmp_chan *lc, struct capref cap, size_t align, siz
     assert(bytes > 0);
     
     struct capref ram;
-    aos_ram_alloc_aligned(&ram, bytes, align);
+    ram_alloc_aligned(&ram, bytes, align);
     
     // Send ram capability back
     lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, ram, 42, actual_size);
     
-    // TODO: Should we delete the Capability and Free the slot?
+    // TODO: Should we delete the capability and free the slot?
+    cap_delete(ram);
+    slot_free(ram);
     
 }
 
