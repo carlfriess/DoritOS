@@ -33,13 +33,14 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     errval_t err;
 
     // Placeholder cnoderef/capref to reduce stack size
-    struct cnoderef cnoderef_alpha;
+    struct cnoderef cnoderef_l1;
+//    struct cnoderef cnoderef_beta;
 
     struct capref capref_alpha;
     struct capref capref_beta;
 
     // Create a L1 cnode
-    err = cnode_create_l1(&si->child_rootcn_cap, &cnoderef_alpha);
+    err = cnode_create_l1(&si->child_rootcn_cap, &cnoderef_l1);
     if (err_is_fail(err)) {
         return err;
     }
@@ -78,8 +79,12 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     //  Copy root cnode capability into SLOT_ROOTCN
     si->slot_rootcn_cap.cnode = si->taskcn_ref;
     si->slot_rootcn_cap.slot = TASKCN_SLOT_ROOTCN;
-    cap_copy(si->slot_rootcn_cap, si->child_rootcn_cap);
-    
+    err = cap_copy(si->slot_rootcn_cap, si->child_rootcn_cap);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
     //  Create INITEP and copy into child
     capref_beta.cnode = si->taskcn_ref;
     capref_beta.slot = TASKCN_SLOT_INITEP;
@@ -94,38 +99,39 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     }
 
     // Create L2 cnode: SLOT_ALLOC0
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, &cnoderef_alpha);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, NULL);
     if (err_is_fail(err)) {
         return err;
     }
 
     // Create L2 cnode: SLOT_ALLOC1
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC1, &cnoderef_alpha);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC1, NULL);
     if (err_is_fail(err)) {
         return err;
     }
-    
-    
+
+
     // Create L2 cnode: SLOT_ALLOC2
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC2, &cnoderef_alpha);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC2, NULL);
     if (err_is_fail(err)) {
         return err;
     }
-    
-    
+
+
     // Create L2 cnode: SLOT_BASE_PAGE_CN
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_BASE_PAGE_CN, &cnoderef_alpha);
+    struct cnoderef cnoderef_base_pagecn;
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_BASE_PAGE_CN, &cnoderef_base_pagecn);
     if (err_is_fail(err)) {
         return err;
     }
-    
+
     //  Create RAM capabilities for SLOT_BASE_PAGE_CN
     err = ram_alloc(&capref_alpha, BASE_PAGE_SIZE * L2_CNODE_SLOTS);
     if (err_is_fail(err)) {
         return err;
     }
 
-    capref_beta.cnode = cnoderef_alpha;
+    capref_beta.cnode = cnoderef_base_pagecn;
     capref_beta.slot = 0;
 
     err = cap_retype(capref_beta, capref_alpha, 0, ObjType_RAM, BASE_PAGE_SIZE, L2_CNODE_SLOTS);
