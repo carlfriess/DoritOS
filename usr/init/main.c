@@ -23,18 +23,13 @@
 
 #include <mm/mm.h>
 #include "mem_alloc.h"
+#include "lmp_handlers.h"
 #include "m1_test.h"
 #include "m2_test.h"
 
 
 coreid_t my_core_id;
 struct bootinfo *bi;
-
-void simple_handler(void *arg);
-
-void simple_handler(void *arg) {
-    debug_printf("\n\n\nOH SHIT!\n\n\n");
-}
 
 int main(int argc, char *argv[])
 {
@@ -95,7 +90,7 @@ int main(int argc, char *argv[])
     struct waitset *default_ws = get_default_waitset();
 
     // Register callback handler
-    err = lmp_chan_register_recv(lmp_channel, default_ws, MKCLOSURE(simple_handler, (void *) lmp_channel));
+    err = lmp_chan_register_recv(lmp_channel, default_ws, MKCLOSURE(lmp_handler_dispatcher, (void *) lmp_channel));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
@@ -108,8 +103,6 @@ int main(int argc, char *argv[])
     }
 
     while (true) {
-
-//        print_process_list();
 
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {
