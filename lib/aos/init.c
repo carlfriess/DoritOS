@@ -23,6 +23,8 @@
 #include <aos/morecore.h>
 #include <aos/paging.h>
 #include <barrelfish_kpi/domain_params.h>
+#include <aos/lmp.h>
+
 #include "threads_priv.h"
 #include "init.h"
 
@@ -167,21 +169,23 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
 
     // Allocate and initialize lmp channel
-    struct lmp_chan *lmp_channel = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
+    struct lmp_chan *lc = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
 
     // Open channel to messages
-    err = lmp_chan_accept(lmp_channel, LMP_RECV_LENGTH, cap_initep);
+    err = lmp_chan_accept(lc, LMP_RECV_LENGTH, cap_initep);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
 
-    // Send test message
-    err = lmp_chan_send1(lmp_channel, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, 69); // Ayy lmao
+    // Send test message TODO: Change to enum
+    err = lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, cap_selfep, 1);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
+
+    lmp_client_recv(lc);
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */

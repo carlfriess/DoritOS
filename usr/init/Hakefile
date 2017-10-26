@@ -14,7 +14,6 @@
                       cFiles = [
                         "main.c",
                         "mem_alloc.c",
-                        "lmp_handlers.c",
                         "m1_test.c",
                         "m2_test.c"
                       ],

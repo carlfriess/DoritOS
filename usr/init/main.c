@@ -20,11 +20,11 @@
 #include <aos/morecore.h>
 #include <aos/paging.h>
 #include <spawn/spawn.h>
-#include <spawn/process.h>
+#include <aos/process.h>
+#include <aos/lmp.h>
 
 #include <mm/mm.h>
 #include "mem_alloc.h"
-#include "lmp_handlers.h"
 #include "m1_test.h"
 #include "m2_test.h"
 
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 
     // Register callback handler
     struct waitset *default_ws = get_default_waitset();
-    err = lmp_chan_register_recv(si->pi->lc, default_ws, MKCLOSURE(lmp_handler_dispatcher, (void *) si->pi->lc));
+    err = lmp_chan_register_recv(si->pi->lc, default_ws, MKCLOSURE(lmp_server_dispatcher, (void *) si->pi->lc));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;

@@ -1,5 +1,5 @@
-#ifndef _INIT_PROCESS_H_
-#define _INIT_PROCESS_H_
+#ifndef _AOS_PROCESS_H_
+#define _AOS_PROCESS_H_
 
 #include "aos/lmp_chan.h"
 

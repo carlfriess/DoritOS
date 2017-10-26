@@ -1,6 +1,6 @@
 #include <aos/aos.h>
 #include <spawn/spawn.h>
-#include <spawn/process.h>
+#include <aos/process.h>
 
 #include <elf/elf.h>
 #include <aos/dispatcher_arch.h>
