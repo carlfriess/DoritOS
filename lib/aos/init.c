@@ -178,14 +178,16 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         return err;
     }
 
-    // Send test message TODO: Change to enum
-    err = lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, cap_selfep, 1);
+    // Send test message
+    err = lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, lc->local_cap, LMP_RequestType_Register);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
 
-    lmp_client_recv(lc);
+    struct capref cap;
+    struct lmp_msg_recv msg;
+    lmp_client_recv(lc, &cap, &msg);
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */

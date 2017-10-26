@@ -3,8 +3,19 @@
 
 #include <aos/aos.h>
 
-enum lmp_request_type;
-enum lmp_response_type;
+enum lmp_request_type {
+    LMP_RequestType_NULL = 0,
+    LMP_RequestType_Register,
+    LMP_RequestType_Memory,
+    LMP_RequestType_Spawn,
+    LMP_RequestType_Terminal
+};
+
+enum lmp_response_type {
+    LMP_ResponseType_NULL = 0,
+    LMP_ResponseType_Ok,
+    LMP_ResponseType_Error
+};
 
 // Server side
 void lmp_server_dispatcher(void *);
@@ -14,7 +25,7 @@ void lmp_server_spawn(struct lmp_chan *, struct capref);
 void lmp_server_terminal(struct lmp_chan *, struct capref);
 
 // Client side
-void lmp_client_recv(void *);
+void lmp_client_recv(struct lmp_chan *, struct capref *, struct lmp_recv_msg *);
 void lmp_client_wait(void *);
 //void lmp_client_dispatcher(void *);
 //void lmp_client_register(struct lmp_chan *, struct capref);
