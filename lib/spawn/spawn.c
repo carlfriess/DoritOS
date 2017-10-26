@@ -1,6 +1,5 @@
 #include <aos/aos.h>
 #include <spawn/spawn.h>
-#include <aos/process.h>
 
 #include <elf/elf.h>
 #include <aos/dispatcher_arch.h>
@@ -32,7 +31,6 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
 
     // Placeholder cnoderef/capref to reduce stack size
     struct cnoderef cnoderef_l1;
-//    struct cnoderef cnoderef_beta;
 
     struct capref capref_alpha;
     struct capref capref_beta;
@@ -148,19 +146,20 @@ static errval_t spawn_setup_lmp_channel(struct spawninfo *si) {
         return err;
     }
 
-    //  Create INITEP and copy into child
+    //  Create INITEP
     struct capref initep = {
         .cnode = si->taskcn_ref,
         .slot = TASKCN_SLOT_INITEP
     };
 
-
+    // Copy lmp channel endpoint into child
     err = cap_copy(initep, si->pi->lc->local_cap);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
 
+    // Allocate new recv slot for lmp channel
     err = lmp_chan_alloc_recv_slot(si->pi->lc);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
@@ -504,9 +503,14 @@ static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
  
     errval_t err = SYS_ERR_OK;
 
+    // Complete process info
     si->pi->name = si->binary_name;
     si->pi->dispatcher_cap = &si->child_dispatcher_cap;
 
+    // Register the process
+    process_register(si->pi);
+
+    // Invoking the dispatcher
     err = invoke_dispatcher(si->child_dispatcher_cap,
                             cap_dispatcher,
                             si->child_rootcn_cap,

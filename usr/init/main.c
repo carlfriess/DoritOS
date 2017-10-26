@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
 
+    // Retype init's dispatcher capability to create an endpoint
     err = cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPoint, 0, 1);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
@@ -72,14 +73,11 @@ int main(int argc, char *argv[])
     // Milestone 2:
     //run_all_m2_tests();
 
+    // Allocate spawninfo
     struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-    spawn_load_by_name("memeater", si);
-    process_register(si->pi);
 
-    err = lmp_chan_alloc_recv_slot(si->pi->lc);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-    }
+    // Spawn memeater
+    spawn_load_by_name("memeater", si);
 
     // Register callback handler
     struct waitset *default_ws = get_default_waitset();
@@ -88,6 +86,8 @@ int main(int argc, char *argv[])
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
+
+    // Free the process info for memeater
     free(si);
 
     debug_printf("Message handler loop\n");
