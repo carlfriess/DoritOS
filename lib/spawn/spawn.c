@@ -12,14 +12,17 @@ extern struct bootinfo *bi;
 
 static void add_parent_mapping(struct spawninfo *si, void *addr) {
     // Check if parent_mappings exists
-    if (si->parent_mappings.addr == NULL) {
-        si->parent_mappings.addr = addr;
+    struct parent_mapping *mapping = (struct parent_mapping *) malloc(sizeof(struct parent_mapping));
+    if (si->parent_mappings == NULL) {
+        mapping->addr = addr;
+        mapping->next = NULL;
+        si->parent_mappings = mapping;
     } else {
         // Iterate to last entry, allocate new mapping, assign
         struct parent_mapping *i;
-        for (i = &si->parent_mappings; i->next != NULL; i = i->next);
-        struct parent_mapping *mapping = (struct parent_mapping *) malloc(sizeof(struct parent_mapping));
+        for (i = si->parent_mappings; i->next != NULL; i = i->next);
         mapping->addr = addr;
+        mapping->next = NULL;
         i->next = mapping;
     }
 }
@@ -215,7 +218,7 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
         return err;
     }
     
-    // Unmap these frames later
+    // Unmap these frames later PF
     add_parent_mapping(si, si->child_paging_state);
     add_parent_mapping(si, slab_frame_1_addr);
     add_parent_mapping(si, slab_frame_2_addr);
@@ -293,7 +296,7 @@ static errval_t elf_allocator_callback(void *state, genvaddr_t base, size_t size
         return err;
     }
 
-    // Add mapping to parent mappings list
+    // Add mapping to parent mappings list PF
     add_parent_mapping(si, *ret);
 
     // Adding offset to target address
@@ -349,7 +352,7 @@ static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
         return err;
     }
 
-    // Add mapping to parent mappings list
+    // Add mapping to parent mappings list PF
     add_parent_mapping(si, si->dcb_addr_parent);
     
     // Map the memory region into child's virtual address space.
@@ -416,7 +419,7 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
         return err;
     }
 
-    // Add mapping to parent mappings list
+    // Add mapping to parent mappings list PF
     add_parent_mapping(si, argspace_addr_parent);
     
     // Map the memory region into child's virtual address space.
@@ -530,11 +533,12 @@ static errval_t spawn_cleanup(struct spawninfo *si) {
     errval_t err = SYS_ERR_OK;
 
     struct parent_mapping *i;
-    for (i = &si->parent_mappings; i != NULL; i = i->next) {
+    for (i = si->parent_mappings; i != NULL; i = i->next) {
         err = paging_unmap(get_current_paging_state(), i->addr);
         if (err_is_fail(err)) {
             return err;
         }
+        free(i);
     }
 
     cap_delete(si->child_rootcn_cap);
