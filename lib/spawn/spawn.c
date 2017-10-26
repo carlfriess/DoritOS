@@ -122,6 +122,9 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
         return err;
     }
 
+    cap_delete(capref_alpha);
+    slot_free(capref_alpha);
+
     // Create L2 cnode: SLOT_PAGECN
     err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_PAGECN, &si->slot_pagecn_ref);
     if (err_is_fail(err)) {
@@ -534,8 +537,10 @@ static errval_t spawn_cleanup(struct spawninfo *si) {
         }
     }
 
-    //cap_delete(si->child_rootcn_cap);
-    //cap_delete(si->child_root_pt_cap);
+    cap_delete(si->child_rootcn_cap);
+    slot_free(si->child_rootcn_cap);
+    cap_delete(si->child_root_pt_cap);
+    slot_free(si->child_root_pt_cap);
 
     return err;
 }
