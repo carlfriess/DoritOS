@@ -76,6 +76,11 @@ int main(int argc, char *argv[])
     spawn_load_by_name("memeater", si);
     process_register(si->pi);
 
+    err = lmp_chan_alloc_recv_slot(si->pi->lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+
     // Register callback handler
     struct waitset *default_ws = get_default_waitset();
     err = lmp_chan_register_recv(si->pi->lc, default_ws, MKCLOSURE(lmp_server_dispatcher, (void *) si->pi->lc));

@@ -171,11 +171,19 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     // Allocate and initialize lmp channel
     struct lmp_chan *lc = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
 
+//    lc->buflen_words = LMP_RECV_LENGTH;
+
     // Open channel to messages
     err = lmp_chan_accept(lc, LMP_RECV_LENGTH, cap_initep);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
+    }
+
+    // Allocate recv slot
+    err = lmp_chan_alloc_recv_slot(lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
     }
 
     // Send test message
@@ -186,11 +194,27 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     }
 
     struct capref cap;
-    struct lmp_msg_recv msg;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    lmp_client_recv(lc, &cap, &msg);
+
+    // Allocate recv slot
+    err = lmp_chan_alloc_recv_slot(lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
+    err = lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, lc->local_cap, LMP_RequestType_Register);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
     lmp_client_recv(lc, &cap, &msg);
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
+
+    //err = lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, )
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
