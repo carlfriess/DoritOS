@@ -20,6 +20,8 @@
 #include <aos/morecore.h>
 #include <aos/paging.h>
 #include <spawn/spawn.h>
+#include <aos/process.h>
+#include <aos/lmp.h>
 
 #include <mm/mm.h>
 #include "mem_alloc.h"
@@ -55,21 +57,43 @@ int main(int argc, char *argv[])
     if(err_is_fail(err)){
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
-    
+
+    // Retype init's dispatcher capability to create an endpoint
+    err = cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPoint, 0, 1);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
     // Run tests:
-    
+
     // Milestone 1:
     //run_all_m1_tests();
-    
+
     // Milestone 2:
-    run_all_m2_tests();
+    //run_all_m2_tests();
+
+    // Allocate spawninfo
+    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+
+    // Spawn memeater
+    spawn_load_by_name("memeater", si);
+
+    // Register callback handler
+    struct waitset *default_ws = get_default_waitset();
+    err = lmp_chan_register_recv(si->pi->lc, default_ws, MKCLOSURE(lmp_server_dispatcher, (void *) si->pi->lc));
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
+    // Free the process info for memeater
+    free(si);
 
     debug_printf("Message handler loop\n");
     // Hang around
-    struct waitset *default_ws = get_default_waitset();
-    while (true) {
 
-        print_process_list();
+    while (true) {
 
         err = event_dispatch(default_ws);
         if (err_is_fail(err)) {

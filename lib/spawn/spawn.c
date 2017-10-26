@@ -9,9 +9,6 @@
 
 extern struct bootinfo *bi;
 
-struct process_info *process_list = NULL;
-
-static size_t pid = 0;
 
 static void add_parent_mapping(struct spawninfo *si, void *addr) {
     // Check if parent_mappings exists
@@ -33,13 +30,13 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     errval_t err;
 
     // Placeholder cnoderef/capref to reduce stack size
-    struct cnoderef cnoderef_alpha;
+    struct cnoderef cnoderef_l1;
 
     struct capref capref_alpha;
     struct capref capref_beta;
 
     // Create a L1 cnode
-    err = cnode_create_l1(&si->child_rootcn_cap, &cnoderef_alpha);
+    err = cnode_create_l1(&si->child_rootcn_cap, &cnoderef_l1);
     if (err_is_fail(err)) {
         return err;
     }
@@ -74,48 +71,50 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     if (err_is_fail(err)) {
         return err;
     }
-    cap_delete(capref_alpha);
 
     //  Copy root cnode capability into SLOT_ROOTCN
     si->slot_rootcn_cap.cnode = si->taskcn_ref;
     si->slot_rootcn_cap.slot = TASKCN_SLOT_ROOTCN;
-    cap_copy(si->slot_rootcn_cap, si->child_rootcn_cap);
-
+    err = cap_copy(si->slot_rootcn_cap, si->child_rootcn_cap);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
 
     // Create L2 cnode: SLOT_ALLOC0
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, &cnoderef_alpha);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, NULL);
     if (err_is_fail(err)) {
         return err;
     }
 
-    
     // Create L2 cnode: SLOT_ALLOC1
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC1, &cnoderef_alpha);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC1, NULL);
     if (err_is_fail(err)) {
         return err;
     }
-    
-    
+
+
     // Create L2 cnode: SLOT_ALLOC2
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC2, &cnoderef_alpha);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC2, NULL);
     if (err_is_fail(err)) {
         return err;
     }
-    
-    
+
+
     // Create L2 cnode: SLOT_BASE_PAGE_CN
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_BASE_PAGE_CN, &cnoderef_alpha);
+    struct cnoderef cnoderef_base_pagecn;
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_BASE_PAGE_CN, &cnoderef_base_pagecn);
     if (err_is_fail(err)) {
         return err;
     }
-    
+
     //  Create RAM capabilities for SLOT_BASE_PAGE_CN
     err = ram_alloc(&capref_alpha, BASE_PAGE_SIZE * L2_CNODE_SLOTS);
     if (err_is_fail(err)) {
         return err;
     }
 
-    capref_beta.cnode = cnoderef_alpha;
+    capref_beta.cnode = cnoderef_base_pagecn;
     capref_beta.slot = 0;
 
     err = cap_retype(capref_beta, capref_alpha, 0, ObjType_RAM, BASE_PAGE_SIZE, L2_CNODE_SLOTS);
@@ -124,6 +123,7 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     }
 
     cap_delete(capref_alpha);
+    slot_free(capref_alpha);
 
     // Create L2 cnode: SLOT_PAGECN
     err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_PAGECN, &si->slot_pagecn_ref);
@@ -133,6 +133,43 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     
     return SYS_ERR_OK;
     
+}
+
+// Set up the lmp channel
+static errval_t spawn_setup_lmp_channel(struct spawninfo *si) {
+    errval_t err = SYS_ERR_OK;
+
+    // Allocate and initialize lmp channel
+    si->pi->lc = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
+
+    // Open channel to messages
+    err = lmp_chan_accept(si->pi->lc, LMP_RECV_LENGTH, NULL_CAP);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
+    //  Create INITEP
+    struct capref initep = {
+        .cnode = si->taskcn_ref,
+        .slot = TASKCN_SLOT_INITEP
+    };
+
+    // Copy lmp channel endpoint into child
+    err = cap_copy(initep, si->pi->lc->local_cap);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
+    // Allocate new recv slot for lmp channel
+    err = lmp_chan_alloc_recv_slot(si->pi->lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
+    return err;
 }
 
 // Set up the vspace for a child process
@@ -227,7 +264,7 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
     if (err_is_fail(err)) {
         return err;
     }
-    
+
     return err;
     
 }
@@ -469,21 +506,14 @@ static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
  
     errval_t err = SYS_ERR_OK;
 
-    struct process_info *process = malloc(sizeof(struct process_info));
+    // Complete process info
+    si->pi->name = si->binary_name;
+    si->pi->dispatcher_cap = &si->child_dispatcher_cap;
 
-    process->name = si->binary_name;
-    process->dispatcher_cap = &si->child_dispatcher_cap;
-    process->id = ++pid;
+    // Register the process
+    process_register(si->pi);
 
-    if (process_list == NULL) {
-        process_list = process;
-    } else {
-        struct process_info *i;
-        for(i = process_list; i->next != NULL; i = i->next);
-        i->next = process;
-        process->prev = i;
-    }
-
+    // Invoking the dispatcher
     err = invoke_dispatcher(si->child_dispatcher_cap,
                             cap_dispatcher,
                             si->child_rootcn_cap,
@@ -508,7 +538,9 @@ static errval_t spawn_cleanup(struct spawninfo *si) {
     }
 
     cap_delete(si->child_rootcn_cap);
+    slot_free(si->child_rootcn_cap);
     cap_delete(si->child_root_pt_cap);
+    slot_free(si->child_root_pt_cap);
 
     return err;
 }
@@ -523,6 +555,7 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     // Init spawninfo
     memset(si, 0, sizeof(*si));
     si->binary_name = binary_name;
+    si->pi = (struct process_info *) malloc(sizeof(struct process_info));
 
     // TODO: Implement me
     // - Get the binary from multiboot image
@@ -567,7 +600,14 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
         debug_printf("spawn: Failed setting up cspace: %s\n", err_getstring(err));
         return err;
     }
-    
+
+    // Set up lmp channel
+    err = spawn_setup_lmp_channel(si);
+    if (err_is_fail(err)) {
+        debug_printf("spawn: Failed setting up lmp channel: %s\n", err_getstring(err));
+        return err;
+    }
+
     // Set up vspace
     err = spawn_setup_vspace(si);
     if (err_is_fail(err)) {
@@ -617,17 +657,4 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     }
 
     return err;
-}
-
-void print_process_list(void) {
-    size_t counter = 1;
-
-    struct process_info *i;
-    debug_printf("Currently running processes:\n");
-    debug_printf("\t%3d\t%s\n", 0, "init");
-    for (i = process_list; i != NULL; i = i->next) {
-        debug_printf("\t%3d\t%s\n", i->id, i->name);
-        counter++;
-    }
-    debug_printf("Total number of processes: %d\n", counter);
 }
