@@ -13,7 +13,7 @@
 [
     build library {
         target = "spawn",
-        cFiles = [ "spawn.c", "multiboot.c" ],
+        cFiles = [ "process.c", "spawn.c", "multiboot.c" ],
         addLibraries = ["elf"]
      }
 ]

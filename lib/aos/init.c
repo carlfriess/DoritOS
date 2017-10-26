@@ -169,13 +169,6 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     // Allocate and initialize lmp channel
     struct lmp_chan *lmp_channel = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
 
-    // Create local lmp endpoint
-//    err = endpoint_create(LMP_RECV_LENGTH, &lmp_channel->local_cap, &lmp_channel->endpoint);
-//    if (err_is_fail(err)) {
-//        debug_printf("%s\n", err_getstring(err));
-//        return err;
-//    }
-
     // Open channel to messages
     err = lmp_chan_accept(lmp_channel, LMP_RECV_LENGTH, cap_initep);
     if (err_is_fail(err)) {

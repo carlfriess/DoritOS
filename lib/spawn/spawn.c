@@ -1,5 +1,6 @@
 #include <aos/aos.h>
 #include <spawn/spawn.h>
+#include <spawn/process.h>
 
 #include <elf/elf.h>
 #include <aos/dispatcher_arch.h>
@@ -9,9 +10,6 @@
 
 extern struct bootinfo *bi;
 
-struct process_info *process_list = NULL;
-
-static size_t pid = 0;
 
 static void add_parent_mapping(struct spawninfo *si, void *addr) {
     // Check if parent_mappings exists
@@ -85,19 +83,6 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
         return err;
     }
 
-    //  Create INITEP and copy into child
-    capref_beta.cnode = si->taskcn_ref;
-    capref_beta.slot = TASKCN_SLOT_INITEP;
-
-    struct lmp_endpoint *endpoint;
-    err = endpoint_create(LMP_RECV_LENGTH, &capref_alpha, &endpoint);
-
-    err = cap_copy(capref_beta, capref_alpha);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return err;
-    }
-
     // Create L2 cnode: SLOT_ALLOC0
     err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, NULL);
     if (err_is_fail(err)) {
@@ -147,6 +132,42 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     
     return SYS_ERR_OK;
     
+}
+
+// Set up the lmp channel
+static errval_t spawn_setup_lmp_channel(struct spawninfo *si) {
+    errval_t err = SYS_ERR_OK;
+
+    // Allocate and initialize lmp channel
+    si->pi->lc = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
+
+    // Open channel to messages
+    err = lmp_chan_accept(si->pi->lc, LMP_RECV_LENGTH, NULL_CAP);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
+    //  Create INITEP and copy into child
+    struct capref initep = {
+        .cnode = si->taskcn_ref,
+        .slot = TASKCN_SLOT_INITEP
+    };
+
+
+    err = cap_copy(initep, si->pi->lc->local_cap);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
+    err = lmp_chan_alloc_recv_slot(si->pi->lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
+    return err;
 }
 
 // Set up the vspace for a child process
@@ -241,7 +262,7 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
     if (err_is_fail(err)) {
         return err;
     }
-    
+
     return err;
     
 }
@@ -483,20 +504,8 @@ static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
  
     errval_t err = SYS_ERR_OK;
 
-    struct process_info *process = malloc(sizeof(struct process_info));
-
-    process->name = si->binary_name;
-    process->dispatcher_cap = &si->child_dispatcher_cap;
-    process->id = ++pid;
-
-    if (process_list == NULL) {
-        process_list = process;
-    } else {
-        struct process_info *i;
-        for(i = process_list; i->next != NULL; i = i->next);
-        i->next = process;
-        process->prev = i;
-    }
+    si->pi->name = si->binary_name;
+    si->pi->dispatcher_cap = &si->child_dispatcher_cap;
 
     err = invoke_dispatcher(si->child_dispatcher_cap,
                             cap_dispatcher,
@@ -537,6 +546,7 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     // Init spawninfo
     memset(si, 0, sizeof(*si));
     si->binary_name = binary_name;
+    si->pi = (struct process_info *) malloc(sizeof(struct process_info));
 
     // TODO: Implement me
     // - Get the binary from multiboot image
@@ -581,7 +591,14 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
         debug_printf("spawn: Failed setting up cspace: %s\n", err_getstring(err));
         return err;
     }
-    
+
+    // Set up lmp channel
+    err = spawn_setup_lmp_channel(si);
+    if (err_is_fail(err)) {
+        debug_printf("spawn: Failed setting up lmp channel: %s\n", err_getstring(err));
+        return err;
+    }
+
     // Set up vspace
     err = spawn_setup_vspace(si);
     if (err_is_fail(err)) {
@@ -631,17 +648,4 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     }
 
     return err;
-}
-
-void print_process_list(void) {
-    size_t counter = 1;
-
-    struct process_info *i;
-    debug_printf("Currently running processes:\n");
-    debug_printf("\t%3d\t%s\n", 0, "init");
-    for (i = process_list; i != NULL; i = i->next) {
-        debug_printf("\t%3d\t%s\n", i->id, i->name);
-        counter++;
-    }
-    debug_printf("Total number of processes: %d\n", counter);
 }

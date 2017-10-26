@@ -20,6 +20,7 @@
 #include <aos/morecore.h>
 #include <aos/paging.h>
 #include <spawn/spawn.h>
+#include <spawn/process.h>
 
 #include <mm/mm.h>
 #include "mem_alloc.h"
@@ -71,36 +72,21 @@ int main(int argc, char *argv[])
     // Milestone 2:
     //run_all_m2_tests();
 
-    // Allocate and initialize lmp channel
-    struct lmp_chan *lmp_channel = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
+    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+    spawn_load_by_name("memeater", si);
+    process_register(si->pi);
 
-    // Open channel to messages
-    err = lmp_chan_accept(lmp_channel, LMP_RECV_LENGTH, NULL_CAP);
+    // Register callback handler
+    struct waitset *default_ws = get_default_waitset();
+    err = lmp_chan_register_recv(si->pi->lc, default_ws, MKCLOSURE(lmp_handler_dispatcher, (void *) si->pi->lc));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
-
-    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-    spawn_load_by_name("memeater", si);
     free(si);
 
     debug_printf("Message handler loop\n");
     // Hang around
-    struct waitset *default_ws = get_default_waitset();
-
-    // Register callback handler
-    err = lmp_chan_register_recv(lmp_channel, default_ws, MKCLOSURE(lmp_handler_dispatcher, (void *) lmp_channel));
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return err;
-    }
-
-    err = lmp_chan_alloc_recv_slot(lmp_channel);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return err;
-    }
 
     while (true) {
 

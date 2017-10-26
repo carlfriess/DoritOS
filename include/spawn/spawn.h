@@ -50,18 +50,10 @@ struct spawninfo {
     struct capref child_root_pt_cap;    // Capability to the child's L1 pagetable
     struct capref child_dispatcher_cap; // Capability to the child's dispatcher
 
+    // Process Info
+    struct process_info *pi;
 };
-
-struct process_info {
-    struct process_info *next;
-    struct process_info *prev;
-    size_t id;
-    char *name;
-    struct capref *dispatcher_cap;
-};
-
 
 // Start a child process by binary name. Fills in si
 errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si);
-void print_process_list(void);
 #endif /* _INIT_SPAWN_H_ */

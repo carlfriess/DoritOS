@@ -163,6 +163,7 @@
    "semaphore.h",
    "signal.h",
    "spawn/multiboot.h",
+   "spawn/process.h",
    "spawn/spawn.h",
    "stdio_file.h",
    "storage/storage.h",
