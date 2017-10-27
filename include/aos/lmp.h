@@ -6,6 +6,26 @@
 /*
  * LMP Request Protocol
  *
+ * ==== Number ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_Number
+ * arg1: uintptr_t Number
+ *
+ * cap: NULL_CAP
+ *
+ * ==== StringShort ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_StringShort
+ * arg1-8: char[] String
+ *
+ * cap: NULL_CAP
+ *
+ * ==== StringLong ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_StringLong
+ *
+ * cap: Frame containing string
+ *
  * ==== Register ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_Register
@@ -44,31 +64,54 @@
 /*
  * LMP Response Protocol
  *
+ * ==== Number ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_Number
+ * arg1: uintptr_t Number
+ *
+ * cap: NULL_CAP
+ *
+ * ==== StringShort ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_StringShort
+ * arg1: errval_t Status code
+ * arg2: size_t Received content length
+ *
+ * cap: NULL_CAP
+ *
+ * ==== String ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_StringLong
+ * arg1: errval_t Status code
+ * arg2: size_t Received content length
+ *
+ * cap: NULL_CAP
+ *
  * ==== Register ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_Register
- * arg1: errval_t Error
+ * arg1: errval_t Status code
  *
  * cap: NULL_CAP
  *
  * ==== Memory Alloc ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_MemoryAlloc
- * arg1: errval_t Error
+ * arg1: errval_t Status code
  *
  * cap: RAM capability to allocated memory
  *
  * ==== Memory Free ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_MemoryFree
- * arg1: errval_t Error
+ * arg1: errval_t Status code
  *
  * cap: NULL_CAP
  *
  * ==== Spawn ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_Spawn
- * arg1: errval_t Error
+ * arg1: errval_t Status code
  * arg2: domainid_t Process ID of new process
  *
  * cap:
@@ -76,7 +119,7 @@
  * ==== Terminal ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_Terminal
- * arg1: errval_t Error
+ * arg1: errval_t Status code
  *
  * cap: NULL_CAP
  *
@@ -84,7 +127,9 @@
 
 enum lmp_request_type {
     LMP_RequestType_NULL = 0,
-    LMP_RequestType_Debug,
+    LMP_RequestType_Number,
+    LMP_RequestType_StringShort,
+    LMP_RequestType_StringLong,
     LMP_RequestType_Register,
     LMP_RequestType_MemoryAlloc,
     LMP_RequestType_MemoryFree,
