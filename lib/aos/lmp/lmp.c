@@ -1,8 +1,9 @@
+#include <stdio.h>
 #include <aos/aos.h>
 #include <aos/waitset.h>
 #include <aos/lmp.h>
 
-#define PRINT_DEBUG 1
+#define PRINT_DEBUG 0
 
 /* ========== Server ========== */
 void lmp_server_dispatcher(void *arg) {
@@ -52,15 +53,24 @@ void lmp_server_dispatcher(void *arg) {
             debug_printf("Spawn Message!\n");
 #endif
             break;
-        case LMP_RequestType_Terminal:
+        case LMP_RequestType_TerminalGetChar:
 #if PRINT_DEBUG
             debug_printf("Terminal Message!\n");
 #endif
+            lmp_server_terminal_getchar(lc);
             break;
+        case LMP_RequestType_TerminalPutChar:
+#if PRINT_DEBUG
+            debug_printf("Terminal Message!\n");
+#endif
+            lmp_server_terminal_putchar(lc, msg.words[1]);
+            break;
+
         default:
 #if PRINT_DEBUG
             debug_printf("Invalid Message!\n");
 #endif
+            break;
     }
 
 
@@ -93,13 +103,22 @@ void lmp_server_memory_free(struct lmp_chan *lc, struct capref cap) {
 
 }
 
-
 void lmp_server_spawn(struct lmp_chan *lc, struct capref cap) {
 
 }
 
-void lmp_server_terminal(struct lmp_chan *lc, struct capref cap) {
+void lmp_server_terminal_getchar(struct lmp_chan *lc) {
+    char c = '\0';
 
+    while (c == '\0') {
+        sys_getchar(&c);
+    }
+
+    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
+}
+
+void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
+    sys_print(&c, sizeof(char));
 }
 
 /* ========== Client ========== */
