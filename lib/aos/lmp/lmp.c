@@ -32,6 +32,28 @@ void lmp_server_dispatcher(void *arg) {
 
     // Check message type and handle
     switch (msg.words[0]) {
+        case LMP_RequestType_Number:
+#if PRINT_DEBUG
+            debug_printf("Number Message!\n");
+#endif
+            lmp_chan_send2(lc,
+                           LMP_SEND_FLAGS_DEFAULT,
+                           NULL_CAP,
+                           LMP_RequestType_Number,
+                           msg.words[1]);
+            break;
+        case LMP_RequestType_StringShort:
+#if PRINT_DEBUG
+            debug_printf("Short String Message!\n");
+#endif
+            debug_printf("Received string: %s\n", (char *)(msg.words+1));
+            lmp_chan_send3(lc,
+                           LMP_SEND_FLAGS_DEFAULT,
+                           NULL_CAP,
+                           LMP_RequestType_StringShort,
+                           SYS_ERR_OK,
+                           strlen((char *)(msg.words+1)));
+            break;
         case LMP_RequestType_Register:
 #if PRINT_DEBUG
             debug_printf("Registration Message!\n");
@@ -52,6 +74,7 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Spawn Message!\n");
 #endif
+            lmp_server_spawn(lc, msg.words);
             break;
         case LMP_RequestType_TerminalGetChar:
 #if PRINT_DEBUG
@@ -90,7 +113,7 @@ void lmp_server_register(struct lmp_chan *lc, struct capref cap) {
         debug_printf("%s\n", err_getstring(err));
     }
 
-    err = lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, SYS_ERR_OK);
+    err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Register, SYS_ERR_OK);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
@@ -103,8 +126,22 @@ void lmp_server_memory_free(struct lmp_chan *lc, struct capref cap) {
 
 }
 
-void lmp_server_spawn(struct lmp_chan *lc, struct capref cap) {
+static lmp_server_spawn_handler lmp_server_spawn_handler_func = NULL;
 
+void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler) {
+    lmp_server_spawn_handler_func = handler;
+}
+
+void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
+
+    errval_t err;
+    domainid_t pid = 0;
+    
+    err = lmp_server_spawn_handler_func((char *)(args+2), (coreid_t) args[1], &pid);
+    
+    // Send result to client
+    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Spawn, err, pid);
+    
 }
 
 void lmp_server_terminal_getchar(struct lmp_chan *lc) {

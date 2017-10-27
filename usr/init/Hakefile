@@ -18,7 +18,7 @@
                         "m2_test.c"
                       ],
                       addLinkFlags = [ "-e _start_init"],
-                      addLibraries = [ "mm", "getopt", "elf", "spawn" ],
+                      addLibraries = [ "mm", "getopt", "elf", "spawn", "spawn_serv" ],
                       architectures = allArchitectures
                     }
 ]

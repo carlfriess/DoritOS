@@ -145,11 +145,14 @@ int main(int argc, char *argv[])
 
     debug_printf("memeater started....\n");
 
-    err = aos_rpc_init(&init_rpc);
+    err = aos_rpc_init(&init_rpc, aos_rpc_get_init_channel()->lc);
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "could not initialize RPC\n");
     }
-
+    
+    domainid_t pid;
+    aos_rpc_process_spawn(&init_rpc, "hello", 0, &pid);
+    
     err = test_basic_rpc();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "failure in testing basic RPC\n");
