@@ -62,7 +62,7 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     // Set err to error of response message
     err = msg.words[1];
     
-    return SYS_ERR_OK;
+    return err;
 }
 
 errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)

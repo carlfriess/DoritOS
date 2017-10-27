@@ -43,6 +43,7 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Memory Alloc Message!\n");
 #endif
+            lmp_server_memory_alloc(lc, msg.words[0], msg.words[1]);
             break;
         case LMP_RequestType_MemoryFree:
 #if PRINT_DEBUG
