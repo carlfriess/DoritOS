@@ -64,7 +64,10 @@ int main(int argc, char *argv[])
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
-
+    
+    // Setting aos_ram_free function pointer to ram_free_handler in lmp.c
+    register_ram_free_handler(aos_ram_free);
+    
     // Run tests:
 
     // Milestone 1:
