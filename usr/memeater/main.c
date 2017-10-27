@@ -149,7 +149,10 @@ int main(int argc, char *argv[])
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "could not initialize RPC\n");
     }
-
+    
+    domainid_t pid;
+    aos_rpc_process_spawn(&init_rpc, "hello", 0, &pid);
+    
     err = test_basic_rpc();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "failure in testing basic RPC\n");

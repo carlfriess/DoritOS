@@ -31,6 +31,28 @@ void lmp_server_dispatcher(void *arg) {
 
     // Check message type and handle
     switch (msg.words[0]) {
+        case LMP_RequestType_Number:
+#if PRINT_DEBUG
+            debug_printf("Number Message!\n");
+#endif
+            lmp_chan_send2(lc,
+                           LMP_SEND_FLAGS_DEFAULT,
+                           NULL_CAP,
+                           LMP_RequestType_Number,
+                           msg.words[1]);
+            break;
+        case LMP_RequestType_StringShort:
+#if PRINT_DEBUG
+            debug_printf("Short String Message!\n");
+#endif
+            debug_printf("Received string: %s\n", (char *)(msg.words+1));
+            lmp_chan_send3(lc,
+                           LMP_SEND_FLAGS_DEFAULT,
+                           NULL_CAP,
+                           LMP_RequestType_StringShort,
+                           SYS_ERR_OK,
+                           strlen((char *)(msg.words+1)));
+            break;
         case LMP_RequestType_Register:
 #if PRINT_DEBUG
             debug_printf("Registration Message!\n");
