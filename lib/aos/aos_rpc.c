@@ -56,9 +56,46 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
                                coreid_t core, domainid_t *newpid)
 {
     
-    lmp_chan_send4(chan->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Spawn, 0, ((uintptr_t *)name)[0], ((uintptr_t *)name)[1]);
+    // Get length of the name string
+    size_t len = strlen(name);
     
-    return SYS_ERR_OK;
+    // Allocate new memory to construct the arguments
+    char *name_arg = calloc(sizeof(uintptr_t), 7);
+    
+    // Copy in the name string
+    memcpy(name_arg, name, len);
+    
+    // Send the LMP message
+    lmp_chan_send9(chan->lc,
+                   LMP_SEND_FLAGS_DEFAULT,
+                   NULL_CAP,
+                   LMP_RequestType_Spawn,
+                   0,
+                   ((uintptr_t *)name_arg)[0],
+                   ((uintptr_t *)name_arg)[1],
+                   ((uintptr_t *)name_arg)[2],
+                   ((uintptr_t *)name_arg)[3],
+                   ((uintptr_t *)name_arg)[4],
+                   ((uintptr_t *)name_arg)[5],
+                   ((uintptr_t *)name_arg)[6]);
+    
+    // Free the memory for constructing the arguments
+    free(name_arg);
+    
+    
+    // Receive the status code and pid form the spawn server
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    lmp_client_recv(chan->lc, &cap, &msg);
+    
+    // Check we actually got a valid response
+    assert(msg.words[0] == LMP_RequestType_Spawn);
+
+    // Return the PID of the new process
+    *newpid = msg.words[2];
+    
+    // Return the status code
+    return (errval_t) msg.words[1];
 }
 
 errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
