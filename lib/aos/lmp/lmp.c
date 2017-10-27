@@ -55,6 +55,13 @@ void lmp_server_dispatcher(void *arg) {
                            SYS_ERR_OK,
                            strlen((char *)(msg.words+1)));
             break;
+        case LMP_RequestType_StringLong:
+#if PRINT_DEBUG
+            debug_printf("Long String Message!\n");
+#endif
+            lmp_server_long_string(lc, cap, msg.words[1]);
+            break;
+            
         case LMP_RequestType_Register:
 #if PRINT_DEBUG
             debug_printf("Registration Message!\n");
@@ -147,10 +154,10 @@ errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align
     }
     
     // Deleting the ram capability
-    //cap_delete(ram);
+    cap_delete(ram);
     
     // Freeing the slot
-    //slot_free(ram);
+    slot_free(ram);
     
     return err;
     
@@ -203,6 +210,35 @@ void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
     lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Spawn, err, pid);
     
 }
+
+errval_t lmp_server_long_string(struct lmp_chan *lc, struct capref cap, size_t bytes) {
+    
+    errval_t err = SYS_ERR_OK;
+    
+    // Mapping the received capability
+    void *buf;
+    err = paging_map_frame(get_current_paging_state(), &buf,
+                           bytes, cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    
+    debug_printf("Received long string: %s\n", (char *) buf);
+    
+    lmp_chan_send3(lc,
+                   LMP_SEND_FLAGS_DEFAULT,
+                   NULL_CAP,
+                   LMP_RequestType_StringLong,
+                   SYS_ERR_OK,
+                   strlen((char *) buf));
+    
+    return err;
+    
+}
+
+
 
 void lmp_server_terminal(struct lmp_chan *lc, struct capref cap) {
 

@@ -103,8 +103,42 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
     else {
         
         /* StringLong */
+        size_t retbytes;
+        struct capref frame;
+        err = frame_alloc(&frame, len + 1, &retbytes);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
         
-        return 0;
+        void *buf;
+        err = paging_map_frame(get_current_paging_state(), &buf,
+                         retbytes, frame, NULL, NULL);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        memcpy(buf, string, len);
+        *((char *)buf + len) = '\0';
+        
+        err = lmp_chan_send2(chan->lc, LMP_SEND_FLAGS_DEFAULT, frame, LMP_RequestType_StringLong, retbytes);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+    
+        struct capref cap;
+        struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+        lmp_client_recv(chan->lc, &cap, &msg);
+        
+        // Return an error if things didn't work
+        if (err_is_fail(msg.words[1])) {
+            return msg.words[1];
+        }
+        
+        // Return the status code
+        return msg.words[2] == len ? SYS_ERR_OK : -1;
         
     }
     
