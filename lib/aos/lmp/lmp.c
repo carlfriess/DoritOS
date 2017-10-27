@@ -8,7 +8,9 @@
 
 #define PRINT_DEBUG 0
 
+
 /* ========== Server ========== */
+
 void lmp_server_dispatcher(void *arg) {
 
 #if PRINT_DEBUG
@@ -56,9 +58,9 @@ void lmp_server_dispatcher(void *arg) {
             
         case LMP_RequestType_StringShort:
         case LMP_RequestType_StringLong:
-    #if PRINT_DEBUG
-                debug_printf("String Message!\n");
-    #endif
+#if PRINT_DEBUG
+            debug_printf("String Message!\n");
+#endif
             lmp_recv_string_from_msg(lc, cap, msg.words, &string);
             printf("Received string: %s\n", string);
             break;
@@ -98,10 +100,8 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Name Lookup Message!\n");
 #endif
-            
             // Send name of process
             lmp_send_string(lc, process_name_for_pid(msg.words[1]));
-            
             break;
             
             
@@ -111,17 +111,14 @@ void lmp_server_dispatcher(void *arg) {
 #endif
             // Get all current PIDs
             pid_count = get_all_pids(&ret_list);
-            
             // Send the ack and the number of PIDs
             lmp_chan_send2(lc,
                            LMP_SEND_FLAGS_DEFAULT,
                            NULL_CAP,
                            LMP_RequestType_PidDiscover,
                            pid_count);
-            
             // Send array of PIDs
             lmp_send_string(lc, (char *)ret_list);
-            
             break;
             
             
@@ -155,6 +152,7 @@ void lmp_server_dispatcher(void *arg) {
     }
 }
 
+// SPAWN: Handle registration requests from clients
 void lmp_server_register(struct lmp_chan *lc, struct capref cap) {
     errval_t err;
 
@@ -171,6 +169,7 @@ void lmp_server_register(struct lmp_chan *lc, struct capref cap) {
     }
 }
 
+// MEMSERV: Handle memory allocation requests
 errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align) {
     
     errval_t err = SYS_ERR_OK;
@@ -221,7 +220,8 @@ void register_ram_free_handler(ram_free_handler_t ram_free_function) {
     ram_free_handler = ram_free_function;
 }
 
-// TODO: Test this!
+// MEMSERV: Handle requests to free memory
+//  TODO: Test this!
 errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t bytes) {
     
     errval_t err = SYS_ERR_OK;
@@ -245,11 +245,11 @@ errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t b
 }
 
 static lmp_server_spawn_handler lmp_server_spawn_handler_func = NULL;
-
 void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler) {
     lmp_server_spawn_handler_func = handler;
 }
 
+// SPAWNSERV: Pass spawn requests to spawn_serv module
 void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
 
     errval_t err;
@@ -262,6 +262,7 @@ void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
     
 }
 
+// TERMINALSERV: Handle requests to get a char
 void lmp_server_terminal_getchar(struct lmp_chan *lc) {
     errval_t err = SYS_ERR_OK;
     char c = '\0';
@@ -272,6 +273,7 @@ void lmp_server_terminal_getchar(struct lmp_chan *lc) {
     lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
 }
 
+// TERMINALSERV: Handle requests to print a char
 void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
     errval_t err = SYS_ERR_OK;
     sys_print(&c, sizeof(char));
@@ -279,8 +281,10 @@ void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
     lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
 }
 
+
 /* ========== Client ========== */
 
+// Blocking call for receiving messages
 void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_msg *msg) {
     int done = 0;
     errval_t err;
@@ -303,13 +307,14 @@ void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_m
     }
     
 }
-
 void lmp_client_wait(void *arg) {
     *(int *)arg = 1;
 }
 
+
 /* ========== Aux ========== */
 
+// Send a string on the specified channel
 errval_t lmp_send_string(struct lmp_chan *lc, const char *string) {
     
     errval_t err;
@@ -421,7 +426,7 @@ errval_t lmp_send_string(struct lmp_chan *lc, const char *string) {
     
 }
 
-// Receive a string on a channel
+// Blocking call to receive a string on a channel
 errval_t lmp_recv_string(struct lmp_chan *lc, char **string) {
     
     struct capref cap;
@@ -433,6 +438,7 @@ errval_t lmp_recv_string(struct lmp_chan *lc, char **string) {
     
 }
 
+// Process a received string and create a local copy
 errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
                                   uintptr_t *words, char **string) {
     
@@ -515,4 +521,6 @@ errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
     }
     
 }
+
+// lmp_recv_big
 
