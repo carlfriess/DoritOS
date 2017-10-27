@@ -61,6 +61,7 @@ void lmp_server_dispatcher(void *arg) {
 #endif
             lmp_recv_string_from_msg(lc, cap, msg.words, &string);
             printf("Received string: %s\n", string);
+            free(string);
             break;
             
         case LMP_RequestType_Register:
