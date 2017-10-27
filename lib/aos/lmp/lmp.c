@@ -47,7 +47,8 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Short String Message!\n");
 #endif
-            debug_printf("Received string: %s\n", (char *)(msg.words+1));
+            // Printing short string and sending back response
+            debug_printf("Received short string: %s\n", (char *)(msg.words+1));
             lmp_chan_send3(lc,
                            LMP_SEND_FLAGS_DEFAULT,
                            NULL_CAP,
@@ -59,6 +60,7 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Long String Message!\n");
 #endif
+            // Printing long string and sending back response
             lmp_server_long_string(lc, cap, msg.words[1]);
             break;
             

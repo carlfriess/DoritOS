@@ -52,6 +52,8 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
     // Get length of the string
     size_t len = strlen(string);
     
+    debug_printf("Size of String: %zu\n", len);
+    
     // Check wether to use StringShort or StringLong protocol
     if (len < sizeof(uintptr_t) * 8) {
         
@@ -103,6 +105,8 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
     else {
         
         /* StringLong */
+        
+        // Allocating frame capability
         size_t retbytes;
         struct capref frame;
         err = frame_alloc(&frame, len + 1, &retbytes);
@@ -111,6 +115,7 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
             return err;
         }
         
+        // Mapping frame into virtual address space
         void *buf;
         err = paging_map_frame(get_current_paging_state(), &buf,
                          retbytes, frame, NULL, NULL);
@@ -119,9 +124,17 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
             return err;
         }
         
+        // Copy string into memory
         memcpy(buf, string, len);
         *((char *)buf + len) = '\0';
         
+        // Allocating the receive slot
+        err = lmp_chan_alloc_recv_slot(lc);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }
+
+        // Sending frame capability and size where string is stored
         err = lmp_chan_send2(chan->lc, LMP_SEND_FLAGS_DEFAULT, frame, LMP_RequestType_StringLong, retbytes);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
