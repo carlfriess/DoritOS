@@ -47,11 +47,7 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     
     // Receive the response
-    err = lmp_client_recv(chan->lc, retcap, &msg);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return err;
-    }
+    lmp_client_recv(chan->lc, retcap, &msg);
     
     // Allocate recv slot
     err = lmp_chan_alloc_recv_slot(chan->lc);
@@ -61,10 +57,10 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     }
     
     // TODO: Implement ret_size
-    *ret_site = size;
+    *ret_size = size;
     
     // Set err to error of response message
-    err = msg[1];
+    err = msg.words[1];
     
     return SYS_ERR_OK;
 }
