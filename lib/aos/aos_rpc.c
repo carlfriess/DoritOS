@@ -192,6 +192,20 @@ errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
 {
     // TODO (milestone 5): implement name lookup for process given a process
     // id
+    
+    errval_t err;
+    
+    err = lmp_chan_send2(chan->lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         NULL_CAP,
+                         LMP_RequestType_NameLookup,
+                         pid);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Receive string.....
+    
     return SYS_ERR_OK;
 }
 
@@ -199,6 +213,19 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
                                       domainid_t **pids, size_t *pid_count)
 {
     // TODO (milestone 5): implement process id discovery
+    
+    errval_t err;
+    
+    err = lmp_chan_send1(chan->lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         NULL_CAP,
+                         LMP_RequestType_PidDiscover);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Receive string.....
+    
     return SYS_ERR_OK;
 }
 
