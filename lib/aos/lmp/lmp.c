@@ -4,7 +4,7 @@
 
 #define MAX_ALLOCATION 100000000
 
-#define PRINT_DEBUG 1
+#define PRINT_DEBUG 0
 
 /* ========== Server ========== */
 void lmp_server_dispatcher(void *arg) {
@@ -43,7 +43,7 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Memory Alloc Message!\n");
 #endif
-            lmp_server_memory_alloc(lc, msg.words[0], msg.words[1]);
+            lmp_server_memory_alloc(lc, msg.words[1], msg.words[2]);
             break;
         case LMP_RequestType_MemoryFree:
 #if PRINT_DEBUG
@@ -65,6 +65,7 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Invalid Message!\n");
 #endif
+            break;
     }
 
 
@@ -97,18 +98,18 @@ errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align
     // Checking for invalid allocation size or alignment
     if (bytes == 0 || align == 0) {
         debug_printf("size or alignment is zero\n");
-        err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryAlloc, SYS_ERR_INVALID_SIZE);
-        return err;
+        lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryAlloc, SYS_ERR_INVALID_SIZE);
+        return SYS_ERR_INVALID_SIZE;
     }
     
     // TODO: Implement allocation policy for processes
     
     // Checking if requested allocation size is too big
-    if (bytes > MAX_ALLOCATION) {
-        debug_printf("requested size too big\n");
-        err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryAlloc, SYS_ERR_INVALID_SIZE);
-        return err;
-    }
+//    if (bytes > MAX_ALLOCATION) {
+//        debug_printf("requested size too big\n");
+//        lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryAlloc, SYS_ERR_INVALID_SIZE);
+//        return SYS_ERR_INVALID_SIZE;
+//    }
     
     // Allocating ram capability with size bytes and alignment align
     struct capref ram;
@@ -116,7 +117,7 @@ errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
-    
+
     // Responding by sending the ram capability back
     err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, ram, LMP_RequestType_MemoryAlloc, SYS_ERR_OK);
     if (err_is_fail(err)) {
@@ -124,10 +125,10 @@ errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align
     }
     
     // Deleting the ram capability
-    cap_delete(ram);
+    //cap_delete(ram);
     
     // Freeing the slot
-    slot_free(ram);
+    //slot_free(ram);
     
     return err;
     

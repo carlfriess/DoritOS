@@ -352,7 +352,8 @@ errval_t paging_alloc_fixed_commit(struct paging_state *st) {
     }
     
     // Updating free_vspace_base of paging state
-    st->free_vspace_base = start;
+    st->free_vspace_base = start + 0x100000;
+    st->free_vspace_head = NULL;
     
     return SYS_ERR_OK;
     
