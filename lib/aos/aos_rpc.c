@@ -141,7 +141,35 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 {
     // TODO: implement functionality to request a RAM capability over the
     // given channel and wait until it is delivered.
-    return SYS_ERR_OK;
+    
+    errval_t err = SYS_ERR_OK;
+    
+    err = lmp_chan_send3(chan->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryAlloc, size, align);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Initializing message
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive the response
+    lmp_client_recv(chan->lc, retcap, &msg);
+    
+    // Allocate recv slot
+    err = lmp_chan_alloc_recv_slot(chan->lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // TODO: Implement ret_size
+    *ret_size = size;
+    
+    // Set err to error of response message
+    err = msg.words[1];
+    
+    return err;
 }
 
 errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)

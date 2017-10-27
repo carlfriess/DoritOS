@@ -44,6 +44,7 @@
  * ==== Memory Free ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_MemoryFree
+ * arg1: bytes
  *
  * cap: capability to memory to free
  *
@@ -160,8 +161,8 @@ typedef errval_t (*lmp_server_spawn_handler)(char *name, coreid_t coreid, domain
 // Server side
 void lmp_server_dispatcher(void *arg);
 void lmp_server_register(struct lmp_chan *lc, struct capref cap);
-void lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align);
-void lmp_server_memory_free(struct lmp_chan *lc, struct capref cap);
+errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align);
+errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t bytes);
 void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args);
 void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler);
 void lmp_server_terminal_putchar(struct lmp_chan *lc, char c);
@@ -170,5 +171,9 @@ void lmp_server_terminal_getchar(struct lmp_chan *lc);
 // Client side
 void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_msg *msg);
 void lmp_client_wait(void *arg);
+
+typedef errval_t (*ram_free_handler_t)(struct capref, size_t size);
+
+void register_ram_free_handler(ram_free_handler_t ram_free_function);
 
 #endif

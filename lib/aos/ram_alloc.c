@@ -14,11 +14,23 @@
 
 #include <aos/aos.h>
 #include <aos/core_state.h>
+#include <aos/aos_rpc.h>
+#include <aos/lmp.h>
 
 /* remote (indirect through a channel) version of ram_alloc, for most domains */
 static errval_t ram_alloc_remote(struct capref *ret, size_t size, size_t alignment)
 {
-    return LIB_ERR_NOT_IMPLEMENTED;
+    errval_t err = SYS_ERR_OK;
+    
+    // Calling the rpc to get the ram capability
+    size_t ret_size;
+    err = aos_rpc_get_ram_cap(aos_rpc_get_memory_channel(), size, alignment, ret, &ret_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    return err;
 }
 
 
@@ -135,7 +147,10 @@ errval_t ram_alloc_set(ram_alloc_func_t local_allocator)
         return SYS_ERR_OK;
     }
 
-    USER_PANIC("ram_alloc_set(NULL) NYI");
+    //USER_PANIC("ram_alloc_set(NULL) NYI");
+    
+    debug_printf("Should actually use ram_alloc_remote using rpc now\n");
+    
     ram_alloc_state->ram_alloc_func = ram_alloc_remote;
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return SYS_ERR_OK;
 }

@@ -3,6 +3,8 @@
 #include <aos/waitset.h>
 #include <aos/lmp.h>
 
+#define MAX_ALLOCATION 100000000
+
 #define PRINT_DEBUG 0
 
 /* ========== Server ========== */
@@ -64,6 +66,7 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Memory Alloc Message!\n");
 #endif
+            lmp_server_memory_alloc(lc, msg.words[1], msg.words[2]);
             break;
         case LMP_RequestType_MemoryFree:
 #if PRINT_DEBUG
@@ -119,11 +122,77 @@ void lmp_server_register(struct lmp_chan *lc, struct capref cap) {
     }
 }
 
-void lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align) {
+errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align) {
+    
+    errval_t err = SYS_ERR_OK;
+    
+    // Checking for invalid allocation size or alignment
+    if (bytes == 0 || align == 0) {
+        debug_printf("size or alignment is zero\n");
+        lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryAlloc, SYS_ERR_INVALID_SIZE);
+        return SYS_ERR_INVALID_SIZE;
+    }
+    
+    // TODO: Implement allocation policy for processes
+    
+    // Checking if requested allocation size is too big
+//    if (bytes > MAX_ALLOCATION) {
+//        debug_printf("requested size too big\n");
+//        lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryAlloc, SYS_ERR_INVALID_SIZE);
+//        return SYS_ERR_INVALID_SIZE;
+//    }
+    
+    // Allocating ram capability with size bytes and alignment align
+    struct capref ram;
+    err = ram_alloc_aligned(&ram, bytes, align);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
 
+    // Responding by sending the ram capability back
+    err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, ram, LMP_RequestType_MemoryAlloc, SYS_ERR_OK);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
+    // Deleting the ram capability
+    //cap_delete(ram);
+    
+    // Freeing the slot
+    //slot_free(ram);
+    
+    return err;
+    
 }
-void lmp_server_memory_free(struct lmp_chan *lc, struct capref cap) {
 
+static ram_free_handler_t ram_free_handler;
+
+// Registering ram_free_handler function
+void register_ram_free_handler(ram_free_handler_t ram_free_function) {
+    ram_free_handler = ram_free_function;
+}
+
+// TODO: Test this!
+errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t bytes) {
+    
+    errval_t err = SYS_ERR_OK;
+    
+    // Freeing ram capability
+    err = ram_free_handler(cap, bytes);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryFree, MM_ERR_MM_FREE);
+        return err;
+    }
+
+    // Responding that freeing ram capability was successful
+    err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryFree, SYS_ERR_OK);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+
+    return err;
+    
 }
 
 static lmp_server_spawn_handler lmp_server_spawn_handler_func = NULL;
@@ -177,7 +246,11 @@ void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_m
         event_dispatch(get_default_waitset());
     }
 
-    lmp_chan_recv(lc, msg, cap);
+    err = lmp_chan_recv(lc, msg, cap);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
 }
 
 void lmp_client_wait(void *arg) {
