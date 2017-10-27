@@ -52,6 +52,8 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
     // Get length of the string
     size_t len = strlen(string);
     
+    debug_printf("Size of String: %zu\n", len);
+    
     // Check wether to use StringShort or StringLong protocol
     if (len < sizeof(uintptr_t) * 8) {
         
@@ -104,7 +106,52 @@ errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
         
         /* StringLong */
         
-        return 0;
+        // Allocating frame capability
+        size_t retbytes;
+        struct capref frame;
+        err = frame_alloc(&frame, len + 1, &retbytes);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Mapping frame into virtual address space
+        void *buf;
+        err = paging_map_frame(get_current_paging_state(), &buf,
+                         retbytes, frame, NULL, NULL);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Copy string into memory
+        memcpy(buf, string, len);
+        *((char *)buf + len) = '\0';
+        
+        // Allocating the receive slot
+        err = lmp_chan_alloc_recv_slot(lc);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }
+
+        // Sending frame capability and size where string is stored
+        err = lmp_chan_send2(chan->lc, LMP_SEND_FLAGS_DEFAULT, frame, LMP_RequestType_StringLong, retbytes);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+    
+        struct capref cap;
+        struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+        lmp_client_recv(chan->lc, &cap, &msg);
+        
+        // Return an error if things didn't work
+        if (err_is_fail(msg.words[1])) {
+            return msg.words[1];
+        }
+        
+        // Return the status code
+        return msg.words[2] == len ? SYS_ERR_OK : -1;
         
     }
     
@@ -115,7 +162,35 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 {
     // TODO: implement functionality to request a RAM capability over the
     // given channel and wait until it is delivered.
-    return SYS_ERR_OK;
+    
+    errval_t err = SYS_ERR_OK;
+    
+    err = lmp_chan_send3(chan->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryAlloc, size, align);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Initializing message
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive the response
+    lmp_client_recv(chan->lc, retcap, &msg);
+    
+    // Allocate recv slot
+    err = lmp_chan_alloc_recv_slot(chan->lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // TODO: Implement ret_size
+    *ret_size = size;
+    
+    // Set err to error of response message
+    err = msg.words[1];
+    
+    return err;
 }
 
 errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)

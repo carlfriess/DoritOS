@@ -352,7 +352,8 @@ errval_t paging_alloc_fixed_commit(struct paging_state *st) {
     }
     
     // Updating free_vspace_base of paging state
-    st->free_vspace_base = start;
+    st->free_vspace_base = start + 0x100000;
+    st->free_vspace_head = NULL;
     
     return SYS_ERR_OK;
     
@@ -622,14 +623,14 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 
         // Allocate a new slot for the mapping capability
         errval_t err_slot_alloc = st->slot_alloc->alloc(st->slot_alloc, &map_node->mapping_cap);
-        if (!err_is_ok(err_slot_alloc)) {
+        if (err_is_fail(err_slot_alloc)) {
             slab_free(&st->slabs, map_node);
             return err_slot_alloc;
         }
 
         // Map the frame into the appropriate slot in the L2 pagetable
         errval_t err_frame_map = vnode_map(node->cap, frame, l2_offset, flags, addr - vaddr, num_pages, map_node->mapping_cap);
-        if (!err_is_ok(err_frame_map)) {
+        if (err_is_fail(err_frame_map)) {
             slot_free(map_node->mapping_cap);
             slab_free(&st->slabs, map_node);
             return err_frame_map;

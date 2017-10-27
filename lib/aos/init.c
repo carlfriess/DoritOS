@@ -209,6 +209,8 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
 
+    ram_alloc_set(NULL);
+    
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
     return SYS_ERR_OK;
