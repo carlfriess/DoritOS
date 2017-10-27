@@ -55,7 +55,6 @@
  * arg1: coreid_t Core ID
  * arg2-8: char[] Name
  *
-<<<<<<< HEAD
  * cap: NULL_CAP
  *
  * ==== NameLookup ====
@@ -71,10 +70,7 @@
  *
  * cap: NULL_CAP
  *
- * ==== Terminal ====
-=======
  * ==== Terminal Get Char ====
->>>>>>> 9293ce044bf9bdc5864ba43b7ff6cf86410a426a
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_TerminalGetChar
  *
