@@ -87,7 +87,7 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     }
 
     // Create L2 cnode: SLOT_ALLOC0
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, NULL);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, &si->slot_alloc0_ref);
     if (err_is_fail(err)) {
         return err;
     }
@@ -515,6 +515,48 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
     
 }
 
+static void spawn_recursive_child_l2_tree_walk(struct spawninfo *si, struct pt_cap_tree_node *node, int is_root) {
+    
+    static size_t next_slot = 0;
+    
+    // Reinitialise at root
+    if (is_root) {
+        next_slot = 0;
+    }
+    
+    // Recurse to the left
+    if (node->left != NULL) {
+        spawn_recursive_child_l2_tree_walk(si, node->left, 0);
+    }
+    
+    // Build next capref
+    struct capref next_cap;
+    next_cap.cnode = si->slot_alloc0_ref;
+    next_cap.slot = next_slot++;
+    
+    // Copy the capability
+    errval_t err = cap_copy(next_cap, node->cap);
+    if (err_is_fail(err)) {
+        debug_printf("spawn for %s: %s\n", si->binary_name, err_getstring(err));
+    }
+    assert(err_is_ok(err));
+    
+    // Free the slot in the parent cspace
+    //  FIXME: Make this work to recuparate slots
+    //cap_delete(node->cap);
+    //slot_free(node->cap);
+    
+    // Mutate the capref to reference the child cspace
+    next_cap.cnode.croot = CPTR_ROOTCN;
+    node->cap = next_cap;
+    
+    // Recurse to the right
+    if (node->right != NULL) {
+        spawn_recursive_child_l2_tree_walk(si, node->right, 0);
+    }
+    
+}
+
 static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
  
     errval_t err = SYS_ERR_OK;
@@ -655,6 +697,9 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
         debug_printf("spawn: Failed setting up the arguments: %s\n", err_getstring(err));
         return err;
     }
+    
+    // Move all L2 cnode capabilities to the cild's cspace
+    spawn_recursive_child_l2_tree_walk(si, si->child_paging_state->l2_tree_root, 1);
     
     // Launch dispatcher 🚀
     err = spawn_invoke_dispatcher(si);

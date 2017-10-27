@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
     size_t count;
     aos_rpc_process_get_all_pids(&init_rpc, &pids, &count);
     for (size_t i = 0; i < count; i++) {
-        debug_printf("%x\n", pids[i]);
+        debug_printf("%d\n", pids[i]);
     }
     
     err = test_basic_rpc();
