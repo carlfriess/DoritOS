@@ -52,6 +52,21 @@
  * arg1: coreid_t Core ID
  * arg2-8: char[] Name
  *
+ * cap: NULL_CAP
+ *
+ * ==== NameLookup ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_NameLookup
+ * arg1: domainid_t PID of process to be looked up
+ *
+ * cap: NULL_CAP
+ *
+ * ==== PidDiscover ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_PidDiscover
+ *
+ * cap: NULL_CAP
+ *
  * ==== Terminal ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_Terminal
@@ -115,6 +130,13 @@
  *
  * cap:
  *
+ * ==== PidDiscover ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_PidDiscover
+ * arg1: size_t Number of PIDs
+ *
+ * cap: NULL_CAP
+ *
  * ==== Terminal ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_Terminal
@@ -133,6 +155,8 @@ enum lmp_request_type {
     LMP_RequestType_MemoryAlloc,
     LMP_RequestType_MemoryFree,
     LMP_RequestType_Spawn,
+    LMP_RequestType_NameLookup,
+    LMP_RequestType_PidDiscover,
     LMP_RequestType_Terminal
 };
 

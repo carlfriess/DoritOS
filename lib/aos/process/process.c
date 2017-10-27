@@ -1,8 +1,7 @@
 #include <aos/aos.h>
 #include <aos/process.h>
 
-//static size_t pid = 0;
-struct process_info *process_list = NULL;
+static struct process_info *process_list = NULL;
 
 
 void process_register(struct process_info *pi) {
@@ -20,6 +19,44 @@ void process_register(struct process_info *pi) {
     struct process_info **node;
     for (node = &process_list; *node != NULL; node = &((*node)->next));
     *node = pi;
+}
+
+// Returns the process information for a specific PID
+struct process_info *process_info_for_pid(domainid_t pid) {
+    for (struct process_info *node = process_list; node != NULL; node = node->next) {
+        if (node->pid == pid) {
+            return node;
+        }
+    }
+    return NULL;
+}
+
+// Returns the name of the process with the PID
+char *process_name_for_pid(domainid_t pid)  {
+    struct process_info *pi = process_info_for_pid(pid);
+    return pi ? pi->name : "";
+}
+
+// Creates an array of all current PIDs and returns the count
+size_t get_all_pids(domainid_t **ret_list)  {
+    
+    // Count the running processes
+    size_t count = 0;
+    for (struct process_info *pi = process_list; pi != NULL; pi = pi->next) {
+        count++;
+    }
+    
+    // Allocate space for the return array
+    *ret_list = malloc(sizeof(domainid_t) * count);
+    
+    // Walk the list and copy the PIDs into the array
+    size_t index = 0;
+    for (struct process_info *pi = process_list; pi != NULL; pi = pi->next) {
+        *(*ret_list + index++) = pi->pid;
+    }
+    
+    return count;
+    
 }
 
 void print_process_list(void) {

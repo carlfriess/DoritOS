@@ -1,6 +1,7 @@
 #include <aos/aos.h>
 #include <aos/waitset.h>
 #include <aos/lmp.h>
+#include <aos/process.h>
 
 #define PRINT_DEBUG 1
 
@@ -31,6 +32,8 @@ void lmp_server_dispatcher(void *arg) {
 
     // Check message type and handle
     switch (msg.words[0]) {
+            
+            
         case LMP_RequestType_Number:
 #if PRINT_DEBUG
             debug_printf("Number Message!\n");
@@ -41,6 +44,8 @@ void lmp_server_dispatcher(void *arg) {
                            LMP_RequestType_Number,
                            msg.words[1]);
             break;
+            
+            
         case LMP_RequestType_StringShort:
 #if PRINT_DEBUG
             debug_printf("Short String Message!\n");
@@ -53,37 +58,83 @@ void lmp_server_dispatcher(void *arg) {
                            SYS_ERR_OK,
                            strlen((char *)(msg.words+1)));
             break;
+            
+            
         case LMP_RequestType_Register:
 #if PRINT_DEBUG
             debug_printf("Registration Message!\n");
 #endif
             lmp_server_register(lc, cap);
             break;
+            
+            
         case LMP_RequestType_MemoryAlloc:
 #if PRINT_DEBUG
             debug_printf("Memory Alloc Message!\n");
 #endif
             break;
+            
+            
         case LMP_RequestType_MemoryFree:
 #if PRINT_DEBUG
             debug_printf("Memory Free Message!\n");
 #endif
             break;
+            
+            
         case LMP_RequestType_Spawn:
 #if PRINT_DEBUG
             debug_printf("Spawn Message!\n");
 #endif
             lmp_server_spawn(lc, msg.words);
             break;
+            
+            
+        case LMP_RequestType_NameLookup:
+#if PRINT_DEBUG
+            debug_printf("Name Lookup Message!\n");
+#endif
+            // Get process name for PID
+            process_name_for_pid(msg.words[1]);
+            
+            // Send string....
+            
+            break;
+            
+            
+        case LMP_RequestType_PidDiscover:
+#if PRINT_DEBUG
+            debug_printf("PID Discovery Message!\n");
+#endif
+            // Get all current PIDs
+            domainid_t *ret_list;
+            size_t pid_count = get_all_pids(&ret_list);
+            
+            // Send the ack and the number of PIDs
+            lmp_chan_send2(lc,
+                           LMP_SEND_FLAGS_DEFAULT,
+                           NULL_CAP,
+                           LMP_RequestType_PidDiscover,
+                           pid_count);
+            
+            // Send string.....
+            
+            break;
+            
+            
         case LMP_RequestType_Terminal:
 #if PRINT_DEBUG
             debug_printf("Terminal Message!\n");
 #endif
             break;
+            
+            
         default:
 #if PRINT_DEBUG
             debug_printf("Invalid Message!\n");
 #endif
+            
+            
     }
 
 
