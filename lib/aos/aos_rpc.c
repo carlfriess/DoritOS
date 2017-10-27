@@ -15,6 +15,32 @@
 #include <aos/aos_rpc.h>
 #include <aos/lmp.h>
 
+size_t aos_rpc_terminal_write(const char* buf, size_t len) {
+    struct aos_rpc *rpc = aos_rpc_get_serial_channel();
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+    for (size_t i = 0; i < len; i++) {
+        lmp_chan_send2(rpc->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalPutChar, (size_t) buf[i]);
+        lmp_client_recv(rpc->lc, &cap, &msg);
+    }
+
+    return 0;
+}
+
+size_t aos_rpc_terminal_read(char *buf, size_t len) {
+    struct aos_rpc *rpc = aos_rpc_get_serial_channel();
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+    for (size_t i = len; i < len; i++) {
+        lmp_chan_send1(rpc->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar);
+        lmp_client_recv(rpc->lc, &cap, &msg);
+    }
+
+    return 0;
+}
+
 errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 {
     // TODO: implement functionality to send a number over the channel

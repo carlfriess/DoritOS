@@ -78,7 +78,7 @@ void lmp_server_dispatcher(void *arg) {
             break;
         case LMP_RequestType_TerminalGetChar:
 #if PRINT_DEBUG
-            debug_printf("Terminal Message!\n");
+            debug_printf("Terminal Put Message!\n");
 #endif
             lmp_server_terminal_getchar(lc);
             break;

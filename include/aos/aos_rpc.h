@@ -22,6 +22,9 @@ struct aos_rpc {
     struct lmp_chan *lc;
 };
 
+size_t aos_rpc_terminal_write(const char* buf, size_t len);
+size_t aos_rpc_terminal_read(char *buf, size_t len);
+
 /**
  * \brief send a number over the given channel
  */
