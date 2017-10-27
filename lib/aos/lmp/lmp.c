@@ -81,7 +81,7 @@ void lmp_server_register(struct lmp_chan *lc, struct capref cap) {
         debug_printf("%s\n", err_getstring(err));
     }
 
-    err = lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, SYS_ERR_OK);
+    err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Register, SYS_ERR_OK);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
