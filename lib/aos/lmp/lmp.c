@@ -45,6 +45,7 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Number Message!\n");
 #endif
+            printf("Received number: %d\n", msg.words[1]);
             lmp_chan_send2(lc,
                            LMP_SEND_FLAGS_DEFAULT,
                            NULL_CAP,
