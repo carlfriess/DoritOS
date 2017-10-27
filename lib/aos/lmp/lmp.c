@@ -216,7 +216,6 @@ void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
 void lmp_server_terminal_getchar(struct lmp_chan *lc) {
     errval_t err = SYS_ERR_OK;
     char c = '\0';
-
     while (c == '\0') {
         sys_getchar(&c);
     }
@@ -225,7 +224,10 @@ void lmp_server_terminal_getchar(struct lmp_chan *lc) {
 }
 
 void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
+    errval_t err = SYS_ERR_OK;
     sys_print(&c, sizeof(char));
+
+    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
 }
 
 /* ========== Client ========== */
