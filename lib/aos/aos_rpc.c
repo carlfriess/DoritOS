@@ -55,9 +55,13 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
                                coreid_t core, domainid_t *newpid)
 {
+    errval_t err = SYS_ERR_OK;
     
     // Get length of the name string
     size_t len = strlen(name);
+    
+    // FIXME: Currently the maximum process name size is very limited
+    assert(len <= sizeof(uintptr_t) * 7);
     
     // Allocate new memory to construct the arguments
     char *name_arg = calloc(sizeof(uintptr_t), 7);
@@ -66,22 +70,26 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
     memcpy(name_arg, name, len);
     
     // Send the LMP message
-    lmp_chan_send9(chan->lc,
-                   LMP_SEND_FLAGS_DEFAULT,
-                   NULL_CAP,
-                   LMP_RequestType_Spawn,
-                   0,
-                   ((uintptr_t *)name_arg)[0],
-                   ((uintptr_t *)name_arg)[1],
-                   ((uintptr_t *)name_arg)[2],
-                   ((uintptr_t *)name_arg)[3],
-                   ((uintptr_t *)name_arg)[4],
-                   ((uintptr_t *)name_arg)[5],
-                   ((uintptr_t *)name_arg)[6]);
+    err = lmp_chan_send9(chan->lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         NULL_CAP,
+                         LMP_RequestType_Spawn,
+                         0,
+                         ((uintptr_t *)name_arg)[0],
+                         ((uintptr_t *)name_arg)[1],
+                         ((uintptr_t *)name_arg)[2],
+                         ((uintptr_t *)name_arg)[3],
+                         ((uintptr_t *)name_arg)[4],
+                         ((uintptr_t *)name_arg)[5],
+                         ((uintptr_t *)name_arg)[6]);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        free(name_arg);
+        return err;
+    }
     
     // Free the memory for constructing the arguments
     free(name_arg);
-    
     
     // Receive the status code and pid form the spawn server
     struct capref cap;
