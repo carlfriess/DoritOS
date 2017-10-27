@@ -30,6 +30,8 @@
  * ==== Spawn ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_Spawn
+ * arg1: coreid_t Core ID
+ * arg2-8: char[] Name
  *
  * ==== Terminal ====
  *
@@ -67,6 +69,7 @@
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_Spawn
  * arg1: errval_t Error
+ * arg2: domainid_t Process ID of new process
  *
  * cap:
  *
@@ -89,12 +92,15 @@ enum lmp_request_type {
     LMP_RequestType_Terminal
 };
 
+typedef errval_t (*lmp_server_spawn_handler)(char *name, coreid_t coreid, domainid_t *pid);
+
 // Server side
 void lmp_server_dispatcher(void *arg);
 void lmp_server_register(struct lmp_chan *lc, struct capref cap);
 errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align);
 errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t bytes);
-void lmp_server_spawn(struct lmp_chan *lc, struct capref cap);
+void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args);
+void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler);
 void lmp_server_terminal(struct lmp_chan *lc, struct capref cap);
 
 // Client side

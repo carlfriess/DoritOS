@@ -6,6 +6,8 @@
 #include <barrelfish_kpi/paging_arm_v7.h>
 #include <barrelfish_kpi/domain_params.h>
 #include <spawn/multiboot.h>
+#include <aos/lmp.h>
+#include <aos/waitset.h>
 
 extern struct bootinfo *bi;
 
@@ -167,6 +169,14 @@ static errval_t spawn_setup_lmp_channel(struct spawninfo *si) {
 
     // Allocate new recv slot for lmp channel
     err = lmp_chan_alloc_recv_slot(si->pi->lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Register callback handler
+    struct waitset *default_ws = get_default_waitset();
+    err = lmp_chan_register_recv(si->pi->lc, default_ws, MKCLOSURE(lmp_server_dispatcher, (void *) si->pi->lc));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;

@@ -24,6 +24,7 @@
 #include <aos/paging.h>
 #include <barrelfish_kpi/domain_params.h>
 #include <aos/lmp.h>
+#include <aos/aos_rpc.h>
 
 #include "threads_priv.h"
 #include "init.h"
@@ -196,6 +197,14 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     lmp_client_recv(lc, &cap, &msg);
+    
+    // Initialize RPC state and register it in application's core state
+    struct aos_rpc *aos_rpc_state = malloc(sizeof(struct aos_rpc));
+    if (aos_rpc_state == NULL) {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+    aos_rpc_init(aos_rpc_state, lc);
+    set_init_rpc(aos_rpc_state);
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */

@@ -13,6 +13,7 @@
  */
 
 #include <aos/aos_rpc.h>
+#include <aos/lmp.h>
 
 errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 {
@@ -86,7 +87,9 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
                                coreid_t core, domainid_t *newpid)
 {
-    // TODO (milestone 5): implement spawn new process rpc
+    
+    lmp_chan_send4(chan->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Spawn, 0, ((uintptr_t *)name)[0], ((uintptr_t *)name)[1]);
+    
     return SYS_ERR_OK;
 }
 
@@ -112,9 +115,10 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc,
     return LIB_ERR_NOT_IMPLEMENTED;
 }
 
-errval_t aos_rpc_init(struct aos_rpc *rpc)
+errval_t aos_rpc_init(struct aos_rpc *rpc, struct lmp_chan *lc)
 {
     // TODO: Initialize given rpc channel
+    rpc->lc = lc;
     return SYS_ERR_OK;
 }
 
@@ -123,7 +127,7 @@ errval_t aos_rpc_init(struct aos_rpc *rpc)
  */
 struct aos_rpc *aos_rpc_get_init_channel(void)
 {
-    return NULL;
+    return get_init_rpc();
 }
 
 /**
@@ -131,7 +135,7 @@ struct aos_rpc *aos_rpc_get_init_channel(void)
  */
 struct aos_rpc *aos_rpc_get_memory_channel(void)
 {
-    return NULL;
+    return aos_rpc_get_init_channel();
 }
 
 /**
@@ -139,7 +143,7 @@ struct aos_rpc *aos_rpc_get_memory_channel(void)
  */
 struct aos_rpc *aos_rpc_get_process_channel(void)
 {
-    return NULL;
+    return aos_rpc_get_init_channel();
 }
 
 /**
@@ -147,5 +151,5 @@ struct aos_rpc *aos_rpc_get_process_channel(void)
  */
 struct aos_rpc *aos_rpc_get_serial_channel(void)
 {
-    return NULL;
+    return aos_rpc_get_init_channel();
 }

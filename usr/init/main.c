@@ -22,6 +22,7 @@
 #include <spawn/spawn.h>
 #include <aos/process.h>
 #include <aos/lmp.h>
+#include <spawn_serv.h>
 
 #include <mm/mm.h>
 #include "mem_alloc.h"
@@ -75,6 +76,9 @@ int main(int argc, char *argv[])
 
     // Milestone 2:
     //run_all_m2_tests();
+    
+    // Initialize the spawn server
+    spawn_serv_init();
 
     // Allocate spawninfo
     struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
@@ -82,20 +86,12 @@ int main(int argc, char *argv[])
     // Spawn memeater
     spawn_load_by_name("memeater", si);
 
-    // Register callback handler
-    struct waitset *default_ws = get_default_waitset();
-    err = lmp_chan_register_recv(si->pi->lc, default_ws, MKCLOSURE(lmp_server_dispatcher, (void *) si->pi->lc));
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return err;
-    }
-
     // Free the process info for memeater
     free(si);
 
     debug_printf("Message handler loop\n");
     // Hang around
-
+    struct waitset *default_ws = get_default_waitset();
     while (true) {
 
         err = event_dispatch(default_ws);

@@ -166,6 +166,7 @@
    "signal.h",
    "spawn/multiboot.h",
    "spawn/spawn.h",
+   "spawn_serv.h",
    "stdio_file.h",
    "storage/storage.h",
    "storage/vsa.h",
