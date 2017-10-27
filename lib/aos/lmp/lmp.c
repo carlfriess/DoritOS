@@ -108,6 +108,7 @@ void lmp_server_spawn(struct lmp_chan *lc, struct capref cap) {
 }
 
 void lmp_server_terminal_getchar(struct lmp_chan *lc) {
+    errval_t err = SYS_ERR_OK;
     char c = '\0';
 
     while (c == '\0') {
