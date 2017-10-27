@@ -101,11 +101,11 @@ void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler) {
 }
 
 void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
-    
+
     errval_t err;
     domainid_t pid = 0;
     
-    err = lmp_server_spawn_handler_func((char *) args+2, (coreid_t) args[1], &pid);
+    err = lmp_server_spawn_handler_func((char *)(args+2), (coreid_t) args[1], &pid);
     
     // Send result to client
     lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Spawn, err, pid);
