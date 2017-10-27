@@ -140,6 +140,7 @@ void register_ram_free_handler(ram_free_handler_t ram_free_function) {
     ram_free_handler = ram_free_function;
 }
 
+// TODO: Test this!
 errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t bytes) {
     
     errval_t err = SYS_ERR_OK;
@@ -202,7 +203,11 @@ void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_m
         event_dispatch(get_default_waitset());
     }
 
-    lmp_chan_recv(lc, msg, cap);
+    err = lmp_chan_recv(lc, msg, cap);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
 }
 
 void lmp_client_wait(void *arg) {
