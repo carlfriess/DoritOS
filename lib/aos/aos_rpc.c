@@ -229,9 +229,23 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
     // Return the PID count
     *pid_count = msg.words[1];
     
-    lmp_recv_string(chan->lc, (char **)pids);
+    // Receive the array of PIDs
+    struct capref array_frame;
+    size_t array_frame_size;
+    err = lmp_recv_frame(chan->lc, &array_frame, &array_frame_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
     
-    return SYS_ERR_OK;
+    // Map the array into memory
+    err = paging_map_frame(get_current_paging_state(), (void **) pids,
+                           array_frame_size, array_frame, NULL, NULL);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
+    return err;
 }
 
 errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc,

@@ -150,6 +150,9 @@ int main(int argc, char *argv[])
         USER_PANIC_ERR(err, "could not initialize RPC\n");
     }
     
+    domainid_t pid;
+    aos_rpc_process_spawn(&init_rpc, "hello", 0, &pid);
+    
     char *string;
     aos_rpc_process_get_name(&init_rpc, 1, &string);
     debug_printf("Got process name by RPC: %s\n", string);
@@ -161,9 +164,6 @@ int main(int argc, char *argv[])
     for (size_t i = 0; i < count; i++) {
         debug_printf("%x\n", pids[i]);
     }
-    
-    domainid_t pid;
-    aos_rpc_process_spawn(&init_rpc, "hello", 0, &pid);
     
     err = test_basic_rpc();
     if (err_is_fail(err)) {

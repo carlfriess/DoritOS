@@ -40,21 +40,19 @@ char *process_name_for_pid(domainid_t pid)  {
 }
 
 // Creates an array of all current PIDs and returns the count
-size_t get_all_pids(domainid_t **ret_list)  {
+//  ATTENTION: ret_list must be preallocated space
+size_t get_all_pids(domainid_t *ret_list)  {
     
-    // Count the running processes
-    size_t count = 0;
-    for (struct process_info *pi = process_list; pi != NULL; pi = pi->next) {
-        count++;
-    }
-    
-    // Allocate space for the return array
-    *ret_list = malloc(sizeof(domainid_t) * count);
+    size_t count = 1;
+
+    // Add init
+    *(ret_list++) = 0;
     
     // Walk the list and copy the PIDs into the array
-    size_t index = 0;
     for (struct process_info *pi = process_list; pi != NULL; pi = pi->next) {
-        *((*ret_list) + index++) = pi->pid;
+        *ret_list = pi->pid;
+        ret_list++;
+        count++;
     }
     
     return count;

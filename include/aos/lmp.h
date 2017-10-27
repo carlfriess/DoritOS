@@ -195,6 +195,7 @@ void register_ram_free_handler(ram_free_handler_t ram_free_function);
 errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t bytes);
 void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args);
 void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler);
+errval_t lmp_server_pid_discovery(struct lmp_chan *lc);
 void lmp_server_terminal_putchar(struct lmp_chan *lc, char c);
 void lmp_server_terminal_getchar(struct lmp_chan *lc);
 

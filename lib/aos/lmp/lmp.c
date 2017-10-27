@@ -36,8 +36,6 @@ void lmp_server_dispatcher(void *arg) {
     }
     
     char *string;
-    domainid_t *ret_list;
-    size_t pid_count;
 
     // Check message type and handle
     switch (msg.words[0]) {
@@ -109,16 +107,7 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("PID Discovery Message!\n");
 #endif
-            // Get all current PIDs
-            pid_count = get_all_pids(&ret_list);
-            // Send the ack and the number of PIDs
-            lmp_chan_send2(lc,
-                           LMP_SEND_FLAGS_DEFAULT,
-                           NULL_CAP,
-                           LMP_RequestType_PidDiscover,
-                           pid_count);
-            // Send array of PIDs
-            lmp_send_string(lc, (char *)ret_list);
+            lmp_server_pid_discovery(lc);
             break;
             
             
@@ -259,6 +248,50 @@ void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
     
     // Send result to client
     lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Spawn, err, pid);
+    
+}
+
+// SPAWNSERV: Report all current PIDs
+errval_t lmp_server_pid_discovery(struct lmp_chan *lc) {
+    
+    errval_t err;
+    
+    // Allocate memory for the response
+    size_t ret_size;
+    struct capref frame_cap;
+    err = frame_alloc(&frame_cap, BASE_PAGE_SIZE, &ret_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Map it into memory
+    uintptr_t *pids;
+    err = paging_map_frame(get_current_paging_state(), (void **)&pids,
+                           ret_size, frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Get all current PIDs
+    size_t pid_count = get_all_pids(pids);
+    
+    // Send the ack and the number of PIDs
+    err = lmp_chan_send2(lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         NULL_CAP,
+                         LMP_RequestType_PidDiscover,
+                         pid_count);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Send array of PIDs
+    lmp_send_frame(lc, frame_cap, ret_size);
+    
+    return err;
     
 }
 
