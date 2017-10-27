@@ -42,6 +42,7 @@ struct spawninfo {
 
     // Child's capabilites
     struct cnoderef taskcn_ref;         // TASKCN
+    struct cnoderef slot_alloc0_ref;    // SLOT_ALLOC0
     struct capref slot_rootcn_cap;      // Root cnode capability
     struct cnoderef slot_pagecn_ref;    // SLOT_PAGECN
     struct capref l1_pt_cap;            // L1 pagetable capability
