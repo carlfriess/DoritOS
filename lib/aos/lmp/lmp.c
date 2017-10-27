@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <aos/aos.h>
 #include <aos/waitset.h>
 #include <aos/lmp.h>
@@ -123,12 +124,19 @@ void lmp_server_dispatcher(void *arg) {
             break;
             
             
-        case LMP_RequestType_Terminal:
+        case LMP_RequestType_TerminalGetChar:
+#if PRINT_DEBUG
+            debug_printf("Terminal Put Message!\n");
+#endif
+            lmp_server_terminal_getchar(lc);
+            break;
+        case LMP_RequestType_TerminalPutChar:
 #if PRINT_DEBUG
             debug_printf("Terminal Message!\n");
 #endif
+            lmp_server_terminal_putchar(lc, msg.words[1]);
             break;
-            
+
             
         default:
 #if PRINT_DEBUG
@@ -253,8 +261,21 @@ void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
     
 }
 
-void lmp_server_terminal(struct lmp_chan *lc, struct capref cap) {
+void lmp_server_terminal_getchar(struct lmp_chan *lc) {
+    errval_t err = SYS_ERR_OK;
+    char c = '\0';
+    while (c == '\0') {
+        sys_getchar(&c);
+    }
 
+    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
+}
+
+void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
+    errval_t err = SYS_ERR_OK;
+    sys_print(&c, sizeof(char));
+
+    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
 }
 
 /* ========== Client ========== */

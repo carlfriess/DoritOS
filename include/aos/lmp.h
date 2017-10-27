@@ -2,6 +2,7 @@
 #define _AOS_LMP_H_
 
 #include <aos/aos.h>
+#include <aos/deferred.h>
 
 /*
  * LMP Request Protocol
@@ -54,6 +55,7 @@
  * arg1: coreid_t Core ID
  * arg2-8: char[] Name
  *
+<<<<<<< HEAD
  * cap: NULL_CAP
  *
  * ==== NameLookup ====
@@ -70,8 +72,18 @@
  * cap: NULL_CAP
  *
  * ==== Terminal ====
+=======
+ * ==== Terminal Get Char ====
+>>>>>>> 9293ce044bf9bdc5864ba43b7ff6cf86410a426a
  *
- * arg0: enum lmp_request_type RequestType = LMP_RequestType_Terminal
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_TerminalGetChar
+ *
+ * cap: NULL_CAP
+ *
+ * ==== Terminal Put Char ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_TerminalPutChar
+ * arg1: char Char
  *
  * cap: NULL_CAP
  *
@@ -139,14 +151,24 @@
  *
  * cap: NULL_CAP
  *
- * ==== Terminal ====
+ * ==== Terminal Get Char ====
  *
- * arg0: enum lmp_request_type RequestType = LMP_RequestType_Terminal
- * arg1: errval_t Status code
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_TerminalGetChar
+ * arg1: errval_t Error
+ * arg2: char Char
+ *
+ * cap: NULL_CAP
+ *
+ * ==== Terminal Put Char ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_TerminalPutChar
+ * arg1: errval_t Error
  *
  * cap: NULL_CAP
  *
  */
+
+extern unsigned serial_console_port;
 
 enum lmp_request_type {
     LMP_RequestType_NULL = 0,
@@ -159,7 +181,8 @@ enum lmp_request_type {
     LMP_RequestType_Spawn,
     LMP_RequestType_NameLookup,
     LMP_RequestType_PidDiscover,
-    LMP_RequestType_Terminal
+    LMP_RequestType_TerminalGetChar,
+    LMP_RequestType_TerminalPutChar
 };
 
 typedef errval_t (*lmp_server_spawn_handler)(char *name, coreid_t coreid, domainid_t *pid);
@@ -171,7 +194,8 @@ errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align
 errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t bytes);
 void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args);
 void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler);
-void lmp_server_terminal(struct lmp_chan *lc, struct capref cap);
+void lmp_server_terminal_putchar(struct lmp_chan *lc, char c);
+void lmp_server_terminal_getchar(struct lmp_chan *lc);
 
 // Client side
 void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_msg *msg);

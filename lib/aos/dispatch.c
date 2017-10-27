@@ -363,7 +363,7 @@ void disp_pagefault(dispatcher_handle_t handle, lvaddr_t fault_address,
     assert_print(str);
 
     // dump hw page tables
-    debug_dump_hw_ptables();
+    //debug_dump_hw_ptables();
 
 #if defined(__x86_64__) || defined(__i386__)
     snprintf(str, sizeof(str), "%s page fault due to %s%s, while in %s mode%s\n",
