@@ -51,6 +51,7 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Spawn Message!\n");
 #endif
+            lmp_server_spawn(lc, msg.words);
             break;
         case LMP_RequestType_Terminal:
 #if PRINT_DEBUG
@@ -93,9 +94,22 @@ void lmp_server_memory_free(struct lmp_chan *lc, struct capref cap) {
 
 }
 
+static lmp_server_spawn_handler lmp_server_spawn_handler_func = NULL;
 
-void lmp_server_spawn(struct lmp_chan *lc, struct capref cap) {
+void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler) {
+    lmp_server_spawn_handler_func = handler;
+}
 
+void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
+    
+    errval_t err;
+    domainid_t pid = 0;
+    
+    err = lmp_server_spawn_handler_func((char *) args+2, (coreid_t) args[1], &pid);
+    
+    // Send result to client
+    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Spawn, err, pid);
+    
 }
 
 void lmp_server_terminal(struct lmp_chan *lc, struct capref cap) {

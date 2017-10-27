@@ -7,7 +7,7 @@ struct process_info *process_list;
 
 struct process_info {
     struct process_info *next;
-    size_t pid;
+    domainid_t pid;
     char *name;
     struct capref *dispatcher_cap;
     struct lmp_chan *lc;
