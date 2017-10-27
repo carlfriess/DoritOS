@@ -23,6 +23,7 @@ void process_register(struct process_info *pi) {
 
 // Returns the process information for a specific PID
 struct process_info *process_info_for_pid(domainid_t pid) {
+    assert(pid != 0);
     for (struct process_info *node = process_list; node != NULL; node = node->next) {
         if (node->pid == pid) {
             return node;
@@ -33,6 +34,7 @@ struct process_info *process_info_for_pid(domainid_t pid) {
 
 // Returns the name of the process with the PID
 char *process_name_for_pid(domainid_t pid)  {
+    if (pid == 0) { return "init"; }
     struct process_info *pi = process_info_for_pid(pid);
     return pi ? pi->name : "";
 }
@@ -52,7 +54,7 @@ size_t get_all_pids(domainid_t **ret_list)  {
     // Walk the list and copy the PIDs into the array
     size_t index = 0;
     for (struct process_info *pi = process_list; pi != NULL; pi = pi->next) {
-        *(*ret_list + index++) = pi->pid;
+        *((*ret_list) + index++) = pi->pid;
     }
     
     return count;

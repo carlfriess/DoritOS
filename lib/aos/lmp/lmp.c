@@ -31,6 +31,10 @@ void lmp_server_dispatcher(void *arg) {
 
         return;
     }
+    
+    char *string;
+    domainid_t *ret_list;
+    size_t pid_count;
 
     // Check message type and handle
     switch (msg.words[0]) {
@@ -49,26 +53,12 @@ void lmp_server_dispatcher(void *arg) {
             
             
         case LMP_RequestType_StringShort:
-#if PRINT_DEBUG
-            debug_printf("Short String Message!\n");
-#endif
-            // Printing short string and sending back response
-            debug_printf("Received short string: %s\n", (char *)(msg.words+1));
-            lmp_chan_send3(lc,
-                           LMP_SEND_FLAGS_DEFAULT,
-                           NULL_CAP,
-                           LMP_RequestType_StringShort,
-                           SYS_ERR_OK,
-                           strlen((char *)(msg.words+1)));
-            break;
-
-            
         case LMP_RequestType_StringLong:
-#if PRINT_DEBUG
-            debug_printf("Long String Message!\n");
-#endif
-            // Printing long string and sending back response
-            lmp_server_long_string(lc, cap, msg.words[1]);
+    #if PRINT_DEBUG
+                debug_printf("String Message!\n");
+    #endif
+            lmp_recv_string_from_msg(lc, cap, msg.words, &string);
+            printf("Received string: %s\n", string);
             break;
             
         case LMP_RequestType_Register:
@@ -106,10 +96,9 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Name Lookup Message!\n");
 #endif
-            // Get process name for PID
-            process_name_for_pid(msg.words[1]);
             
-            // Send string....
+            // Send name of process
+            lmp_send_string(lc, process_name_for_pid(msg.words[1]));
             
             break;
             
@@ -119,8 +108,7 @@ void lmp_server_dispatcher(void *arg) {
             debug_printf("PID Discovery Message!\n");
 #endif
             // Get all current PIDs
-            domainid_t *ret_list;
-            size_t pid_count = get_all_pids(&ret_list);
+            pid_count = get_all_pids(&ret_list);
             
             // Send the ack and the number of PIDs
             lmp_chan_send2(lc,
@@ -129,7 +117,8 @@ void lmp_server_dispatcher(void *arg) {
                            LMP_RequestType_PidDiscover,
                            pid_count);
             
-            // Send string.....
+            // Send array of PIDs
+            lmp_send_string(lc, (char *)ret_list);
             
             break;
             
@@ -264,35 +253,6 @@ void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
     
 }
 
-errval_t lmp_server_long_string(struct lmp_chan *lc, struct capref cap, size_t bytes) {
-    
-    errval_t err = SYS_ERR_OK;
-    
-    // Mapping the received capability
-    void *buf;
-    err = paging_map_frame(get_current_paging_state(), &buf,
-                           bytes, cap, NULL, NULL);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return err;
-    }
-    
-    
-    debug_printf("Received long string: %s\n", (char *) buf);
-    
-    lmp_chan_send3(lc,
-                   LMP_SEND_FLAGS_DEFAULT,
-                   NULL_CAP,
-                   LMP_RequestType_StringLong,
-                   SYS_ERR_OK,
-                   strlen((char *) buf));
-    
-    return err;
-    
-}
-
-
-
 void lmp_server_terminal(struct lmp_chan *lc, struct capref cap) {
 
 }
@@ -325,3 +285,212 @@ void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_m
 void lmp_client_wait(void *arg) {
     *(int *)arg = 1;
 }
+
+/* ========== Aux ========== */
+
+errval_t lmp_send_string(struct lmp_chan *lc, const char *string) {
+    
+    errval_t err;
+    
+    // Get length of the string
+    size_t len = strlen(string);
+    
+    // Check wether to use StringShort or StringLong protocol
+    if (len < sizeof(uintptr_t) * 8) {
+        
+        /* StringShort */
+        
+        // Allocate new memory to construct the arguments
+        char *string_arg = calloc(sizeof(uintptr_t), 8);
+        
+        // Copy in the string
+        memcpy(string_arg, string, len);
+        
+        // Send the LMP message
+        err = lmp_chan_send9(lc,
+                             LMP_SEND_FLAGS_DEFAULT,
+                             NULL_CAP,
+                             LMP_RequestType_StringShort,
+                             ((uintptr_t *)string_arg)[0],
+                             ((uintptr_t *)string_arg)[1],
+                             ((uintptr_t *)string_arg)[2],
+                             ((uintptr_t *)string_arg)[3],
+                             ((uintptr_t *)string_arg)[4],
+                             ((uintptr_t *)string_arg)[5],
+                             ((uintptr_t *)string_arg)[6],
+                             ((uintptr_t *)string_arg)[7]);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            free(string_arg);
+            return err;
+        }
+        
+        // Free the memory for constructing the arguments
+        free(string_arg);
+        
+        // Receive the status code form recipient
+        struct capref cap;
+        struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+        lmp_client_recv(lc, &cap, &msg);
+        
+        // Check we actually got a valid response
+        assert(msg.words[0] == LMP_RequestType_StringShort);
+        
+        // Return an error if things didn't work
+        if (err_is_fail(msg.words[1])) {
+            return msg.words[1];
+        }
+        
+        // Return the status code
+        return msg.words[2] == len ? SYS_ERR_OK : -1;
+        
+    }
+    else {
+        
+        /* StringLong */
+        
+        // Allocating frame capability
+        size_t retbytes;
+        struct capref frame;
+        err = frame_alloc(&frame, len + 1, &retbytes);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Mapping frame into virtual address space
+        void *buf;
+        err = paging_map_frame(get_current_paging_state(), &buf,
+                               retbytes, frame, NULL, NULL);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Copy string into memory
+        memcpy(buf, string, len);
+        *((char *)buf + len) = '\0';
+        
+        // Sending frame capability and size where string is stored
+        err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, frame, LMP_RequestType_StringLong, retbytes);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+
+        // Cleaning up after sending
+        cap_delete(frame);
+        slot_free(frame);
+        
+        // Receive ack from recipient
+        struct capref cap;
+        struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+        lmp_client_recv(lc, &cap, &msg);
+        
+        // Return an error if things didn't work
+        if (err_is_fail(msg.words[1])) {
+            return msg.words[1];
+        }
+        
+        // Return the status code
+        return msg.words[2] == len ? SYS_ERR_OK : -1;
+        
+    }
+    
+}
+
+// Receive a string on a channel
+errval_t lmp_recv_string(struct lmp_chan *lc, char **string) {
+    
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    lmp_client_recv(lc, &cap, &msg);
+    
+    return lmp_recv_string_from_msg(lc, cap, msg.words, string);
+    
+}
+
+errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
+                                  uintptr_t *words, char **string) {
+    
+    errval_t err = SYS_ERR_OK;
+    
+    // Check which string protocol was received
+    if (words[0] == LMP_RequestType_StringShort) {
+    
+        // Get the length of the received string
+        size_t len = strlen((char *)(words+1));
+        
+        // Sanity check
+        assert(len < sizeof(uintptr_t) * 8);
+    
+        // Allocate new space for the received string
+        *string = malloc(len + 1);
+        
+        // Copy in the new string
+        memcpy(*string, words+1, len);
+        *(*string + len) = '\0';
+
+        // Send a confirmation
+        err = lmp_chan_send3(lc,
+                             LMP_SEND_FLAGS_DEFAULT,
+                             NULL_CAP,
+                             LMP_RequestType_StringShort,
+                             SYS_ERR_OK,
+                             len);
+        
+        return err;
+        
+    }
+    else {
+        
+        // Mapping the received capability
+        void *buf;
+        err = paging_map_frame(get_current_paging_state(), &buf,
+                               words[1], cap, NULL, NULL);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Get the length of the received string
+        size_t len = strlen((char *)buf);
+        
+        // Allocate new space for the received string
+        *string = malloc(len + 1);
+        
+        // Copy in the new string
+        memcpy(*string, buf, len);
+        *(*string + len) = '\0';
+        
+        err = lmp_chan_alloc_recv_slot(lc);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }
+        
+        // Send a confirmation
+        lmp_chan_send3(lc,
+                       LMP_SEND_FLAGS_DEFAULT,
+                       NULL_CAP,
+                       LMP_RequestType_StringLong,
+                       SYS_ERR_OK,
+                       len);
+        
+        // Clean up the frame
+        err = paging_unmap(get_current_paging_state(), buf);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        err = ram_free_handler(cap, words[1]);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }
+        
+        return err;
+        
+    }
+    
+}
+

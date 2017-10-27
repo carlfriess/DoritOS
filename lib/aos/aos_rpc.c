@@ -47,113 +47,8 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 
 errval_t aos_rpc_send_string(struct aos_rpc *chan, const char *string)
 {
-    errval_t err;
     
-    // Get length of the string
-    size_t len = strlen(string);
-    
-    debug_printf("Size of String: %zu\n", len);
-    
-    // Check wether to use StringShort or StringLong protocol
-    if (len < sizeof(uintptr_t) * 8) {
-        
-        // Allocate new memory to construct the arguments
-        char *string_arg = calloc(sizeof(uintptr_t), 8);
-        
-        // Copy in the string
-        memcpy(string_arg, string, len);
-        
-        // Send the LMP message
-        err = lmp_chan_send9(chan->lc,
-                             LMP_SEND_FLAGS_DEFAULT,
-                             NULL_CAP,
-                             LMP_RequestType_StringShort,
-                             ((uintptr_t *)string_arg)[0],
-                             ((uintptr_t *)string_arg)[1],
-                             ((uintptr_t *)string_arg)[2],
-                             ((uintptr_t *)string_arg)[3],
-                             ((uintptr_t *)string_arg)[4],
-                             ((uintptr_t *)string_arg)[5],
-                             ((uintptr_t *)string_arg)[6],
-                             ((uintptr_t *)string_arg)[7]);
-        if (err_is_fail(err)) {
-            debug_printf("%s\n", err_getstring(err));
-            free(string_arg);
-            return err;
-        }
-        
-        // Free the memory for constructing the arguments
-        free(string_arg);
-        
-        // Receive the status code form recipient
-        struct capref cap;
-        struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-        lmp_client_recv(chan->lc, &cap, &msg);
-        
-        // Check we actually got a valid response
-        assert(msg.words[0] == LMP_RequestType_StringShort);
-        
-        // Return an error if things didn't work
-        if (err_is_fail(msg.words[1])) {
-            return msg.words[1];
-        }
-        
-        // Return the status code
-        return msg.words[2] == len ? SYS_ERR_OK : -1;
-        
-    }
-    else {
-        
-        /* StringLong */
-        
-        // Allocating frame capability
-        size_t retbytes;
-        struct capref frame;
-        err = frame_alloc(&frame, len + 1, &retbytes);
-        if (err_is_fail(err)) {
-            debug_printf("%s\n", err_getstring(err));
-            return err;
-        }
-        
-        // Mapping frame into virtual address space
-        void *buf;
-        err = paging_map_frame(get_current_paging_state(), &buf,
-                         retbytes, frame, NULL, NULL);
-        if (err_is_fail(err)) {
-            debug_printf("%s\n", err_getstring(err));
-            return err;
-        }
-        
-        // Copy string into memory
-        memcpy(buf, string, len);
-        *((char *)buf + len) = '\0';
-        
-        // Allocating the receive slot
-        err = lmp_chan_alloc_recv_slot(lc);
-        if (err_is_fail(err)) {
-            debug_printf("%s\n", err_getstring(err));
-        }
-
-        // Sending frame capability and size where string is stored
-        err = lmp_chan_send2(chan->lc, LMP_SEND_FLAGS_DEFAULT, frame, LMP_RequestType_StringLong, retbytes);
-        if (err_is_fail(err)) {
-            debug_printf("%s\n", err_getstring(err));
-            return err;
-        }
-    
-        struct capref cap;
-        struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-        lmp_client_recv(chan->lc, &cap, &msg);
-        
-        // Return an error if things didn't work
-        if (err_is_fail(msg.words[1])) {
-            return msg.words[1];
-        }
-        
-        // Return the status code
-        return msg.words[2] == len ? SYS_ERR_OK : -1;
-        
-    }
+    return lmp_send_string(chan->lc, string);
     
 }
 
@@ -279,9 +174,7 @@ errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
         return err;
     }
     
-    // Receive string.....
-    
-    return SYS_ERR_OK;
+    return lmp_recv_string(chan->lc, name);
 }
 
 errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
@@ -299,7 +192,18 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
         return err;
     }
     
-    // Receive string.....
+    // Receive the number of PIDs form the spawn server
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    lmp_client_recv(chan->lc, &cap, &msg);
+    
+    // Check we actually got a valid response
+    assert(msg.words[0] == LMP_RequestType_PidDiscover);
+    
+    // Return the PID count
+    *pid_count = msg.words[1];
+    
+    lmp_recv_string(chan->lc, (char **)pids);
     
     return SYS_ERR_OK;
 }

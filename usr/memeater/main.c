@@ -150,6 +150,18 @@ int main(int argc, char *argv[])
         USER_PANIC_ERR(err, "could not initialize RPC\n");
     }
     
+    char *string;
+    aos_rpc_process_get_name(&init_rpc, 1, &string);
+    debug_printf("Got process name by RPC: %s\n", string);
+    
+    debug_printf("Getting list of PIDs:\n");
+    domainid_t *pids;
+    size_t count;
+    aos_rpc_process_get_all_pids(&init_rpc, &pids, &count);
+    for (size_t i = 0; i < count; i++) {
+        debug_printf("%x\n", pids[i]);
+    }
+    
     domainid_t pid;
     aos_rpc_process_spawn(&init_rpc, "hello", 0, &pid);
     

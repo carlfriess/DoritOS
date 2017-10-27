@@ -23,7 +23,7 @@
  * ==== StringLong ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_StringLong
- * arg1: bytes
+ * arg1: size_t Size of frame
  *
  * cap: Frame containing string
  *
@@ -171,12 +171,16 @@ errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align
 errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t bytes);
 void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args);
 void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler);
-errval_t lmp_server_long_string(struct lmp_chan *lc, struct capref cap, size_t bytes);
 void lmp_server_terminal(struct lmp_chan *lc, struct capref cap);
 
 // Client side
 void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_msg *msg);
 void lmp_client_wait(void *arg);
+
+errval_t lmp_send_string(struct lmp_chan *lc, const char *string);
+errval_t lmp_recv_string(struct lmp_chan *lc, char **string);
+errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
+                                  uintptr_t *words, char **string);
 
 typedef errval_t (*ram_free_handler_t)(struct capref, size_t size);
 

@@ -149,7 +149,7 @@ errval_t ram_alloc_set(ram_alloc_func_t local_allocator)
 
     //USER_PANIC("ram_alloc_set(NULL) NYI");
     
-    debug_printf("Should actually use ram_alloc_remote using rpc now\n");
+    //debug_printf("Using ram_alloc_remote rpc now\n");
     
     ram_alloc_state->ram_alloc_func = ram_alloc_remote;
     return SYS_ERR_OK;
