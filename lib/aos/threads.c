@@ -1126,7 +1126,7 @@ static int bootstrap_thread(struct spawn_domain_params *params)
 
     // Until we have self-paging, we cannot use the paging-region based thread
     // control block slab allocator, so just run main thread directly
-#ifdef SELF_PAGING_WORKS
+#ifndef SELF_PAGING_WORKS
     // we aren't prepared to run real threads yet
     main_thread(params);
 #else
