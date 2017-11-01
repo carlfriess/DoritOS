@@ -16,26 +16,30 @@
 #include <aos/lmp.h>
 
 size_t aos_rpc_terminal_write(const char* buf, size_t len) {
-    struct aos_rpc *rpc = aos_rpc_get_serial_channel();
-    struct capref cap;
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    errval_t err = SYS_ERR_OK;
+
+    struct aos_rpc *chan = aos_rpc_get_serial_channel();
 
     for (size_t i = 0; i < len; i++) {
-        lmp_chan_send2(rpc->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalPutChar, (size_t) buf[i]);
-        lmp_client_recv(rpc->lc, &cap, &msg);
+        err = aos_rpc_serial_putchar(chan, buf[i]);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }
     }
 
     return 0;
 }
 
 size_t aos_rpc_terminal_read(char *buf, size_t len) {
-    struct aos_rpc *rpc = aos_rpc_get_serial_channel();
-    struct capref cap;
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    errval_t err = SYS_ERR_OK;
+
+    struct aos_rpc *chan = aos_rpc_get_serial_channel();
 
     for (size_t i = len; i < len; i++) {
-        lmp_chan_send1(rpc->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar);
-        lmp_client_recv(rpc->lc, &cap, &msg);
+        err = aos_rpc_serial_getchar(chan, &buf[i]);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }
     }
 
     return 0;
@@ -116,17 +120,39 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 
 errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
 {
-    // TODO implement functionality to request a character from
-    // the serial driver.
-    return SYS_ERR_OK;
+    errval_t err = SYS_ERR_OK;
+
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+    err = lmp_chan_send1(chan->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    lmp_client_recv(chan->lc, &cap, &msg);
+
+    *retc = msg.words[2];
+
+    return msg.words[1];
 }
 
 
 errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
 {
-    // TODO implement functionality to send a character to the
-    // serial port.
-    return SYS_ERR_OK;
+    errval_t err = SYS_ERR_OK;
+
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+    err = lmp_chan_send2(chan->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalPutChar, (size_t) c);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    lmp_client_recv(chan->lc, &cap, &msg);
+
+    return msg.words[1];
 }
 
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
