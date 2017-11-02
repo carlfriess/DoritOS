@@ -218,12 +218,6 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
 
     ram_alloc_set(NULL);
 
-    // Allocate physical memory for exception handler stack
-    struct paging_state *st = get_current_paging_state();
-    void *stack_address;
-    size_t stack_size;
-    paging_region_map(&st->exception_stack_region, st->exception_stack_region.region_size, &stack_address, &stack_size);
-
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here
     return SYS_ERR_OK;

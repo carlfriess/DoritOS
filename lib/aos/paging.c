@@ -178,16 +178,39 @@ errval_t paging_init(void)
     temp_slot_allocator.alloc = temp_slot_alloc;
     st->slot_alloc = &temp_slot_allocator;
 
-    // Stack address
+    // Allocate virtual address space for exception handler stack
     void *stack_addr = NULL;
+    size_t stack_size = 4 * BASE_PAGE_SIZE;
+    paging_alloc(st, &stack_addr, stack_size);
 
-    paging_region_init(st, &st->exception_stack_region, 2 * BASE_PAGE_SIZE);
+    // Allocate and map physical memory for exception handler stack
+    for (void *buf = stack_addr; buf < stack_addr + stack_size; buf += BASE_PAGE_SIZE) {
+        struct capref frame_cap;
+        size_t ret_size;
+
+        err = st->slot_alloc->alloc(st->slot_alloc, &frame_cap);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+
+        err = frame_create(frame_cap, BASE_PAGE_SIZE, &ret_size);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        err = paging_map_fixed(st, (lvaddr_t) buf, frame_cap, ret_size);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+    }
 
     // Set exception handler
     void *old_stack_base;
     void *old_stack_top;
     exception_handler_fn *old_exception_handler = NULL;
-    err = thread_set_exception_handler(exception_handler, old_exception_handler, stack_addr, stack_addr + st->exception_stack_region.region_size, &old_stack_base, &old_stack_top);
+    err = thread_set_exception_handler(exception_handler, old_exception_handler, stack_addr, stack_addr + stack_size, &old_stack_base, &old_stack_top);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
@@ -224,7 +247,7 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, s
     pr->base_addr    = (lvaddr_t)base;
     pr->current_addr = pr->base_addr;
     pr->region_size  = size;
-    pr->paging_state = (void *) st;
+    pr->paging_state = st;
     return SYS_ERR_OK;
 }
 
@@ -270,7 +293,7 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
     }
     
     // Mapping frame into virtual memory
-    err = paging_map_fixed((struct paging_state *) pr->paging_state, (lvaddr_t) *retbuf, frame_cap, *ret_size);
+    err = paging_map_fixed(pr->paging_state, (lvaddr_t) *retbuf, frame_cap, *ret_size);
     
     return SYS_ERR_OK;
 }

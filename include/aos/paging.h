@@ -45,13 +45,6 @@ typedef int paging_flags_t;
 #define VREGION_FLAGS_READ_WRITE_MPB \
     (VREGION_FLAGS_READ | VREGION_FLAGS_WRITE | VREGION_FLAGS_MPB)
 
-struct paging_region {
-    lvaddr_t base_addr;
-    lvaddr_t current_addr;
-    size_t region_size;
-    // TODO: if needed add struct members for tracking state
-    void *paging_state;
-};
 
 // struct to store the paging status of a process
 struct paging_state {
@@ -66,7 +59,6 @@ struct paging_state {
     struct slab_allocator slabs;                    // Slab allocator for pt_cap_tree_node
     int slabs_prevent_refill;                       // Keep track when to prevent refill
     struct pt_cap_tree_node *l2_tree_root;          // Tree of all L2 page table caps with subtrees for mappings
-    struct paging_region exception_stack_region;    // Paging region for the exception handler's stack
 };
 
 // struct for list of free virtual address regions
@@ -98,6 +90,13 @@ errval_t paging_init(void);
 /// setup paging on new thread (used for user-level threads)
 void paging_init_onthread(struct thread *t);
 
+struct paging_region {
+    lvaddr_t base_addr;
+    lvaddr_t current_addr;
+    size_t region_size;
+    // TODO: if needed add struct members for tracking state
+    struct paging_state *paging_state;
+};
 
 errval_t paging_region_init(struct paging_state *st,
                             struct paging_region *pr, size_t size);
