@@ -50,8 +50,67 @@ static errval_t arml2_alloc(struct paging_state * st, struct capref *ret)
     return SYS_ERR_OK;
 }
 
+static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *regs, arch_registers_fpu_state_t *fpuregs) {
+
+    errval_t err;
+
+    // Check for invalid address
+    if (addr == NULL) {
+        USER_PANIC("java.lang.NullPointerException: Null pointer exception... Are you using Java?");
+    }
+
+    // Make sure the pagefault did not occur in kernel address space
+    if (addr > (void *) 0x80000000) {
+        USER_PANIC("Pagefault in kernel address space!");
+    }
+
+    // Get current paging state
+    struct paging_state *st = get_current_paging_state();
+
+    void *base = (void *) ROUND_DOWN((lvaddr_t) addr, BASE_PAGE_SIZE);
+
+    // Allocate a new frame
+    struct capref frame_cap;
+    size_t frame_size = BASE_PAGE_SIZE;
+    err = frame_alloc(&frame_cap, frame_size, &frame_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return;
+    }
+
+    // Allocate address space for the new frame
+    err = paging_alloc_fixed(st, base, frame_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return;
+    }
+
+    // Rebuild the free list
+    //  FIXME: THIS IS INEFFICIENT
+    paging_alloc_fixed_commit(st);
+
+    // Map the new frame into virtual memory
+    err = paging_map_fixed(st, (lvaddr_t) base, frame_cap, frame_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return;
+    }
+
+}
+
 void exception_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs, arch_registers_fpu_state_t *fpuregs) {
     debug_printf("EXCEPTION!: %d\n", type);
+
+    switch (type) {
+        case EXCEPT_PAGEFAULT:
+            pagefault_handler(subtype, addr, regs, fpuregs);
+            break;
+
+        default:
+            USER_PANIC("Unhandled exception type!");
+            break;
+    }
+
 }
 
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
@@ -323,7 +382,7 @@ errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
     
     // Check that the free list is empty
     //  FIXME: Maybe support changing the free list
-    assert(st->free_vspace_head == NULL);
+//    assert(st->free_vspace_head == NULL);
     
     // Check page alignment
     assert(!((lvaddr_t) buf % BASE_PAGE_SIZE));
