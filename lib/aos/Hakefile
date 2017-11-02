@@ -26,6 +26,7 @@
                              "aos_dirent.c",
                              "aos_rpc.c",
                              "capabilities.c",
+                             "coreboot.c",
                              "debug.c",
                              "deferred.c",
                              "dispatch.c",

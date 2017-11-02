@@ -17,6 +17,7 @@
 #include <aos/aos.h>
 #include <aos/cspace.h>
 #include <aos/caddr.h>
+#include <aos/kernel_cap_invocations.h>
 #include <aos/lmp_endpoints.h>
 #include <stdio.h>
 
@@ -113,6 +114,12 @@ struct capref cap_monitorep = {
     .slot  = TASKCN_SLOT_MONITOREP
 };
 
+/// Capability for bootinfo (only in monitor)
+struct capref cap_bootinfo = {
+    .cnode = TASK_CNODE_INIT,
+    .slot  = TASKCN_SLOT_BOOTINFO
+};
+
 /// Capability for kernel (only in monitor)
 struct capref cap_kernel = {
     .cnode = TASK_CNODE_INIT,
@@ -135,6 +142,12 @@ struct capref cap_perfmon = {
 struct capref cap_initep = {
     .cnode = TASK_CNODE_INIT,
     .slot  = TASKCN_SLOT_INITEP
+};
+
+/// Capability to the URPC frame
+struct capref cap_urpc = {
+    .cnode = TASK_CNODE_INIT,
+    .slot = TASKCN_SLOT_MON_URPC
 };
 
 /// Session ID
@@ -691,6 +704,75 @@ errval_t frame_create(struct capref dest, size_t bytes, size_t *retbytes)
     }
 
     return SYS_ERR_OK;
+}
+
+/**
+ * \brief Create a RAM cap ab initio, by invoking the kernel cap.
+ *
+ * \param dest   Location to place new RAM cap
+ * \param base   Base address of the region
+ * \param bytes  Size of region to create
+ * \param coreid Which core should own the capability
+ *
+ * Forges a capability to the given region of physical memory.  This is only
+ * possible in domains that have access to the kernel capability, and is an
+ * inherently unsafe operation, as it bypasses all checks in the capability
+ * system.  As the CPU drivers don't communicate directly however, this is the
+ * only way to transfer a capability between cores.  This must *only* be used
+ * for the root RAM region to be managed by a newly-booted core - if used for
+ * anything else, it will break things, *badly*.
+ *
+ * XXX Warning Warning Warning
+ * XXX Again - be *very* careful with this, and make sure you understand what
+ * it's doing.  You're establishing the *root of trust* for the new core.  If
+ * you use this for *anything* else, you're doing it wrong!
+ * XXX Warning Warning Warning
+ *
+ */
+errval_t ram_forge(struct capref dest, genpaddr_t base, gensize_t bytes,
+                   coreid_t coreid) {
+    struct capability ram_cap = {
+        .type = ObjType_RAM,
+        .rights = CAPRIGHTS_READ_WRITE,
+        .u.ram = {
+            .base  = base,
+            .pasid = 0,
+            .bytes = bytes
+        }
+    };
+
+    return invoke_monitor_create_cap((uint64_t *)&ram_cap,
+                                     get_cnode_addr(dest),
+                                     get_cnode_level(dest),
+                                     dest.slot, coreid);
+}
+
+/**
+ * \brief Create a Frame cap ab initio, by invoking the kernel cap.
+ *
+ * \param dest   Location to place new Frame cap
+ * \param base   Base address of the region
+ * \param bytes  Size of region to create
+ * \param coreid Which core should own the capability
+ *
+ * As for ram_forge, but for frames.  Same warnings apply!
+ *
+ */
+errval_t frame_forge(struct capref dest, genpaddr_t base, gensize_t bytes,
+                     coreid_t coreid) {
+    struct capability frame_cap = {
+        .type = ObjType_Frame,
+        .rights = CAPRIGHTS_READ_WRITE,
+        .u.frame = {
+            .base  = base,
+            .bytes = bytes
+        }
+    };
+
+    return invoke_monitor_create_cap((uint64_t *)&frame_cap,
+                                     get_cnode_addr(dest),
+                                     get_cnode_level(dest),
+                                     dest.slot, coreid);
 }
 
 /**
