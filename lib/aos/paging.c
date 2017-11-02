@@ -16,6 +16,7 @@
 #include <aos/paging.h>
 #include <aos/except.h>
 #include <aos/slab.h>
+#include <aos/except.h>
 #include "threads_priv.h"
 
 #include <stdio.h>
@@ -47,6 +48,10 @@ static errval_t arml2_alloc(struct paging_state * st, struct capref *ret)
         return err;
     }
     return SYS_ERR_OK;
+}
+
+void exception_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs, arch_registers_fpu_state_t *fpuregs) {
+    debug_printf("EXCEPTION!: %d\n", type);
 }
 
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
@@ -102,12 +107,32 @@ errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
     return SYS_ERR_OK;
 }
 
+static errval_t temp_slot_alloc(struct slot_allocator *ca, struct capref *cap) {
+
+    static struct capref next_cap = {
+        .cnode = {
+            .croot = CPTR_ROOTCN,
+            .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_SLOT_ALLOC2),
+            .level = CNODE_TYPE_OTHER
+        },
+        .slot = 0,
+    };
+
+    *cap = next_cap;
+
+    next_cap.slot++;
+
+    return SYS_ERR_OK;
+
+}
+
 /**
  * \brief This function initializes the paging for this domain
  * It is called once before main.
  */
 errval_t paging_init(void)
 {
+    errval_t err = SYS_ERR_OK;
     debug_printf("paging_init\n");
     // TODO (M4): initialize self-paging handler
     // TIP: use thread_set_exception_handler() to setup a page fault handler
@@ -115,7 +140,7 @@ errval_t paging_init(void)
     // you can handle page faults in any thread of a domain.
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
-    
+
     // Check if we are in the init process
     if (!strcmp(disp_name(), "init")) {
     
@@ -127,32 +152,51 @@ errval_t paging_init(void)
             .slot = 0
         };
         
-        return paging_init_state(&current,
+        err = paging_init_state(&current,
                                  VADDR_OFFSET,
                                  pdir,
                                  get_default_slot_allocator());
-        
+        return err;
     }
-    else {
-        
-        struct paging_state *st = (struct paging_state *) VADDR_OFFSET;
-        
-        set_current_paging_state(st);
-        
-        struct capref pdir = {
-            .cnode = cnode_page,
-            .slot = 0
-        };
-        
-        st->l1_pagetable = pdir;
-        st->slot_alloc = get_default_slot_allocator();
-        
-        st->vspace_slabs.refill_func = slab_default_refill;
-        st->slabs.refill_func = slab_default_refill;
-        
-        return SYS_ERR_OK;
-        
+
+    struct paging_state *st = (struct paging_state *) VADDR_OFFSET;
+
+    set_current_paging_state(st);
+
+    struct capref pdir = {
+        .cnode = cnode_page,
+        .slot = 0
+    };
+
+    st->l1_pagetable = pdir;
+
+    st->vspace_slabs.refill_func = slab_default_refill;
+    st->slabs.refill_func = slab_default_refill;
+
+    // Create a temporary slot allocator for now :D
+    struct slot_allocator temp_slot_allocator;
+    temp_slot_allocator.alloc = temp_slot_alloc;
+    st->slot_alloc = &temp_slot_allocator;
+
+    // Stack address
+    void *stack_addr = NULL;
+
+    paging_region_init(st, &st->exception_stack_region, 2 * BASE_PAGE_SIZE);
+
+    // Set exception handler
+    void *old_stack_base;
+    void *old_stack_top;
+    exception_handler_fn *old_exception_handler = NULL;
+    err = thread_set_exception_handler(exception_handler, old_exception_handler, stack_addr, stack_addr + st->exception_stack_region.region_size, &old_stack_base, &old_stack_top);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
     }
+
+    // Setting default slot allocator
+    st->slot_alloc = get_default_slot_allocator();
+
+    return err;
 }
 
 
@@ -180,7 +224,7 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, s
     pr->base_addr    = (lvaddr_t)base;
     pr->current_addr = pr->base_addr;
     pr->region_size  = size;
-    pr->paging_state = st;
+    pr->paging_state = (void *) st;
     return SYS_ERR_OK;
 }
 
@@ -226,7 +270,7 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
     }
     
     // Mapping frame into virtual memory
-    err = paging_map_fixed(pr->paging_state, (lvaddr_t) *retbuf, frame_cap, *ret_size);
+    err = paging_map_fixed((struct paging_state *) pr->paging_state, (lvaddr_t) *retbuf, frame_cap, *ret_size);
     
     return SYS_ERR_OK;
 }
@@ -479,18 +523,18 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
 #if PRINT_DEBUG
     debug_printf("Mapping %d page(s) at 0x%x\n", bytes / BASE_PAGE_SIZE + (bytes % BASE_PAGE_SIZE ? 1 : 0), vaddr);
 #endif
-    
+
     for (uintptr_t end_addr, addr = vaddr; addr < vaddr + bytes; addr = end_addr) {
-    
+
         // Find next boundary of L2 page table range
         end_addr = addr / (ARM_L2_MAX_ENTRIES * BASE_PAGE_SIZE);
         end_addr++;
         end_addr *= (ARM_L2_MAX_ENTRIES * BASE_PAGE_SIZE);
-        
+
         // Calculate size of region to map within this L2 page table
         size_t size = MIN(end_addr - addr, (vaddr + bytes) - addr);
-        
-        
+
+
         // Calculate the offsets for the given virtual address
         uintptr_t l1_offset = ARM_L1_OFFSET(addr);
         uintptr_t l2_offset = ARM_L2_OFFSET(addr);
@@ -536,7 +580,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                 slab_free(&st->slabs, node);
                 return err_l2_alloc;
             }
-            
+
             // Check for reentrant call of this function
             int skip_l2_creation = 0;
             if (prev && prev->offset > l1_offset && prev->left != NULL) {
@@ -580,7 +624,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                 }
             }
             if (!skip_l2_creation) {
-                
+
                 // Map L2 pagetable to appropriate slot in L1 pagetable
                 errval_t err_l2_map = vnode_map(st->l1_pagetable, node->cap, l1_offset, flags, 0, 1, node->mapping_cap);
                 if (!err_is_ok(err_l2_map)) {
@@ -589,7 +633,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                     slab_free(&st->slabs, node);
                     return err_l2_map;
                 }
-                
+
                 // Set the offset for the new node
                 node->offset = l1_offset;
 
@@ -603,7 +647,7 @@ errval_t paging_map_fixed_attr(struct paging_state *st, lvaddr_t vaddr,
                 else {
                     prev->right = node;
                 }
-                
+
             }
 
         }
