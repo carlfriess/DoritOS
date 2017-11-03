@@ -94,16 +94,27 @@ static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *r
         return;
     }
 
-    // Allocate address space for the new frame
-    err = paging_alloc_fixed(st, base, frame_size);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return;
+    // Check if vspace is already allocated
+    int vspace_allocated = 0;
+    for(struct vspace_node *node = st->alloc_vspace_head; node != NULL; node = node->next) {
+        if (node->base <= (lvaddr_t) base && (lvaddr_t) base < node->base + node->size) {
+            vspace_allocated = 1;
+            assert((lvaddr_t) base + BASE_PAGE_SIZE <= node->base + node->size);
+            break;
+        }
     }
 
-    // Rebuild the free list
-    //  FIXME: THIS IS INEFFICIENT
-    paging_alloc_fixed_commit(st);
+    // Allocate address space for the new frame if necessary
+    if (!vspace_allocated) {
+        err = paging_alloc_fixed(st, base, frame_size);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return;
+        }
+        // Rebuild the free list
+        //  FIXME: THIS IS INEFFICIENT
+        paging_alloc_fixed_commit(st);
+    }
 
     // Map the new frame into virtual memory
     err = paging_map_fixed(st, (lvaddr_t) base, frame_cap, frame_size);
@@ -120,7 +131,7 @@ static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *r
 void exception_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs, arch_registers_fpu_state_t *fpuregs) {
 
 #if PRINT_DEBUG_EXCEPTION
-    debug_printf("EXCEPTION!: %p\n", addr);
+    debug_printf("/////// EXCEPTION!: %p\n", addr);
 #endif
 
     switch (type) {
