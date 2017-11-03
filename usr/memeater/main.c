@@ -145,11 +145,18 @@ int main(int argc, char *argv[])
 
     debug_printf("memeater started....\n");
 
-    char *ptr = (char *) 0x12345;
+    char *ptr = (char *) malloc(100*1024*1024);
+    debug_printf("MALLOC: %p\n", ptr);
+    ptr += 50*1024*1024;
     *ptr = 'S';
 
     debug_printf("CHARACTER: %c\n", *ptr);
 
+    for (int i = 0; i < 512; i++) {
+        struct capref cap;
+        debug_printf("%d\n", i);
+        slot_alloc(&cap);
+    }
     err = aos_rpc_init(&init_rpc, aos_rpc_get_init_channel()->lc);
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "could not initialize RPC\n");
