@@ -53,6 +53,12 @@ static errval_t arml2_alloc(struct paging_state * st, struct capref *ret)
 
 static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *regs, arch_registers_fpu_state_t *fpuregs) {
 
+    // Try to lock the mutex to prevent multiple threads from concurrently servicing a pagefault
+    static struct thread_mutex mutex = { 0, NULL, NULL, 0 };
+    if (!thread_mutex_trylock(&mutex)) {
+        return;
+    }
+
     errval_t err;
 
     // Check for invalid address
@@ -105,6 +111,9 @@ static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *r
         debug_printf("%s\n", err_getstring(err));
         return;
     }
+
+    // Unlock the mutex
+    thread_mutex_unlock(&mutex);
 
 }
 
@@ -288,7 +297,7 @@ errval_t paging_init(void)
     }
 
 #if PRINT_DEBUG_EXCEPTION
-    debug_printf("EXCEPTION STACK: %p - %p\n", base, base + size);
+    debug_printf("EXCEPTION STACK: %p - %p\n", stack_addr, stack_addr + stack_size);
 #endif
 
     // Set exception handler
@@ -337,7 +346,7 @@ void paging_init_onthread(struct thread *t)
     }
 
 #if PRINT_DEBUG_EXCEPTION
-    debug_printf("EXCEPTION STACK: %p - %p\n", stack_addr, stack_addr + stack_size);
+    debug_printf("EXCEPTION STACK: %p - %p\n", base, base + size);
 #endif
 
     t->exception_handler = exception_handler;
