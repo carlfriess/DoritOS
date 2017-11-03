@@ -31,6 +31,8 @@
 #include "threads_priv.h"
 #include "init.h"
 
+#define SELF_PAGING_WORKS
+
 #if defined(__x86_64__)
 #  include "arch/ldt.h"
 #endif
