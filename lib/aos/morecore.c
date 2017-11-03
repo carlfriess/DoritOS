@@ -50,6 +50,12 @@ static char *endp = mymem + HEAP_SIZE;
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
 {
+    // Statically initializing thread mutex
+    static struct thread_mutex mutex = { 0, NULL, NULL, 0 };
+    
+    // Locking thread mutex
+    thread_mutex_lock(&mutex);
+
     struct morecore_state *state = get_morecore_state();
 
     size_t aligned_bytes = ROUND_UP(bytes, sizeof(Header));
@@ -62,6 +68,10 @@ static void *morecore_alloc(size_t bytes, size_t *retbytes)
         aligned_bytes = 0;
     }
     *retbytes = aligned_bytes;
+
+    // Unlock thread mutex
+    thread_mutex_unlock(&mutex);
+
     return ret;
 }
 
