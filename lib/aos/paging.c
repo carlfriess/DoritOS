@@ -25,6 +25,7 @@
 
 static errval_t delete_vspace_alloc_node(struct paging_state *st, lvaddr_t base, struct vspace_node **ret_node);
 static errval_t insert_vspace_free_node(struct paging_state *st, struct vspace_node *new_node);
+static errval_t delete_vspace_free_node(struct paging_state *st, lvaddr_t base, size_t size);
 
 
 static struct paging_state current;
@@ -254,6 +255,47 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
 errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
 {
     
+    errval_t err = SYS_ERR_OK;
+    
+    
+    // NEW  VERSION WITHOUT COMMIT
+    /*
+    // Round up size to next page boundary
+    bytes = ROUND_UP(bytes, BASE_PAGE_SIZE);
+    
+    // Check page alignment
+    assert(!((lvaddr_t) buf % BASE_PAGE_SIZE));
+
+    lvaddr_t addr = (lvaddr_t) buf;
+    
+    // Cutting block out of free vspace list
+    err = delete_vspace_free_node(st, addr, bytes);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
+    // Register the allocation in the alloc list
+    struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
+    new_node->base = (uintptr_t) buf;
+    new_node->size = bytes;
+    new_node->next = st->alloc_vspace_head;
+    st->alloc_vspace_head = new_node;
+    
+    // Check that there are sufficient slabs left in the slab allocator
+    size_t freecount = slab_freecount((struct slab_allocator *)&st->vspace_slabs);
+    if (freecount <= 6 && !st->vspace_slabs_prevent_refill) {
+#if PRINT_DEBUG
+        debug_printf("Vspace slab allocator refilling...\n");
+#endif
+        st->vspace_slabs_prevent_refill = 1;
+        slab_default_refill((struct slab_allocator *)&st->vspace_slabs);
+        st->vspace_slabs_prevent_refill = 0;
+    }
+    */
+    
+    
+    // OLD (WORKING) VERSION WITH COMMIT
+    
     // Check that the free list is empty
     //  FIXME: Maybe support changing the free list
     assert(st->free_vspace_head == NULL);
@@ -289,7 +331,7 @@ errval_t paging_alloc_fixed(struct paging_state *st, void *buf, size_t bytes)
         st->vspace_slabs_prevent_refill = 0;
     }
     
-    return SYS_ERR_OK;
+    return err;
     
 }
 
@@ -936,6 +978,9 @@ static errval_t delete_vspace_alloc_node(struct paging_state *st, lvaddr_t base,
 
 static errval_t insert_vspace_free_node(struct paging_state *st, struct vspace_node *new_node) {
     
+    // Update free_vspace_base of paging_state
+    st->free_vspace_base = MAX(st->free_vspace_base, new_node->base + new_node->size);
+    
     // Check if list empty or node would have to get new head
     if (st->free_vspace_head == NULL || new_node->base + new_node->size < st->free_vspace_head->base) {
         
@@ -1022,5 +1067,127 @@ static errval_t insert_vspace_free_node(struct paging_state *st, struct vspace_n
     return SYS_ERR_OK;
     
 }
+
+static errval_t delete_vspace_free_node(struct paging_state *st, lvaddr_t base, size_t size) {
+    
+    // Iterating free vspace list
+    struct vspace_node **indirect = &st->free_vspace_head;
+    
+    while (*indirect != NULL) {
+        if ((*indirect)->base <= base && base < (*indirect)->base + (*indirect)->size) {
+            break;
+        }
+        indirect = &(*indirect)->next;
+    }
+    
+    // TODO: Check if this is correct!
+    
+    if (*indirect == NULL && base < st->free_vspace_base) {
+        debug_printf("Error! Trying to delete a block that is not part of the free list or above the free_vspace_base. Corrupt free or alloc list!\n");
+        
+        // TODO: Find a good err message!
+        return SYS_ERR_OK;
+        
+    }
+    else if (*indirect == NULL) {
+        // No free found in free vspace list
+        lvaddr_t old_free_vspace_base = st->free_vspace_base;
+        
+        // Allocating new node between old_free_vspace_base and base
+        struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
+        new_node->base = old_free_vspace_base;
+        new_node->size = base - old_free_vspace_base;
+        
+        // Inserting new node into free vspace list
+        insert_vspace_free_node(st, new_node);
+        
+        // Updating free_vspace_base to be above deletion node
+        st->free_vspace_base = base + size;
+        
+        return SYS_ERR_OK;
+    
+    }
+    else if ((*indirect)->base == base && (*indirect)->size == size) {
+        
+        // Deleting entire node out of free list
+        struct vspace_node *deletion_node = *indirect;
+        
+        // Changinging next pointer
+        *indirect = (*indirect)->next;
+    
+        // Freeing deletion_node
+        slab_free(&st->vspace_slabs, deletion_node);
+        
+        return SYS_ERR_OK;
+        
+    }
+    else if ((*indirect)->base == base && (*indirect)->size < size) {
+        
+        // Cutting off front of the node
+        (*indirect)->base += (*indirect)->size;
+        (*indirect)->size -= size;
+        
+        return SYS_ERR_OK;
+        
+    }
+    else if ((*indirect)->base == base && st->free_vspace_base < base + size) {
+        
+        // Deleting entire node out of free list
+        struct vspace_node *deletion_node = *indirect;
+        
+        // Changinging next pointer to be NULL (end of linked list)
+        *indirect = NULL;
+        
+        // Freeing deletion_node
+        slab_free(&st->vspace_slabs, deletion_node);
+        
+        // Updating free_vspace_base of paging state
+        st->free_vspace_base = base + size;
+        
+        return SYS_ERR_OK;
+        
+    }
+    else if ((*indirect)->base < base && (*indirect)->base + (*indirect)->size == base + size) {
+        
+        // Cutting off back of the node
+        (*indirect)->size -= size;
+        
+        return SYS_ERR_OK;
+        
+    }
+    else if ((*indirect)->base < base && base + size < (*indirect)->base + (*indirect)->size) {
+        
+        // Cutting out middle of node and split it
+        
+        // Allocating new node to be back part that is still free
+        struct vspace_node *new_node = slab_alloc(&st->vspace_slabs);
+        new_node->base = base + size;
+        new_node->size = base + size - ((*indirect)->base + (*indirect)->size);
+        
+        // Curring off back of node
+        (*indirect)->size = base - (*indirect)->base;
+        
+        // Inserting new node into free vspace list
+        insert_vspace_free_node(st, new_node);
+        
+        return SYS_ERR_OK;
+
+    }
+    else if ((*indirect)->base < base && st->free_vspace_base < base + size) {
+
+        // Cutting off back of the node
+        (*indirect)->size = base - (*indirect)->base;
+        
+        // Updating free_vspace_base of paging state
+        st->free_vspace_base = base + size;
+        
+        return SYS_ERR_OK;
+        
+    }
+    
+    return SYS_ERR_OK;
+    
+}
+
 
 
