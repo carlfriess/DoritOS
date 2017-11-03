@@ -18,6 +18,8 @@
 #include <aos/morecore.h>
 #include <stdio.h>
 
+#define PRINT_DEBUG 0
+
 typedef void *(*morecore_alloc_func_t)(size_t bytes, size_t *retbytes);
 extern morecore_alloc_func_t sys_morecore_alloc;
 
@@ -98,9 +100,11 @@ static void *morecore_alloc(size_t bytes, size_t *retbytes)
     
     void *buf;
     paging_region_map(&state->region, bytes, &buf, retbytes);
-    
+
+#if PRINT_DEBUG
     debug_printf("MORECORE_ALLOC: %p\n", buf);
-    
+#endif
+
     return buf;
 }
 
@@ -115,9 +119,11 @@ errval_t morecore_init(void)
     
     // Initialize a paging region with 512MB of address space
     paging_region_init(get_current_paging_state(), &state->region, 0x20000000);
-    
+
+#if PRINT_DEBUG
     debug_printf("MORECORE_INIT: %p\n", state->region.base_addr);
-    
+#endif
+
     sys_morecore_alloc = morecore_alloc;
     sys_morecore_free = morecore_free;
     return SYS_ERR_OK;
