@@ -116,6 +116,8 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
  */
 errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t bytes);
 
+void debug_print_vspace_layout(void);
+
 /**
  * \brief Allocate a fixed area in the virtual address space.
  */

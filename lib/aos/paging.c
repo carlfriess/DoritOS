@@ -372,6 +372,19 @@ errval_t paging_region_unmap(struct paging_region *pr, lvaddr_t base, size_t byt
     return SYS_ERR_OK;
 }
 
+__attribute__((__unused__))
+void debug_print_vspace_layout(void) {
+    struct paging_state *st = get_current_paging_state();
+    struct vspace_node *node;
+    for (node = st->alloc_vspace_head; node != NULL; node = node->next) {
+        debug_printf("ALLOC: %p -> %p\n", node->base, node->base + node->size);
+    }
+    for (node = st->free_vspace_head; node != NULL; node = node->next) {
+        debug_printf("FREE: %p -> %p\n", node->base, node->base + node->size);
+    }
+    debug_printf("FREE_BASE: %p\n", st->free_vspace_base);
+}
+
 /**
  * \brief Allocate a fixed area in the virtual address space. Only
  * use this function directly after initialization. Do not use other
