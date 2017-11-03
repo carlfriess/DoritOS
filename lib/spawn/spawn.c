@@ -248,7 +248,7 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
     
     // Initialize the child paging state
     err = paging_init_state(si->child_paging_state,
-                            MAX((lvaddr_t) slab_frame_1_addr + slab_frame_1_size, (lvaddr_t) slab_frame_2_addr + slab_frame_2_size),
+                            MAX(MAX((lvaddr_t) slab_frame_1_addr + slab_frame_1_size, (lvaddr_t) slab_frame_2_addr + slab_frame_2_size), VADDR_OFFSET + paging_state_frame_size),
                             si->child_root_pt_cap,
                             get_default_slot_allocator());
     if (err_is_fail(err)) {

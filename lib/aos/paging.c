@@ -23,6 +23,7 @@
 #include <string.h>
 
 #define PRINT_DEBUG 0
+#define PRINT_DEBUG_EXCEPTION 0
 
 static errval_t delete_vspace_alloc_node(struct paging_state *st, lvaddr_t base, struct vspace_node **ret_node);
 static errval_t insert_vspace_free_node(struct paging_state *st, struct vspace_node *new_node);
@@ -52,6 +53,12 @@ static errval_t arml2_alloc(struct paging_state * st, struct capref *ret)
 
 static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *regs, arch_registers_fpu_state_t *fpuregs) {
 
+    // Try to lock the mutex to prevent multiple threads from concurrently servicing a pagefault
+    static struct thread_mutex mutex = { 0, NULL, NULL, 0 };
+    if (!thread_mutex_trylock(&mutex)) {
+        return;
+    }
+
     errval_t err;
 
     // Check for invalid address
@@ -60,14 +67,23 @@ static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *r
     }
 
     // Make sure the pagefault did not occur in kernel address space
-    if (addr > (void *) 0x80000000) {
-        USER_PANIC("Pagefault in kernel address space!");
+    if (addr >= (void *) 0x80000000) {
+        USER_PANIC("ACCESSING THE KERNEL? I think not...");
     }
 
     // Get current paging state
     struct paging_state *st = get_current_paging_state();
 
     void *base = (void *) ROUND_DOWN((lvaddr_t) addr, BASE_PAGE_SIZE);
+
+    // Get thread information
+    struct thread *td = thread_self();
+
+    // Check for stack overflow (address in guarded page)
+    uint8_t is_stack_overflow = addr <= td->stack - BASE_PAGE_SIZE && addr > td->stack;
+    if (is_stack_overflow) {
+        USER_PANIC("Stack overflow.. Sad.");
+    }
 
     // Allocate a new frame
     struct capref frame_cap;
@@ -78,16 +94,27 @@ static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *r
         return;
     }
 
-    // Allocate address space for the new frame
-    err = paging_alloc_fixed(st, base, frame_size);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return;
+    // Check if vspace is already allocated
+    int vspace_allocated = 0;
+    for(struct vspace_node *node = st->alloc_vspace_head; node != NULL; node = node->next) {
+        if (node->base <= (lvaddr_t) base && (lvaddr_t) base < node->base + node->size) {
+            vspace_allocated = 1;
+            assert((lvaddr_t) base + BASE_PAGE_SIZE <= node->base + node->size);
+            break;
+        }
     }
 
-    // Rebuild the free list
-    //  FIXME: THIS IS INEFFICIENT
-    paging_alloc_fixed_commit(st);
+    // Allocate address space for the new frame if necessary
+    if (!vspace_allocated) {
+        err = paging_alloc_fixed(st, base, frame_size);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return;
+        }
+        // Rebuild the free list
+        //  FIXME: THIS IS INEFFICIENT
+        paging_alloc_fixed_commit(st);
+    }
 
     // Map the new frame into virtual memory
     err = paging_map_fixed(st, (lvaddr_t) base, frame_cap, frame_size);
@@ -96,10 +123,16 @@ static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *r
         return;
     }
 
+    // Unlock the mutex
+    thread_mutex_unlock(&mutex);
+
 }
 
 void exception_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs, arch_registers_fpu_state_t *fpuregs) {
-    debug_printf("EXCEPTION!: %d\n", type);
+
+#if PRINT_DEBUG_EXCEPTION
+    debug_printf("/////// EXCEPTION!: %p\n", addr);
+#endif
 
     switch (type) {
         case EXCEPT_PAGEFAULT:
@@ -171,15 +204,15 @@ static errval_t temp_slot_alloc(struct slot_allocator *ca, struct capref *cap) {
     static struct capref next_cap = {
         .cnode = {
             .croot = CPTR_ROOTCN,
-            .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_SLOT_ALLOC2),
+            .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_SLOT_ALLOC0),
             .level = CNODE_TYPE_OTHER
         },
-        .slot = 0,
+        .slot = 255,
     };
 
     *cap = next_cap;
 
-    next_cap.slot++;
+    next_cap.slot--;
 
     return SYS_ERR_OK;
 
@@ -200,6 +233,8 @@ errval_t paging_init(void)
     // TIP: it might be a good idea to call paging_init_state() from here to
     // avoid code duplication.
 
+    struct paging_state *st = &current;
+
     // Check if we are in the init process
     if (!strcmp(disp_name(), "init")) {
     
@@ -215,22 +250,29 @@ errval_t paging_init(void)
                                  VADDR_OFFSET,
                                  pdir,
                                  get_default_slot_allocator());
-        return err;
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+
     }
+    else {
 
-    struct paging_state *st = (struct paging_state *) VADDR_OFFSET;
+        st = (struct paging_state *) VADDR_OFFSET;
 
-    set_current_paging_state(st);
+        set_current_paging_state(st);
 
-    struct capref pdir = {
-        .cnode = cnode_page,
-        .slot = 0
-    };
+        struct capref pdir = {
+            .cnode = cnode_page,
+            .slot = 0
+        };
 
-    st->l1_pagetable = pdir;
+        st->l1_pagetable = pdir;
 
-    st->vspace_slabs.refill_func = slab_default_refill;
-    st->slabs.refill_func = slab_default_refill;
+        st->vspace_slabs.refill_func = slab_default_refill;
+        st->slabs.refill_func = slab_default_refill;
+
+    }
 
     // Create a temporary slot allocator for now :D
     struct slot_allocator temp_slot_allocator;
@@ -265,6 +307,10 @@ errval_t paging_init(void)
         }
     }
 
+#if PRINT_DEBUG_EXCEPTION
+    debug_printf("EXCEPTION STACK: %p - %p\n", stack_addr, stack_addr + stack_size);
+#endif
+
     // Set exception handler
     void *old_stack_base;
     void *old_stack_top;
@@ -288,6 +334,36 @@ errval_t paging_init(void)
 void paging_init_onthread(struct thread *t)
 {
     // TODO (M4): setup exception handler for thread `t'.
+    errval_t err;
+
+    struct paging_state *st = get_current_paging_state();
+
+    void *base = NULL;
+    size_t size = 8 * BASE_PAGE_SIZE;
+
+    paging_alloc(st, &base, size);
+
+    struct capref frame_cap;
+    err = frame_alloc(&frame_cap, size, &size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return;
+    }
+
+    err = paging_map_fixed(st, (lvaddr_t) base, frame_cap, size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return;
+    }
+
+#if PRINT_DEBUG_EXCEPTION
+    debug_printf("EXCEPTION STACK: %p - %p\n", base, base + size);
+#endif
+
+    t->exception_handler = exception_handler;
+    t->exception_stack = base;
+    t->exception_stack_top = base + size;
+
 }
 
 /**
@@ -318,14 +394,6 @@ errval_t paging_region_init(struct paging_state *st, struct paging_region *pr, s
 errval_t paging_region_map(struct paging_region *pr, size_t req_size,
                            void **retbuf, size_t *ret_size)
 {
-    errval_t err = SYS_ERR_OK;
-    
-    // Round up to next page boundary
-    if (req_size % BASE_PAGE_SIZE) {
-        size_t pages = req_size / BASE_PAGE_SIZE;
-        pages++;
-        req_size = pages * BASE_PAGE_SIZE;
-    }
     
     lvaddr_t end_addr = pr->base_addr + pr->region_size;
     ssize_t rem = end_addr - pr->current_addr;
@@ -343,16 +411,6 @@ errval_t paging_region_map(struct paging_region *pr, size_t req_size,
     } else {
         return LIB_ERR_VSPACE_MMU_AWARE_NO_SPACE;
     }
-    
-    // Allocating frame
-    struct capref frame_cap;
-    err = frame_alloc(&frame_cap, *ret_size, ret_size);
-    if (err_is_fail(err)) {
-        return err;
-    }
-    
-    // Mapping frame into virtual memory
-    err = paging_map_fixed(pr->paging_state, (lvaddr_t) *retbuf, frame_cap, *ret_size);
     
     return SYS_ERR_OK;
 }
