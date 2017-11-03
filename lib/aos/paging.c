@@ -184,15 +184,15 @@ static errval_t temp_slot_alloc(struct slot_allocator *ca, struct capref *cap) {
     static struct capref next_cap = {
         .cnode = {
             .croot = CPTR_ROOTCN,
-            .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_SLOT_ALLOC2),
+            .cnode = ROOTCN_SLOT_ADDR(ROOTCN_SLOT_SLOT_ALLOC0),
             .level = CNODE_TYPE_OTHER
         },
-        .slot = 0,
+        .slot = 255,
     };
 
     *cap = next_cap;
 
-    next_cap.slot++;
+    next_cap.slot--;
 
     return SYS_ERR_OK;
 
