@@ -288,6 +288,33 @@ errval_t paging_init(void)
 void paging_init_onthread(struct thread *t)
 {
     // TODO (M4): setup exception handler for thread `t'.
+    errval_t err;
+    debug_printf("paging_init_onthread ID: %x\n", thread_id());
+
+    struct paging_state *st = get_current_paging_state();
+
+    void *base = NULL;
+    size_t size = 8 * BASE_PAGE_SIZE;
+
+    paging_alloc(st, &base, size);
+
+    struct capref frame_cap;
+    err = frame_alloc(&frame_cap, size, &size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return;
+    }
+
+    err = paging_map_fixed(st, (lvaddr_t) base, frame_cap, size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return;
+    }
+
+    t->exception_handler = exception_handler;
+    t->exception_stack = base;
+    t->exception_stack_top = base + size;
+
 }
 
 /**
