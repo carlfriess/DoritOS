@@ -138,6 +138,18 @@ static errval_t test_basic_rpc(void)
     return SYS_ERR_OK;
 }
 
+static void recurse(int i){
+    volatile uint32_t buf[10];
+
+    if (i % 10 == 0 || i > 300) {
+        debug_printf("CTR: %d, %p\n", i, buf);
+    }
+    for (int j = 0; j < 10; j++) {
+        printf("%d", buf[j]);
+    }
+//    __asm__ volatile ("sub sp,#16\n\tpush {r3}\n\t");
+//    recurse(++i);
+}
 
 int main(int argc, char *argv[])
 {
@@ -149,7 +161,6 @@ int main(int argc, char *argv[])
     debug_printf("MALLOC: %p\n", ptr);
     ptr += 50*1024*1024;
     *ptr = 'S';
-
     debug_printf("CHARACTER: %c\n", *ptr);
 
     for (int i = 0; i < 512; i++) {
@@ -157,6 +168,9 @@ int main(int argc, char *argv[])
         debug_printf("%d\n", i);
         slot_alloc(&cap);
     }
+
+    recurse(0);
+
     err = aos_rpc_init(&init_rpc, aos_rpc_get_init_channel()->lc);
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "could not initialize RPC\n");

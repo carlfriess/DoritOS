@@ -14,13 +14,18 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 
+#include <barrelfish_kpi/types.h>
+#include <target/arm/barrelfish_kpi/arm_core_data.h>
+#include <aos/kernel_cap_invocations.h>
 #include <aos/aos.h>
 #include <aos/waitset.h>
 #include <aos/morecore.h>
 #include <aos/paging.h>
 #include <spawn/spawn.h>
 #include <aos/process.h>
+#include <aos/capabilities.h>
 #include <aos/lmp.h>
 #include <spawn_serv.h>
 
@@ -32,6 +37,99 @@
 
 coreid_t my_core_id;
 struct bootinfo *bi;
+
+static errval_t boot_core(coreid_t core_id) {
+
+    errval_t err;
+
+    struct paging_state *st = get_current_paging_state();
+
+    struct arm_core_data *core_data = malloc(sizeof(struct arm_core_data));
+    if (core_data == NULL)  {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+
+    struct capref process_frame_cap;
+    size_t size = ARM_CORE_DATA_PAGES * BASE_PAGE_SIZE;
+    err = frame_alloc(&process_frame_cap, size, &size);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    core_data->memory_bytes = (uint32_t) size;
+
+    void *process_vaddr = NULL;
+    err = paging_map_frame(st, &process_vaddr, size, process_frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    core_data->memory_base_start = (uint32_t) process_vaddr;
+
+    struct capref urpc_frame_cap;
+    size = MON_URPC_SIZE;
+    err = frame_alloc(&urpc_frame_cap, size, &size);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    core_data->urpc_frame_size = (uint32_t) size;
+
+    void *urpc_vaddr = NULL;
+    err = paging_map_frame(st, &urpc_vaddr, size, urpc_frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    core_data->urpc_frame_base = (uint32_t) urpc_vaddr;
+
+    struct capref kcb_frame_cap;
+    size = OBJSIZE_KCB;
+    err = frame_alloc(&kcb_frame_cap, size, &size);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    void *kcb_vaddr = NULL;
+    err = paging_map_frame(st, &kcb_vaddr, size, kcb_frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    core_data->kcb = (lvaddr_t) kcb_vaddr;
+
+    struct capref current_kcb_cap = {
+       .cnode = cnode_root,
+       .slot = ROOTCN_SLOT_BSPKCB
+    };
+    err = invoke_kcb_clone(current_kcb_cap, kcb_frame_cap);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    core_data->src_core_id = my_core_id;
+
+    debug_printf("ADDR: %p\n", core_data->entry_point);
+
+    struct mem_region *mem = multiboot_find_module(bi, "omap44xx");
+    if (!mem) {
+        return SPAWN_ERR_FIND_MODULE;
+    }
+
+    // Constructing the capability for the frame containing the ELF image
+    struct capref elf_frame = {
+        .cnode = cnode_module,
+        .slot = mem->mrmod_slot
+    };
+
+    void *elf_buf = NULL
+    err = paging_map_frame(st, &elf_buf, mem->mrmod_size, elf_frame, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    err = load_cpu_relocatable_segment(elf_buf, process_vaddr, lvaddr_t vbase, lvaddr_t text_base, lvaddr_t *got_base);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    return err;
+}
 
 int main(int argc, char *argv[])
 {
@@ -76,18 +174,27 @@ int main(int argc, char *argv[])
 
     // Milestone 2:
     //run_all_m2_tests();
-    
+
     // Initialize the spawn server
     spawn_serv_init();
 
+    if (!my_core_id) {
+
+        err = boot_core(1);
+        if (err_is_fail(err)) {
+            debug_printf("Failed booting core: %s\n", err_getstring(err));
+        }
+
+    }
+
     // Allocate spawninfo
-    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+//    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
 
     // Spawn memeater
-    spawn_load_by_name("memeater", si);
+//    spawn_load_by_name("memeater", si);
 
     // Free the process info for memeater
-    free(si);
+//    free(si);
 
     debug_printf("Message handler loop\n");
     // Hang around
