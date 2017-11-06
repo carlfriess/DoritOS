@@ -56,6 +56,10 @@ SECTIONS {
     .dynsym . : { *(.dynsym); }
     .dynstr . : { *(.dynstr); }
     .gnu.hash . : { *(.gnu.hash); }
+
+    /* align dynamic section to page boundary, so ld 2.25 (from Linaro) is
+     * less confused */
+    . = ALIGN(4k);
     .dynamic . : { *(.dynamic);  } :bsp_image :dynamic
 
     /* The CPU driver will come looking for its build ID, to identify itself
