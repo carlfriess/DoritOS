@@ -753,6 +753,9 @@ struct Elf32_Shdr *
 elf32_find_section_header_name(genvaddr_t elf_base, size_t elf_bytes,
                                const char* section_name);
 
+struct Elf32_Phdr *
+elf32_find_segment_type(void *elfdata, uint32_t type);
+
 struct Elf64_Shdr *
 elf64_find_symtab(genvaddr_t elf_base, size_t elf_bytes);
 struct Elf32_Shdr *

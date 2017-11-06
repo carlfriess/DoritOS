@@ -26,6 +26,11 @@ struct gnu_build_id {
     size_t length;
 };
 
+/* XXX - we need to access this without including dispatcher_shared.h */
+#ifndef DISP_NAME_LEN
+    #define DISP_NAME_LEN 16
+#endif
+
 /**
  * \brief Data sent to a newly booted kernel
  *
@@ -97,6 +102,9 @@ struct arm_core_data {
 
     /* The kernel-virtual address of the global offset table. */
     lvaddr_t got_base;
+
+    /* The name of the initial process.  Empty for the default. */
+    char init_name[DISP_NAME_LEN+1];
 };
 
 #define ARM_CORE_DATA_PAGES 	1100
