@@ -697,9 +697,7 @@ appGetOptionsForArch arch args =
     (options arch) { extraIncludes =
                          [ NoDep SrcTree "src" a | a <- Args.addIncludes args]
                          ++
-                         [ NoDep BuildTree arch a | a <- Args.addGeneratedIncludes args]
-                         ++
-                         [ NoDep SrcTree "src" ("/include" </> l) | l <- Args.addLibraries args ],
+                         [ NoDep BuildTree arch a | a <- Args.addGeneratedIncludes args],
                      optIncludes = (optIncludes $ options arch) \\
                          [ NoDep SrcTree "src" i | i <- Args.omitIncludes args ],
                      optFlags = (optFlags $ options arch) \\
