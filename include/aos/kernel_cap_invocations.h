@@ -16,14 +16,14 @@
  *
  * \param core_id    APIC ID of the core to try booting
  * \param cpu_type   Barrelfish target CPU type
- * \param entry      Kernel entry point in kernel-virtual memory
+ * \param core_data  Address of struct core_data for new core in kernel-virtual memory
  */
 static inline errval_t
 invoke_monitor_spawn_core(coreid_t core_id, enum cpu_type cpu_type,
-                          forvaddr_t entry)
+                          forvaddr_t core_data)
 {
     return cap_invoke5(cap_kernel, IPICmd_Send_Start, core_id, cpu_type,
-            (uintptr_t)(entry >> 32), (uintptr_t) entry).error;
+            (uintptr_t)(entry >> 32), (uintptr_t) core_data).error;
 }
 
 /**
