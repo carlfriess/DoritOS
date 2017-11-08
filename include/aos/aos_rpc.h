@@ -19,7 +19,11 @@
 
 struct aos_rpc {
     // TODO: add state for your implementation
+    struct lmp_chan *lc;
 };
+
+size_t aos_rpc_terminal_write(const char* buf, size_t len);
+size_t aos_rpc_terminal_read(char *buf, size_t len);
 
 /**
  * \brief send a number over the given channel
@@ -91,7 +95,7 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr, size_t byte
  * TODO: you may want to change the inteface of your init function, depending
  * on how you design your message passing code.
  */
-errval_t aos_rpc_init(struct aos_rpc *rpc);
+errval_t aos_rpc_init(struct aos_rpc *rpc, struct lmp_chan *lc);
 
 
 /**

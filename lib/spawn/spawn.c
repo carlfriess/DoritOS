@@ -1,26 +1,30 @@
 #include <aos/aos.h>
 #include <spawn/spawn.h>
-#include <aos/process.h>
 
 #include <elf/elf.h>
 #include <aos/dispatcher_arch.h>
 #include <barrelfish_kpi/paging_arm_v7.h>
 #include <barrelfish_kpi/domain_params.h>
 #include <spawn/multiboot.h>
+#include <aos/lmp.h>
+#include <aos/waitset.h>
 
 extern struct bootinfo *bi;
 
 
 static void add_parent_mapping(struct spawninfo *si, void *addr) {
     // Check if parent_mappings exists
-    if (si->parent_mappings.addr == NULL) {
-        si->parent_mappings.addr = addr;
+    struct parent_mapping *mapping = (struct parent_mapping *) malloc(sizeof(struct parent_mapping));
+    if (si->parent_mappings == NULL) {
+        mapping->addr = addr;
+        mapping->next = NULL;
+        si->parent_mappings = mapping;
     } else {
         // Iterate to last entry, allocate new mapping, assign
         struct parent_mapping *i;
-        for (i = &si->parent_mappings; i->next != NULL; i = i->next);
-        struct parent_mapping *mapping = (struct parent_mapping *) malloc(sizeof(struct parent_mapping));
+        for (i = si->parent_mappings; i->next != NULL; i = i->next);
         mapping->addr = addr;
+        mapping->next = NULL;
         i->next = mapping;
     }
 }
@@ -32,7 +36,6 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
 
     // Placeholder cnoderef/capref to reduce stack size
     struct cnoderef cnoderef_l1;
-//    struct cnoderef cnoderef_beta;
 
     struct capref capref_alpha;
     struct capref capref_beta;
@@ -84,7 +87,7 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     }
 
     // Create L2 cnode: SLOT_ALLOC0
-    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, NULL);
+    err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_SLOT_ALLOC0, &si->slot_alloc0_ref);
     if (err_is_fail(err)) {
         return err;
     }
@@ -124,6 +127,9 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
         return err;
     }
 
+    cap_delete(capref_alpha);
+    slot_free(capref_alpha);
+
     // Create L2 cnode: SLOT_PAGECN
     err = cnode_create_foreign_l2(si->child_rootcn_cap, ROOTCN_SLOT_PAGECN, &si->slot_pagecn_ref);
     if (err_is_fail(err)) {
@@ -148,20 +154,29 @@ static errval_t spawn_setup_lmp_channel(struct spawninfo *si) {
         return err;
     }
 
-    //  Create INITEP and copy into child
+    //  Create INITEP
     struct capref initep = {
         .cnode = si->taskcn_ref,
         .slot = TASKCN_SLOT_INITEP
     };
 
-
+    // Copy lmp channel endpoint into child
     err = cap_copy(initep, si->pi->lc->local_cap);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
 
+    // Allocate new recv slot for lmp channel
     err = lmp_chan_alloc_recv_slot(si->pi->lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Register callback handler
+    struct waitset *default_ws = get_default_waitset();
+    err = lmp_chan_register_recv(si->pi->lc, default_ws, MKCLOSURE(lmp_server_dispatcher, (void *) si->pi->lc));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
@@ -213,7 +228,7 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
         return err;
     }
     
-    // Unmap these frames later
+    // Unmap these frames later PF
     add_parent_mapping(si, si->child_paging_state);
     add_parent_mapping(si, slab_frame_1_addr);
     add_parent_mapping(si, slab_frame_2_addr);
@@ -233,7 +248,7 @@ static errval_t spawn_setup_vspace(struct spawninfo *si) {
     
     // Initialize the child paging state
     err = paging_init_state(si->child_paging_state,
-                            MAX((lvaddr_t) slab_frame_1_addr + slab_frame_1_size, (lvaddr_t) slab_frame_2_addr + slab_frame_2_size),
+                            MAX(MAX((lvaddr_t) slab_frame_1_addr + slab_frame_1_size, (lvaddr_t) slab_frame_2_addr + slab_frame_2_size), VADDR_OFFSET + paging_state_frame_size),
                             si->child_root_pt_cap,
                             get_default_slot_allocator());
     if (err_is_fail(err)) {
@@ -291,7 +306,7 @@ static errval_t elf_allocator_callback(void *state, genvaddr_t base, size_t size
         return err;
     }
 
-    // Add mapping to parent mappings list
+    // Add mapping to parent mappings list PF
     add_parent_mapping(si, *ret);
 
     // Adding offset to target address
@@ -347,7 +362,7 @@ static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
         return err;
     }
 
-    // Add mapping to parent mappings list
+    // Add mapping to parent mappings list PF
     add_parent_mapping(si, si->dcb_addr_parent);
     
     // Map the memory region into child's virtual address space.
@@ -414,7 +429,7 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
         return err;
     }
 
-    // Add mapping to parent mappings list
+    // Add mapping to parent mappings list PF
     add_parent_mapping(si, argspace_addr_parent);
     
     // Map the memory region into child's virtual address space.
@@ -500,13 +515,60 @@ static errval_t spawn_setup_args(struct spawninfo *si, const char *argstring) {
     
 }
 
+static void spawn_recursive_child_l2_tree_walk(struct spawninfo *si, struct pt_cap_tree_node *node, int is_root) {
+    
+    static size_t next_slot = 0;
+    
+    // Reinitialise at root
+    if (is_root) {
+        next_slot = 0;
+    }
+    
+    // Recurse to the left
+    if (node->left != NULL) {
+        spawn_recursive_child_l2_tree_walk(si, node->left, 0);
+    }
+    
+    // Build next capref
+    struct capref next_cap;
+    next_cap.cnode = si->slot_alloc0_ref;
+    next_cap.slot = next_slot++;
+    
+    // Copy the capability
+    errval_t err = cap_copy(next_cap, node->cap);
+    if (err_is_fail(err)) {
+        debug_printf("spawn for %s: %s\n", si->binary_name, err_getstring(err));
+    }
+    assert(err_is_ok(err));
+    
+    // Free the slot in the parent cspace
+    //  FIXME: Make this work to recuparate slots
+    //cap_delete(node->cap);
+    //slot_free(node->cap);
+    
+    // Mutate the capref to reference the child cspace
+    next_cap.cnode.croot = CPTR_ROOTCN;
+    node->cap = next_cap;
+    
+    // Recurse to the right
+    if (node->right != NULL) {
+        spawn_recursive_child_l2_tree_walk(si, node->right, 0);
+    }
+    
+}
+
 static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
  
     errval_t err = SYS_ERR_OK;
 
+    // Complete process info
     si->pi->name = si->binary_name;
     si->pi->dispatcher_cap = &si->child_dispatcher_cap;
 
+    // Register the process
+    process_register(si->pi);
+
+    // Invoking the dispatcher
     err = invoke_dispatcher(si->child_dispatcher_cap,
                             cap_dispatcher,
                             si->child_rootcn_cap,
@@ -523,15 +585,18 @@ static errval_t spawn_cleanup(struct spawninfo *si) {
     errval_t err = SYS_ERR_OK;
 
     struct parent_mapping *i;
-    for (i = &si->parent_mappings; i != NULL; i = i->next) {
+    for (i = si->parent_mappings; i != NULL; i = i->next) {
         err = paging_unmap(get_current_paging_state(), i->addr);
         if (err_is_fail(err)) {
             return err;
         }
+        free(i);
     }
 
-    //cap_delete(si->child_rootcn_cap);
-    //cap_delete(si->child_root_pt_cap);
+    cap_delete(si->child_rootcn_cap);
+    slot_free(si->child_rootcn_cap);
+    cap_delete(si->child_root_pt_cap);
+    slot_free(si->child_root_pt_cap);
 
     return err;
 }
@@ -632,6 +697,9 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
         debug_printf("spawn: Failed setting up the arguments: %s\n", err_getstring(err));
         return err;
     }
+    
+    // Move all L2 cnode capabilities to the cild's cspace
+    spawn_recursive_child_l2_tree_walk(si, si->child_paging_state->l2_tree_root, 1);
     
     // Launch dispatcher 🚀
     err = spawn_invoke_dispatcher(si);

@@ -18,6 +18,8 @@
 #include <aos/morecore.h>
 #include <stdio.h>
 
+#define PRINT_DEBUG 0
+
 typedef void *(*morecore_alloc_func_t)(size_t bytes, size_t *retbytes);
 extern morecore_alloc_func_t sys_morecore_alloc;
 
@@ -26,7 +28,7 @@ extern morecore_free_func_t sys_morecore_free;
 
 // this define makes morecore use an implementation that just has a static
 // 16MB heap.
-#define USE_STATIC_HEAP
+//#define USE_STATIC_HEAP
 
 
 #ifdef USE_STATIC_HEAP
@@ -48,6 +50,12 @@ static char *endp = mymem + HEAP_SIZE;
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
 {
+    // Statically initializing thread mutex
+    static struct thread_mutex mutex = { 0, NULL, NULL, 0 };
+    
+    // Locking thread mutex
+    thread_mutex_lock(&mutex);
+
     struct morecore_state *state = get_morecore_state();
 
     size_t aligned_bytes = ROUND_UP(bytes, sizeof(Header));
@@ -60,6 +68,10 @@ static void *morecore_alloc(size_t bytes, size_t *retbytes)
         aligned_bytes = 0;
     }
     *retbytes = aligned_bytes;
+
+    // Unlock thread mutex
+    thread_mutex_unlock(&mutex);
+
     return ret;
 }
 
@@ -94,8 +106,16 @@ errval_t morecore_init(void)
  */
 static void *morecore_alloc(size_t bytes, size_t *retbytes)
 {
-    USER_PANIC("NYI");
-    return NULL;
+    struct morecore_state *state = get_morecore_state();
+    
+    void *buf;
+    paging_region_map(&state->region, bytes, &buf, retbytes);
+
+#if PRINT_DEBUG
+    debug_printf("MORECORE_ALLOC: %p\n", buf);
+#endif
+
+    return buf;
 }
 
 static void morecore_free(void *base, size_t bytes)
@@ -105,7 +125,17 @@ static void morecore_free(void *base, size_t bytes)
 
 errval_t morecore_init(void)
 {
-    USER_PANIC("NYI");
+    struct morecore_state *state = get_morecore_state();
+    
+    // Initialize a paging region with 512MB of address space
+    paging_region_init(get_current_paging_state(), &state->region, 0x20000000);
+
+#if PRINT_DEBUG
+    debug_printf("MORECORE_INIT: %p\n", state->region.base_addr);
+#endif
+
+    sys_morecore_alloc = morecore_alloc;
+    sys_morecore_free = morecore_free;
     return SYS_ERR_OK;
 }
 

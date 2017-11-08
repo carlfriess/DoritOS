@@ -607,3 +607,33 @@ errval_t elf32_load(uint16_t em_machine, elf_allocator_fn allocate_func,
 
     return SYS_ERR_OK;
 }
+
+/**
+ * \brief Return the first program header of a given type
+ *
+ * \param elfdata   virtual address where the elf image is mapped
+ * \param type      section type (e.g. PT_LOAD)
+ *
+ * \returns pointer to the segment header
+ *          NULL if there is none
+ */
+struct Elf32_Phdr *
+elf32_find_segment_type(void *elfdata, uint32_t type) {
+    struct Elf32_Ehdr *ehdr= (struct Elf32_Ehdr *)elfdata;
+
+    if(!IS_ELF(*ehdr) ||
+       ehdr->e_ident[EI_CLASS] != ELFCLASS32 ||
+       ehdr->e_machine != EM_ARM) {
+        return NULL;
+    }
+
+    void *phdrs_base= (void *)(elfdata + ehdr->e_phoff);
+
+    for(size_t i= 0; i < ehdr->e_phnum; i++) {
+        struct Elf32_Phdr *phdr= phdrs_base + i * ehdr->e_phentsize;
+
+        if(phdr->p_type == type) return phdr;
+    }
+
+    return NULL;
+}

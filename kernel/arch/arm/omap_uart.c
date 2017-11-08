@@ -143,7 +143,7 @@ init_protocol(omap44xx_uart3_t *uart) {
     /* Set the Baud rate divisor for ~115200bps, from a 48MHz clock.
      * We'll set 16x mode, so 115385 ~ 48MHz / (16 * 26). */
     omap44xx_uart3_dlh_clock_msb_wrf(uart, 0);
-    omap44xx_uart3_dll_clock_lsb_wrf(uart, 26);
+    omap44xx_uart3_dll_clock_lsb_wrf(uart, 13);
 
     /* Switch to register operational mode. */
     omap44xx_uart3_lcr_wr(uart, (omap44xx_uart3_lcr_t)0x0000);

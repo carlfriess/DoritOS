@@ -15,6 +15,8 @@
 #ifndef _INIT_SPAWN_H_
 #define _INIT_SPAWN_H_
 
+#include <aos/process.h>
+
 #include "aos/slot_alloc.h"
 #include "aos/paging.h"
 
@@ -36,10 +38,11 @@ struct spawninfo {
     void *got_addr;                     // Address of the global offset table
     genvaddr_t entry_addr;              // Entry address to child program
     void *dcb_addr_parent;              // Address of DCB (parent's vspace)
-    struct parent_mapping parent_mappings;              // Unneeded paging regions
+    struct parent_mapping *parent_mappings;              // Unneeded paging regions
 
     // Child's capabilites
     struct cnoderef taskcn_ref;         // TASKCN
+    struct cnoderef slot_alloc0_ref;    // SLOT_ALLOC0
     struct capref slot_rootcn_cap;      // Root cnode capability
     struct cnoderef slot_pagecn_ref;    // SLOT_PAGECN
     struct capref l1_pt_cap;            // L1 pagetable capability

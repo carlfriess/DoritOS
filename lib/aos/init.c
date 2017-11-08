@@ -24,6 +24,7 @@
 #include <aos/paging.h>
 #include <barrelfish_kpi/domain_params.h>
 #include <aos/lmp.h>
+#include <aos/aos_rpc.h>
 
 #include "threads_priv.h"
 #include "init.h"
@@ -94,8 +95,15 @@ void barrelfish_libc_glue_init(void)
     // XXX: FIXME: Check whether we can use the proper kernel serial, and
     // what we need for that
     // TODO: change these to use the user-space serial driver if possible
-    _libc_terminal_read_func = dummy_terminal_read;
-    _libc_terminal_write_func = syscall_terminal_write;
+
+    if (init_domain) {
+        _libc_terminal_read_func = dummy_terminal_read;
+        _libc_terminal_write_func = syscall_terminal_write;
+    } else {
+        _libc_terminal_read_func = aos_rpc_terminal_read;
+        _libc_terminal_write_func = aos_rpc_terminal_write;
+    }
+
     _libc_exit_func = libc_exit;
     _libc_assert_func = libc_assert;
     /* morecore func is setup by morecore_init() */
@@ -168,7 +176,7 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     /* set init RPC client in our program state */
 
 
-    // Allocate and initialize lmp channel
+    // Allocate lmp channel
     struct lmp_chan *lc = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
 
     // Open channel to messages
@@ -178,17 +186,37 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         return err;
     }
 
-    // Send test message TODO: Change to enum
-    err = lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, cap_selfep, 1);
+    // Allocate recv slot
+    err = lmp_chan_alloc_recv_slot(lc);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
 
-    lmp_client_recv(lc);
+    // Send lmp endpoint to init
+    err = lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, lc->local_cap, LMP_RequestType_Register);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+
+    // Wait on response
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    lmp_client_recv(lc, &cap, &msg);
+    
+    // Initialize RPC state and register it in application's core state
+    struct aos_rpc *aos_rpc_state = malloc(sizeof(struct aos_rpc));
+    if (aos_rpc_state == NULL) {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+    aos_rpc_init(aos_rpc_state, lc);
+    set_init_rpc(aos_rpc_state);
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
+
+    ram_alloc_set(NULL);
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here

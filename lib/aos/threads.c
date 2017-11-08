@@ -31,6 +31,8 @@
 #include "threads_priv.h"
 #include "init.h"
 
+#define SELF_PAGING_WORKS
+
 #if defined(__x86_64__)
 #  include "arch/ldt.h"
 #endif
@@ -1126,7 +1128,7 @@ static int bootstrap_thread(struct spawn_domain_params *params)
 
     // Until we have self-paging, we cannot use the paging-region based thread
     // control block slab allocator, so just run main thread directly
-#if MILESTONE <= 3
+#ifndef SELF_PAGING_WORKS
     // we aren't prepared to run real threads yet
     main_thread(params);
 #else
