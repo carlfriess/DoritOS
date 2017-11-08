@@ -23,11 +23,14 @@
 #include <aos/waitset.h>
 #include <aos/morecore.h>
 #include <aos/paging.h>
+#include <aos/coreboot.h>
 #include <spawn/spawn.h>
+#include <spawn/multiboot.h>
 #include <aos/process.h>
 #include <aos/capabilities.h>
 #include <aos/lmp.h>
 #include <spawn_serv.h>
+#include <elf/elf.h>
 
 #include <mm/mm.h>
 #include "mem_alloc.h"
@@ -44,72 +47,109 @@ static errval_t boot_core(coreid_t core_id) {
 
     struct paging_state *st = get_current_paging_state();
 
-    struct arm_core_data *core_data = malloc(sizeof(struct arm_core_data));
-    if (core_data == NULL)  {
-        return LIB_ERR_MALLOC_FAIL;
-    }
-
-    struct capref process_frame_cap;
-    size_t size = ARM_CORE_DATA_PAGES * BASE_PAGE_SIZE;
-    err = frame_alloc(&process_frame_cap, size, &size);
+    // Allocate frame for relocatable segment
+    struct capref segment_frame_cap;
+    size_t segment_size = 1100 * BASE_PAGE_SIZE;
+    err = frame_alloc(&segment_frame_cap, segment_size, &segment_size);
     if (err_is_fail(err)) {
         return err;
     }
-    core_data->memory_bytes = (uint32_t) size;
 
-    void *process_vaddr = NULL;
-    err = paging_map_frame(st, &process_vaddr, size, process_frame_cap, NULL, NULL);
+    // Map frame for relocatable segment
+    void *segment_vaddr = NULL;
+    err = paging_map_frame(st, &segment_vaddr, segment_size, segment_frame_cap, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
-    core_data->memory_base_start = (uint32_t) process_vaddr;
 
+    // Allocate frame for arm_core_data
+    struct capref core_data_frame_cap;
+    size_t core_data_size = sizeof(struct arm_core_data);
+    err = frame_alloc(&core_data_frame_cap, core_data_size, &core_data_size);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    // Map frame for arm_core_data
+    struct arm_core_data *core_data = NULL;
+    err = paging_map_frame(st, (void **) (&core_data), core_data_size, core_data_frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    // Allocate frame for init process
+    struct capref init_frame_cap;
+    size_t init_size = ARM_CORE_DATA_PAGES * BASE_PAGE_SIZE;
+    err = frame_alloc(&init_frame_cap, init_size, &init_size);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    core_data->memory_bytes = (uint32_t) init_size;
+
+    // Map frame for init process
+    void *init_vaddr = NULL;
+    err = paging_map_frame(st, &init_vaddr, init_size, segment_frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    core_data->memory_base_start = (uint32_t) init_vaddr;
+
+    // Allocate frame for URPC
     struct capref urpc_frame_cap;
-    size = MON_URPC_SIZE;
-    err = frame_alloc(&urpc_frame_cap, size, &size);
+    size_t urpc_size = MON_URPC_SIZE;
+    err = frame_alloc(&urpc_frame_cap, urpc_size, &urpc_size);
     if (err_is_fail(err)) {
         return err;
     }
-    core_data->urpc_frame_size = (uint32_t) size;
+    core_data->urpc_frame_size = (uint32_t) urpc_size;
 
+    // Map frame for URPC
     void *urpc_vaddr = NULL;
-    err = paging_map_frame(st, &urpc_vaddr, size, urpc_frame_cap, NULL, NULL);
+    err = paging_map_frame(st, &urpc_vaddr, urpc_size, urpc_frame_cap, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
     core_data->urpc_frame_base = (uint32_t) urpc_vaddr;
 
-    struct capref kcb_frame_cap;
-    size = OBJSIZE_KCB;
-    err = frame_alloc(&kcb_frame_cap, size, &size);
+    debug_printf("Set up KCB\n");
+
+    // Allocate frame for KCB
+    struct capref kcb_ram_cap;
+    size_t kcb_size = OBJSIZE_KCB;
+    err = ram_alloc(&kcb_ram_cap, kcb_size);
     if (err_is_fail(err)) {
         return err;
     }
 
-    void *kcb_vaddr = NULL;
-    err = paging_map_frame(st, &kcb_vaddr, size, kcb_frame_cap, NULL, NULL);
-    if (err_is_fail(err)) {
-        return err;
-    }
-    core_data->kcb = (lvaddr_t) kcb_vaddr;
+    debug_printf("Retype KCB capability\n");
 
-    struct capref current_kcb_cap = {
-       .cnode = cnode_root,
-       .slot = ROOTCN_SLOT_BSPKCB
-    };
-    err = invoke_kcb_clone(current_kcb_cap, kcb_frame_cap);
+    struct capref kcb_cap;
+    err = slot_alloc(&kcb_cap);
     if (err_is_fail(err)) {
         return err;
     }
 
-    core_data->src_core_id = my_core_id;
+    err = cap_retype(kcb_cap, kcb_ram_cap, 0, ObjType_KernelControlBlock, 0, 1);
+    if (err_is_fail(err)) {
+        return err;
+    }
 
-    debug_printf("ADDR: %p\n", core_data->entry_point);
+    debug_printf("Clone KCB\n");
 
-    struct mem_region *mem = multiboot_find_module(bi, "omap44xx");
+    err = invoke_kcb_clone(kcb_cap, core_data_frame_cap);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    struct mem_region *mem = multiboot_find_module(bi, "cpu_omap44xx");
     if (!mem) {
         return SPAWN_ERR_FIND_MODULE;
     }
+
+    core_data->monitor_module.mod_start = mem->mr_base;
+    core_data->monitor_module.mod_end = mem->mr_base + mem->mrmod_size;
+    core_data->monitor_module.string = mem->mrmod_data;
+    core_data->monitor_module.reserved = mem->mrmod_slot;
 
     // Constructing the capability for the frame containing the ELF image
     struct capref elf_frame = {
@@ -117,17 +157,40 @@ static errval_t boot_core(coreid_t core_id) {
         .slot = mem->mrmod_slot
     };
 
-    void *elf_buf = NULL
-    err = paging_map_frame(st, &elf_buf, mem->mrmod_size, elf_frame, NULL, NULL);
+    void *elf_buf = NULL;
+    err = paging_map_frame_attr(st, &elf_buf, mem->mrmod_size, elf_frame, VREGION_FLAGS_READ, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
 
-    err = load_cpu_relocatable_segment(elf_buf, process_vaddr, lvaddr_t vbase, lvaddr_t text_base, lvaddr_t *got_base);
+    struct frame_identity core_data_identity;
+    err = frame_identify(core_data_frame_cap, &core_data_identity);
     if (err_is_fail(err)) {
         return err;
     }
 
+    struct frame_identity segment_frame_identity;
+    err = frame_identify(segment_frame_cap, &segment_frame_identity);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    err = load_cpu_relocatable_segment(elf_buf, segment_vaddr, segment_frame_identity.base, core_data->kernel_load_base, &core_data->got_base);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+
+    // Cache invalidate and clean
+    sys_armv7_cache_clean_poc(segment_vaddr, segment_vaddr + segment_size);
+    sys_armv7_cache_clean_poc((void *) core_data->memory_base_start, (void *) (core_data->memory_base_start + core_data->memory_bytes));
+    sys_armv7_cache_invalidate(urpc_vaddr, urpc_vaddr + urpc_size);
+
+    debug_printf("Booting Core\n");
+
+    invoke_monitor_spawn_core(1, CPU_ARM7, core_data_identity.base);
+
+    debug_printf("BOOTED\n");
     return err;
 }
 
