@@ -84,15 +84,13 @@ static errval_t boot_core(coreid_t core_id) {
     if (err_is_fail(err)) {
         return err;
     }
-    core_data->memory_bytes = (uint32_t) init_size;
 
     // Map frame for init process
     void *init_vaddr = NULL;
-    err = paging_map_frame(st, &init_vaddr, init_size, segment_frame_cap, NULL, NULL);
+    err = paging_map_frame(st, &init_vaddr, init_size, init_frame_cap, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
-    core_data->memory_base_start = (uint32_t) init_vaddr;
 
     // Allocate frame for URPC
     struct capref urpc_frame_cap;
@@ -101,7 +99,6 @@ static errval_t boot_core(coreid_t core_id) {
     if (err_is_fail(err)) {
         return err;
     }
-    core_data->urpc_frame_size = (uint32_t) urpc_size;
 
     // Map frame for URPC
     void *urpc_vaddr = NULL;
@@ -109,7 +106,6 @@ static errval_t boot_core(coreid_t core_id) {
     if (err_is_fail(err)) {
         return err;
     }
-    core_data->urpc_frame_base = (uint32_t) urpc_vaddr;
 
     debug_printf("Set up KCB\n");
 
@@ -146,10 +142,15 @@ static errval_t boot_core(coreid_t core_id) {
         return SPAWN_ERR_FIND_MODULE;
     }
 
-    core_data->monitor_module.mod_start = mem->mr_base;
-    core_data->monitor_module.mod_end = mem->mr_base + mem->mrmod_size;
-    core_data->monitor_module.string = mem->mrmod_data;
-    core_data->monitor_module.reserved = mem->mrmod_slot;
+    struct mem_region *init_mem = multiboot_find_module(bi, "init");
+    if (!init_mem) {
+        return SPAWN_ERR_FIND_MODULE;
+    }
+
+    core_data->monitor_module.mod_start = init_mem->mr_base;
+    core_data->monitor_module.mod_end = init_mem->mr_base + mem->mrmod_size;
+    core_data->monitor_module.string = init_mem->mrmod_data;
+    core_data->monitor_module.reserved = init_mem->mrmod_slot;
 
     // Constructing the capability for the frame containing the ELF image
     struct capref elf_frame = {
@@ -163,6 +164,7 @@ static errval_t boot_core(coreid_t core_id) {
         return err;
     }
 
+    // Frame Identities
     struct frame_identity core_data_identity;
     err = frame_identify(core_data_frame_cap, &core_data_identity);
     if (err_is_fail(err)) {
@@ -175,18 +177,51 @@ static errval_t boot_core(coreid_t core_id) {
         return err;
     }
 
+    struct frame_identity init_frame_identity;
+    err = frame_identify(init_frame_cap, &init_frame_identity);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    struct frame_identity urpc_frame_identity;
+    err = frame_identify(urpc_frame_cap, &urpc_frame_identity);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    struct frame_identity kcb_frame_identity;
+    err = frame_identify(kcb_cap, &kcb_frame_identity);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    core_data->kcb = kcb_frame_identity.base;
+
+    core_data->memory_base_start = init_frame_identity.base;
+    core_data->memory_bytes = init_frame_identity.bytes;
+
+    core_data->urpc_frame_base = (uint32_t) urpc_frame_identity.base;
+    core_data->urpc_frame_size = (uint32_t) urpc_frame_identity.bytes;
+
+    strcpy(core_data->init_name, "/armv7/sbin/init");
+
     err = load_cpu_relocatable_segment(elf_buf, segment_vaddr, segment_frame_identity.base, core_data->kernel_load_base, &core_data->got_base);
     if (err_is_fail(err)) {
         return err;
     }
 
-
     // Cache invalidate and clean
-    sys_armv7_cache_clean_poc(segment_vaddr, segment_vaddr + segment_size);
-    sys_armv7_cache_clean_poc((void *) core_data->memory_base_start, (void *) (core_data->memory_base_start + core_data->memory_bytes));
-    sys_armv7_cache_invalidate(urpc_vaddr, urpc_vaddr + urpc_size);
+    sys_armv7_cache_clean_poc((void *) ((uint32_t) segment_frame_identity.base), (void *) ((uint32_t) segment_frame_identity.base + (uint32_t) segment_frame_identity.bytes));
+    sys_armv7_cache_invalidate((void *) ((uint32_t) segment_frame_identity.base), (void *) ((uint32_t) segment_frame_identity.base + (uint32_t) segment_frame_identity.bytes));
+    sys_armv7_cache_clean_poc((void *) ((uint32_t) init_frame_identity.base), (void *) ((uint32_t) init_frame_identity.base + (uint32_t) init_frame_identity.bytes));
+    sys_armv7_cache_invalidate((void *) ((uint32_t) init_frame_identity.base), (void *) ((uint32_t) init_frame_identity.base + (uint32_t) init_frame_identity.bytes));
+    sys_armv7_cache_invalidate((void *) ((uint32_t) urpc_frame_identity.base), (void *) ((uint32_t) urpc_frame_identity.base + (uint32_t) urpc_frame_identity.bytes));
 
     debug_printf("Booting Core\n");
+
+    core_data->cmdline = init_mem->mr_base + init_mem->mrmod_data;
+
+//    debug_printf("Core Data: %p\n", core_data->entry_point);
 
     invoke_monitor_spawn_core(1, CPU_ARM7, core_data_identity.base);
 
