@@ -80,7 +80,8 @@ static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *r
     struct thread *td = thread_self();
 
     // Check for stack overflow (address in guarded page)
-    uint8_t is_stack_overflow = addr <= td->stack - BASE_PAGE_SIZE && addr > td->stack;
+    //  FIXME: Remove `2 * `
+    uint8_t is_stack_overflow = addr <= td->stack + 2 * BASE_PAGE_SIZE && addr > td->stack;
     if (is_stack_overflow) {
         USER_PANIC("Stack overflow.. Sad.");
     }
@@ -131,7 +132,7 @@ static void pagefault_handler(int subtype, void *addr, arch_registers_state_t *r
 void exception_handler(enum exception_type type, int subtype, void *addr, arch_registers_state_t *regs, arch_registers_fpu_state_t *fpuregs) {
 
 #if PRINT_DEBUG_EXCEPTION
-    debug_printf("/////// EXCEPTION!: %p\n", addr);
+    debug_printf("////// EXCEPTION!: %p\n", addr);
 #endif
 
     switch (type) {
@@ -143,6 +144,10 @@ void exception_handler(enum exception_type type, int subtype, void *addr, arch_r
             USER_PANIC("Unhandled exception type!");
             break;
     }
+    
+#if PRINT_DEBUG_EXCEPTION
+    debug_printf("\\\\\\\\\\\\ EXCEPTION HANDLED!: %p\n", addr);
+#endif
 
 }
 

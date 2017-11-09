@@ -99,8 +99,35 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     // Initializing message
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     
-    // Receive the response
-    lmp_client_recv(chan->lc, retcap, &msg);
+    do {
+    
+        // Receive the response
+        lmp_client_recv(chan->lc, retcap, &msg);
+        
+        // Check if we got the message we wanted
+        if (msg.words[0] != LMP_RequestType_MemoryAlloc) {
+            
+            debug_printf("Got ack of type: %d\n", msg.words[0]);
+            
+            // Request resend
+            err = lmp_chan_send9(chan->lc, LMP_SEND_FLAGS_DEFAULT, *retcap, LMP_RequestType_Echo, msg.words[0], msg.words[1], msg.words[2], msg.words[3], msg.words[4], msg.words[5], msg.words[6], msg.words[7]);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+                return err;
+            }
+            
+            // Allocate a new slot if necessary
+            if (!capref_is_null(*retcap)) {
+                err = lmp_chan_alloc_recv_slot(chan->lc);
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                    return err;
+                }
+            }
+            
+        }
+    
+    } while (msg.words[0] != LMP_RequestType_MemoryAlloc);
     
     // Allocate recv slot
     err = lmp_chan_alloc_recv_slot(chan->lc);
