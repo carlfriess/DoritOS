@@ -138,6 +138,21 @@ static errval_t test_basic_rpc(void)
     return SYS_ERR_OK;
 }
 
+static void eat_stack(int i){
+
+    volatile uint32_t buf[8];
+    
+    if (i % 10 == 0 || i > 1000) {
+        debug_printf("CTR: %d, %p\n", i, buf);
+    }
+    for (int j = 0; j < 8; j++) {
+        printf("%x", buf[j]);
+    }
+
+    eat_stack(++i);
+    
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -157,6 +172,9 @@ int main(int argc, char *argv[])
         debug_printf("%d\n", i);
         slot_alloc(&cap);
     }
+    
+    eat_stack(0);
+    
     err = aos_rpc_init(&init_rpc, aos_rpc_get_init_channel()->lc);
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "could not initialize RPC\n");
