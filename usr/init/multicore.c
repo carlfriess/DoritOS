@@ -14,6 +14,7 @@
 #include <spawn/multiboot.h>
 #include <aos/capabilities.h>
 #include <elf/elf.h>
+#include <machine/atomic.h>
 
 
 #define PRINT_DEBUG 0
@@ -23,7 +24,7 @@ extern struct bootinfo *bi;
 
 
 // Boot the the core with the ID core_id
-errval_t boot_core(coreid_t core_id, void **urpc_frame) {
+errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     
     errval_t err;
     
@@ -83,7 +84,7 @@ errval_t boot_core(coreid_t core_id, void **urpc_frame) {
     }
     
     // Map frame for URPC
-    err = paging_map_frame(st, urpc_frame, urpc_size, urpc_frame_cap, NULL, NULL);
+    err = paging_map_frame(st, &urpc_chan->buf, urpc_size, urpc_frame_cap, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
@@ -174,8 +175,7 @@ errval_t boot_core(coreid_t core_id, void **urpc_frame) {
         return err;
     }
     
-    struct frame_identity urpc_frame_identity;
-    err = frame_identify(urpc_frame_cap, &urpc_frame_identity);
+    err = frame_identify(urpc_frame_cap, &urpc_chan->fi);
     if (err_is_fail(err)) {
         return err;
     }
@@ -194,8 +194,8 @@ errval_t boot_core(coreid_t core_id, void **urpc_frame) {
     core_data->memory_bytes = init_frame_identity.bytes;
     
     // Set the location of the URPC frame
-    core_data->urpc_frame_base = (uint32_t) urpc_frame_identity.base;
-    core_data->urpc_frame_size = (uint32_t) urpc_frame_identity.bytes;
+    core_data->urpc_frame_base = (uint32_t) urpc_chan->fi.base;
+    core_data->urpc_frame_size = (uint32_t) urpc_chan->fi.bytes;
     
     // Set the name of the init process
     strcpy(core_data->init_name, "init");
@@ -213,7 +213,30 @@ errval_t boot_core(coreid_t core_id, void **urpc_frame) {
     sys_armv7_cache_invalidate((void *) ((uint32_t) segment_frame_identity.base), (void *) ((uint32_t) segment_frame_identity.base + (uint32_t) segment_frame_identity.bytes));
     sys_armv7_cache_clean_poc((void *) ((uint32_t) init_frame_identity.base), (void *) ((uint32_t) init_frame_identity.base + (uint32_t) init_frame_identity.bytes));
     sys_armv7_cache_invalidate((void *) ((uint32_t) init_frame_identity.base), (void *) ((uint32_t) init_frame_identity.base + (uint32_t) init_frame_identity.bytes));
-    sys_armv7_cache_invalidate((void *) ((uint32_t) urpc_frame_identity.base), (void *) ((uint32_t) urpc_frame_identity.base + (uint32_t) urpc_frame_identity.bytes));
+    sys_armv7_cache_invalidate((void *) ((uint32_t) urpc_chan->fi.base), (void *) ((uint32_t) urpc_chan->fi.base + (uint32_t) urpc_chan->fi.bytes));
+    
+    // Get bootinfo frame capability
+    struct capref bi_cap = {
+        .cnode = {
+            .croot = CPTR_ROOTCN,
+            .cnode = CPTR_TASKCN_BASE,
+            .level = CNODE_TYPE_OTHER
+        },
+        .slot = TASKCN_SLOT_BOOTINFO
+    };
+    
+    // Write the frame identity to the sending buffer
+    struct frame_identity *bi_frame_identity = (struct frame_identity *) urpc_get_send_to_app_buf(urpc_chan);
+    err = frame_identify(bi_cap, bi_frame_identity);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    debug_printf("%llx\n\n\n\n", bi_frame_identity->base);
+    
+    // Send the message to the app cpu
+    urpc_send_to_app(urpc_chan);
+    
     
 #if PRINT_DEBUG
     debug_printf("Booting core\n");
@@ -233,35 +256,49 @@ errval_t boot_core(coreid_t core_id, void **urpc_frame) {
 /* MARK: - ========== URPC ========== */
 
 // Initialize a URPC frame
-void urpc_frame_init(void *urpc_frame) {
+void urpc_frame_init(struct urpc_chan *chan) {
     
     // Set the counters to zero
-    (*(uint32_t *)(urpc_frame + URPC_APP_RX_OFFSET)) = 0;
-    (*(uint32_t *)(urpc_frame + URPC_APP_TX_OFFSET)) = 0;
+    (*(uint32_t *)(chan->buf + URPC_APP_RX_OFFSET)) = 0;
+    (*(uint32_t *)(chan->buf + URPC_APP_TX_OFFSET)) = 0;
     
 }
 
 // On BSP: Get pointer to the memory region, where to write the message to be sent
-void *get_urpc_send_to_app_buf(void *urpc_frame) {
-    return urpc_frame + URPC_BSP_TX_OFFSET + sizeof(uint32_t);
+void *urpc_get_send_to_app_buf(struct urpc_chan *chan) {
+    return chan->buf + URPC_BSP_TX_OFFSET + sizeof(uint32_t);
 }
 
 // On APP: Get pointer to the memory region, where to write the message to be sent
-void *get_urpc_send_to_bsp_buf(void *urpc_frame) {
-    return urpc_frame + URPC_APP_TX_OFFSET + sizeof(uint32_t);
+void *urpc_get_send_to_bsp_buf(struct urpc_chan *chan) {
+    return chan->buf + URPC_APP_TX_OFFSET + sizeof(uint32_t);
 }
 
 // Send a message to the APP cpu
-void send_to_app(void *urpc_frame) {
+void urpc_send_to_app(struct urpc_chan *chan) {
     
-    (*(uint32_t *)(urpc_frame + URPC_BSP_TX_OFFSET))++;
+    // Increment the counter
+    (*(uint32_t *)(chan->buf + URPC_BSP_TX_OFFSET))++;
+    
+    // Memory barrier
+    dmb();
+    
+    // Clean (flush) the cache
+    sys_armv7_cache_clean_poc((void *) ((uint32_t) chan->fi.base + URPC_BSP_TX_OFFSET), (void *) ((uint32_t) chan->fi.base + URPC_BSP_TX_OFFSET + URPC_BSP_TX_SIZE));
     
 }
 
 // Send a message to the BSP cpu
-void send_to_bsp(void *urpc_frame) {
+void urpc_send_to_bsp(struct urpc_chan *chan) {
     
-    (*(uint32_t *)(urpc_frame + URPC_APP_TX_OFFSET))++;
+    // Increment the counter
+    (*(uint32_t *)(chan->buf + URPC_APP_TX_OFFSET))++;
+    
+    // Memory barrier
+    dmb();
+    
+    // Clean (flush) the cache
+    sys_armv7_cache_clean_poc((void *) ((uint32_t) chan->fi.base + URPC_APP_TX_OFFSET), (void *) ((uint32_t) chan->fi.base + URPC_APP_TX_OFFSET + URPC_APP_TX_SIZE));
     
 }
 
