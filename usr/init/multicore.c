@@ -16,7 +16,11 @@
 #include <elf/elf.h>
 
 
+#define PRINT_DEBUG 0
+
+
 extern struct bootinfo *bi;
+
 
 // Boot the the core with the ID core_id
 errval_t boot_core(coreid_t core_id, void **urpc_frame) {
@@ -84,7 +88,9 @@ errval_t boot_core(coreid_t core_id, void **urpc_frame) {
         return err;
     }
     
+#if PRINT_DEBUG
     debug_printf("Set up KCB\n");
+#endif
     
     // Allocate RAM for KCB
     struct capref kcb_ram_cap;
@@ -94,7 +100,9 @@ errval_t boot_core(coreid_t core_id, void **urpc_frame) {
         return err;
     }
     
+#if PRINT_DEBUG
     debug_printf("Retype KCB capability\n");
+#endif
     
     // Retype the RAM cap into a KCB cap
     struct capref kcb_cap;
@@ -107,7 +115,9 @@ errval_t boot_core(coreid_t core_id, void **urpc_frame) {
         return err;
     }
     
+#if PRINT_DEBUG
     debug_printf("Clone KCB\n");
+#endif
     
     // Clone the current KCB and core data
     err = invoke_kcb_clone(kcb_cap, core_data_frame_cap);
@@ -205,11 +215,16 @@ errval_t boot_core(coreid_t core_id, void **urpc_frame) {
     sys_armv7_cache_invalidate((void *) ((uint32_t) init_frame_identity.base), (void *) ((uint32_t) init_frame_identity.base + (uint32_t) init_frame_identity.bytes));
     sys_armv7_cache_invalidate((void *) ((uint32_t) urpc_frame_identity.base), (void *) ((uint32_t) urpc_frame_identity.base + (uint32_t) urpc_frame_identity.bytes));
     
-    debug_printf("Booting Core\n");
+#if PRINT_DEBUG
+    debug_printf("Booting core\n");
+#endif
     
     // Boot the code
     invoke_monitor_spawn_core(1, CPU_ARM7, core_data_identity.base);
     
-    debug_printf("BOOTED\n");
+#if PRINT_DEBUG
+    debug_printf("Booted core\n");
+#endif
+    
     return err;
 }
