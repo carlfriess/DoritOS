@@ -41,7 +41,7 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 
-static errval_t boot_core(coreid_t core_id) {
+static errval_t boot_core(coreid_t core_id, void **urpc_frame) {
 
     errval_t err;
 
@@ -101,11 +101,11 @@ static errval_t boot_core(coreid_t core_id) {
     }
 
     // Map frame for URPC
-//    void *urpc_vaddr = NULL;
-//    err = paging_map_frame(st, &urpc_vaddr, urpc_size, urpc_frame_cap, NULL, NULL);
-//    if (err_is_fail(err)) {
-//        return err;
-//    }
+    void *urpc_vaddr = NULL;
+    err = paging_map_frame(st, urpc_frame, urpc_size, urpc_frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
 
     debug_printf("Set up KCB\n");
 
@@ -211,9 +211,7 @@ static errval_t boot_core(coreid_t core_id) {
     core_data->urpc_frame_size = (uint32_t) urpc_frame_identity.bytes;
 
     // Set the name of the init process
-    debug_printf(">> %s\n", core_data->init_name);
     strcpy(core_data->init_name, "init");
-    debug_printf(">> %s\n", core_data->init_name);
     
     // Set the commandline for the new kernel
     core_data->cmdline = init_mem->mr_base + init_mem->mrmod_data;
@@ -232,8 +230,6 @@ static errval_t boot_core(coreid_t core_id) {
 
     debug_printf("Booting Core\n");
     
-//    debug_printf("Core Data: %p\n", core_data->entry_point);
-
     // Boot the code
     invoke_monitor_spawn_core(1, CPU_ARM7, core_data_identity.base);
 
