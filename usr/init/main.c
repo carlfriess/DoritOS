@@ -148,7 +148,7 @@ static errval_t boot_core(coreid_t core_id) {
     }
 
     core_data->monitor_module.mod_start = init_mem->mr_base;
-    core_data->monitor_module.mod_end = init_mem->mr_base + mem->mrmod_size;
+    core_data->monitor_module.mod_end = init_mem->mr_base + init_mem->mrmod_size;
     core_data->monitor_module.string = init_mem->mrmod_data;
     core_data->monitor_module.reserved = init_mem->mrmod_slot;
 
@@ -203,7 +203,7 @@ static errval_t boot_core(coreid_t core_id) {
     core_data->urpc_frame_base = (uint32_t) urpc_frame_identity.base;
     core_data->urpc_frame_size = (uint32_t) urpc_frame_identity.bytes;
 
-    strcpy(core_data->init_name, "/armv7/sbin/init");
+    strcpy(core_data->init_name, "init");
 
     err = load_cpu_relocatable_segment(elf_buf, segment_vaddr, segment_frame_identity.base, core_data->kernel_load_base, &core_data->got_base);
     if (err_is_fail(err)) {
