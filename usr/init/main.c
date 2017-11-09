@@ -37,6 +37,7 @@ struct bootinfo *bi;
 int main(int argc, char *argv[])
 {
     errval_t err;
+    
 
     /* Set the core id in the disp_priv struct */
     err = invoke_kernel_get_core_id(cap_kernel, &my_core_id);
@@ -48,17 +49,23 @@ int main(int argc, char *argv[])
        printf(" %s", argv[i]);
     }
     printf("\n");
+    
+    
+    // MARK: - RAM setup
 
     /* First argument contains the bootinfo location, if it's not set */
     bi = (struct bootinfo*)strtol(argv[1], NULL, 10);
     if (!bi) {
         assert(my_core_id > 0);
     }
-
+    
     err = initialize_ram_alloc();
     if(err_is_fail(err)){
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
+    
+    
+    // MARK: - LMP setup
 
     // Retype init's dispatcher capability to create an endpoint
     err = cap_retype(cap_selfep, cap_dispatcher, 0, ObjType_EndPoint, 0, 1);
@@ -69,37 +76,25 @@ int main(int argc, char *argv[])
     
     // Setting aos_ram_free function pointer to ram_free_handler in lmp.c
     register_ram_free_handler(aos_ram_free);
-    
-    // Run tests:
-
-    // Milestone 1:
-    //run_all_m1_tests();
-
-    // Milestone 2:
-    //run_all_m2_tests();
 
     // Initialize the spawn server
     spawn_serv_init();
 
-    if (!my_core_id) {
-
-        void *urpc_frame;
-        err = boot_core(1, &urpc_frame);
+    
+    // MARK: - Multicore
+    
+    // If on the BSP, boot the other core
+    if (my_core_id == 0) {
+        struct urpc_chan chan;
+        err = boot_core(1, &chan);
         if (err_is_fail(err)) {
             debug_printf("Failed booting core: %s\n", err_getstring(err));
         }
-
     }
 
-    // Allocate spawninfo
-//    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-
-    // Spawn memeater
-//    spawn_load_by_name("memeater", si);
-
-    // Free the process info for memeater
-//    free(si);
-
+    
+    // MARK: - Message handling
+    
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
