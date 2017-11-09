@@ -228,3 +228,40 @@ errval_t boot_core(coreid_t core_id, void **urpc_frame) {
     
     return err;
 }
+
+
+/* MARK: - ========== URPC ========== */
+
+// Initialize a URPC frame
+void urpc_frame_init(void *urpc_frame) {
+    
+    // Set the counters to zero
+    (*(uint32_t *)(urpc_frame + URPC_APP_RX_OFFSET)) = 0;
+    (*(uint32_t *)(urpc_frame + URPC_APP_TX_OFFSET)) = 0;
+    
+}
+
+// On BSP: Get pointer to the memory region, where to write the message to be sent
+void *get_urpc_send_to_app_buf(void *urpc_frame) {
+    return urpc_frame + URPC_BSP_TX_OFFSET + sizeof(uint32_t);
+}
+
+// On APP: Get pointer to the memory region, where to write the message to be sent
+void *get_urpc_send_to_bsp_buf(void *urpc_frame) {
+    return urpc_frame + URPC_APP_TX_OFFSET + sizeof(uint32_t);
+}
+
+// Send a message to the APP cpu
+void send_to_app(void *urpc_frame) {
+    
+    (*(uint32_t *)(urpc_frame + URPC_BSP_TX_OFFSET))++;
+    
+}
+
+// Send a message to the BSP cpu
+void send_to_bsp(void *urpc_frame) {
+    
+    (*(uint32_t *)(urpc_frame + URPC_APP_TX_OFFSET))++;
+    
+}
+
