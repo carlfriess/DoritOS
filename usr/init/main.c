@@ -47,7 +47,7 @@ static errval_t boot_core(coreid_t core_id) {
 
     struct paging_state *st = get_current_paging_state();
 
-    // Allocate frame for relocatable segment
+    // Allocate frame for relocatable segment of kernel
     struct capref segment_frame_cap;
     size_t segment_size = 1100 * BASE_PAGE_SIZE;
     err = frame_alloc(&segment_frame_cap, segment_size, &segment_size);
@@ -55,7 +55,7 @@ static errval_t boot_core(coreid_t core_id) {
         return err;
     }
 
-    // Map frame for relocatable segment
+    // Map frame for relocatable segment of kernel
     void *segment_vaddr = NULL;
     err = paging_map_frame(st, &segment_vaddr, segment_size, segment_frame_cap, NULL, NULL);
     if (err_is_fail(err)) {
@@ -86,11 +86,11 @@ static errval_t boot_core(coreid_t core_id) {
     }
 
     // Map frame for init process
-    void *init_vaddr = NULL;
-    err = paging_map_frame(st, &init_vaddr, init_size, init_frame_cap, NULL, NULL);
-    if (err_is_fail(err)) {
-        return err;
-    }
+//    void *init_vaddr = NULL;
+//    err = paging_map_frame(st, &init_vaddr, init_size, init_frame_cap, NULL, NULL);
+//    if (err_is_fail(err)) {
+//        return err;
+//    }
 
     // Allocate frame for URPC
     struct capref urpc_frame_cap;
@@ -101,15 +101,15 @@ static errval_t boot_core(coreid_t core_id) {
     }
 
     // Map frame for URPC
-    void *urpc_vaddr = NULL;
-    err = paging_map_frame(st, &urpc_vaddr, urpc_size, urpc_frame_cap, NULL, NULL);
-    if (err_is_fail(err)) {
-        return err;
-    }
+//    void *urpc_vaddr = NULL;
+//    err = paging_map_frame(st, &urpc_vaddr, urpc_size, urpc_frame_cap, NULL, NULL);
+//    if (err_is_fail(err)) {
+//        return err;
+//    }
 
     debug_printf("Set up KCB\n");
 
-    // Allocate frame for KCB
+    // Allocate RAM for KCB
     struct capref kcb_ram_cap;
     size_t kcb_size = OBJSIZE_KCB;
     err = ram_alloc(&kcb_ram_cap, kcb_size);
@@ -119,12 +119,12 @@ static errval_t boot_core(coreid_t core_id) {
 
     debug_printf("Retype KCB capability\n");
 
+    // Retype the RAM cap into a KCB cap
     struct capref kcb_cap;
     err = slot_alloc(&kcb_cap);
     if (err_is_fail(err)) {
         return err;
     }
-
     err = cap_retype(kcb_cap, kcb_ram_cap, 0, ObjType_KernelControlBlock, 0, 1);
     if (err_is_fail(err)) {
         return err;
@@ -132,21 +132,25 @@ static errval_t boot_core(coreid_t core_id) {
 
     debug_printf("Clone KCB\n");
 
+    // Clone the current KCB and core data
     err = invoke_kcb_clone(kcb_cap, core_data_frame_cap);
     if (err_is_fail(err)) {
         return err;
     }
 
+    // Find the cpu_omap44xx module
     struct mem_region *mem = multiboot_find_module(bi, "cpu_omap44xx");
     if (!mem) {
         return SPAWN_ERR_FIND_MODULE;
     }
 
+    // Find the init module
     struct mem_region *init_mem = multiboot_find_module(bi, "init");
     if (!init_mem) {
         return SPAWN_ERR_FIND_MODULE;
     }
 
+    // Assign init module as monitor module in core data
     core_data->monitor_module.mod_start = init_mem->mr_base;
     core_data->monitor_module.mod_end = init_mem->mr_base + init_mem->mrmod_size;
     core_data->monitor_module.string = init_mem->mrmod_data;
@@ -164,7 +168,7 @@ static errval_t boot_core(coreid_t core_id) {
         return err;
     }
 
-    // Frame Identities
+    // Get frame identities
     struct frame_identity core_data_identity;
     err = frame_identify(core_data_frame_cap, &core_data_identity);
     if (err_is_fail(err)) {
@@ -195,22 +199,31 @@ static errval_t boot_core(coreid_t core_id) {
         return err;
     }
 
+    // Set the location of the KCB
     core_data->kcb = kcb_frame_identity.base;
 
+    // Set memory region for loading init
     core_data->memory_base_start = init_frame_identity.base;
     core_data->memory_bytes = init_frame_identity.bytes;
 
+    // Set the location of the URPC frame
     core_data->urpc_frame_base = (uint32_t) urpc_frame_identity.base;
     core_data->urpc_frame_size = (uint32_t) urpc_frame_identity.bytes;
 
+    // Set the name of the init process
+    debug_printf(">> %s\n", core_data->init_name);
     strcpy(core_data->init_name, "init");
+    debug_printf(">> %s\n", core_data->init_name);
+    
+    // Set the commandline for the new kernel
+    core_data->cmdline = init_mem->mr_base + init_mem->mrmod_data;
 
     err = load_cpu_relocatable_segment(elf_buf, segment_vaddr, segment_frame_identity.base, core_data->kernel_load_base, &core_data->got_base);
     if (err_is_fail(err)) {
         return err;
     }
 
-    // Cache invalidate and clean
+    // Clean and invalidate cache
     sys_armv7_cache_clean_poc((void *) ((uint32_t) segment_frame_identity.base), (void *) ((uint32_t) segment_frame_identity.base + (uint32_t) segment_frame_identity.bytes));
     sys_armv7_cache_invalidate((void *) ((uint32_t) segment_frame_identity.base), (void *) ((uint32_t) segment_frame_identity.base + (uint32_t) segment_frame_identity.bytes));
     sys_armv7_cache_clean_poc((void *) ((uint32_t) init_frame_identity.base), (void *) ((uint32_t) init_frame_identity.base + (uint32_t) init_frame_identity.bytes));
@@ -218,11 +231,10 @@ static errval_t boot_core(coreid_t core_id) {
     sys_armv7_cache_invalidate((void *) ((uint32_t) urpc_frame_identity.base), (void *) ((uint32_t) urpc_frame_identity.base + (uint32_t) urpc_frame_identity.bytes));
 
     debug_printf("Booting Core\n");
-
-    core_data->cmdline = init_mem->mr_base + init_mem->mrmod_data;
-
+    
 //    debug_printf("Core Data: %p\n", core_data->entry_point);
 
+    // Boot the code
     invoke_monitor_spawn_core(1, CPU_ARM7, core_data_identity.base);
 
     debug_printf("BOOTED\n");
