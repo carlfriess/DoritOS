@@ -686,7 +686,7 @@ void arm_kernel_startup(void)
         else
             name= APP_INIT_MODULE_NAME;
 
-        init_dcb = spawn_app_init(core_data, APP_INIT_MODULE_NAME);
+        init_dcb = spawn_app_init(core_data, name);
 
         uint32_t irq = gic_get_active_irq();
         gic_ack_irq(irq);

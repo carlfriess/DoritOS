@@ -9,6 +9,10 @@
 #ifndef SPAWN_SERV_H
 #define SPAWN_SERV_H
 
-errval_t spawn_serv_init(void);
+#include <aos/urpc.h>
+
+errval_t spawn_serv_handler(char *name, coreid_t coreid, domainid_t *pid);
+
+errval_t spawn_serv_init(struct urpc_chan *chan);
 
 #endif /* SPAWN_SERV_H */
