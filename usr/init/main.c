@@ -33,6 +33,7 @@
 
 coreid_t my_core_id;
 struct bootinfo *bi;
+struct urpc_chan urpc_chan; // URPC channel for communicating with the other CPU
 
 int main(int argc, char *argv[])
 {
@@ -51,13 +52,79 @@ int main(int argc, char *argv[])
     printf("\n");
     
     
-    // MARK: - RAM setup
-
-    /* First argument contains the bootinfo location, if it's not set */
-    bi = (struct bootinfo*)strtol(argv[1], NULL, 10);
-    if (!bi) {
-        assert(my_core_id > 0);
+    // MARK: - Set up URPC (on APP)
+    if (my_core_id != 0) {
+        
+        // URPC frame capability
+        struct capref urpc_frame_cap = {
+            .cnode = {
+                .croot = CPTR_ROOTCN,
+                .cnode = CPTR_TASKCN_BASE,
+                .level = CNODE_TYPE_OTHER
+            },
+            .slot = TASKCN_SLOT_MON_URPC
+        };
+        
+        err = frame_identify(urpc_frame_cap, &urpc_chan.fi);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "initialize urpc (1)");
+        }
+        
+        err = paging_map_frame(get_current_paging_state(), (void **) &urpc_chan.buf, URPC_BUF_SIZE, urpc_frame_cap, NULL, NULL);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err, "initialize urpc (2)");
+        }
+        
     }
+    
+    
+    // MARK: - Get Bootinfo
+    if (my_core_id == 0) {  // BSP
+        
+        /* First argument contains the bootinfo location, if it's not set */
+        bi = (struct bootinfo*)strtol(argv[1], NULL, 10);
+        if (!bi) {
+            assert(my_core_id > 0);
+        }
+        
+    }
+    else {  // APP
+        
+        // Receive the bootinfo frame identity from the BSP
+        struct frame_identity *bi_frame_identity = (struct frame_identity *) urpc_recv_from_bsp(&urpc_chan);
+        
+        // Make sure we recieved it
+        assert(bi_frame_identity != NULL);
+        
+        debug_printf("%llx\n\n\n\n", bi_frame_identity->base);
+        
+        // Bootinfo frame capability
+        struct capref bi_frame_cap = {
+            .cnode = {
+                .croot = CPTR_ROOTCN,
+                .cnode = CPTR_TASKCN_BASE,
+                .level = CNODE_TYPE_OTHER
+            },
+            .slot = TASKCN_SLOT_BOOTINFO
+        };
+        
+        err = frame_forge(bi_frame_cap,
+                          bi_frame_identity->base,
+                          bi_frame_identity->bytes,
+                          my_core_id);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "bootinfo frame forge");
+        }
+        
+        err = paging_map_frame(get_current_paging_state(), (void **) &bi, bi_frame_identity->bytes, bi_frame_cap, NULL, NULL);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err, "bootinfo frame map");
+        }
+        
+    }
+    
+    
+    // MARK: - RAM setup
     
     err = initialize_ram_alloc();
     if(err_is_fail(err)){
@@ -85,8 +152,7 @@ int main(int argc, char *argv[])
     
     // If on the BSP, boot the other core
     if (my_core_id == 0) {
-        struct urpc_chan chan;
-        err = boot_core(1, &chan);
+        err = boot_core(1, &urpc_chan);
         if (err_is_fail(err)) {
             debug_printf("Failed booting core: %s\n", err_getstring(err));
         }

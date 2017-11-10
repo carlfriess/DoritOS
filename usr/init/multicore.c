@@ -77,7 +77,7 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     
     // Allocate frame for URPC
     struct capref urpc_frame_cap;
-    size_t urpc_size = MON_URPC_SIZE;
+    size_t urpc_size = URPC_BUF_SIZE;
     err = frame_alloc(&urpc_frame_cap, urpc_size, &urpc_size);
     if (err_is_fail(err)) {
         return err;
@@ -88,6 +88,9 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     if (err_is_fail(err)) {
         return err;
     }
+    
+    // Initialize the URPC channel
+    urpc_chan_init(urpc_chan);
     
 #if PRINT_DEBUG
     debug_printf("Set up KCB\n");
@@ -255,8 +258,8 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
 
 /* MARK: - ========== URPC ========== */
 
-// Initialize a URPC frame
-void urpc_frame_init(struct urpc_chan *chan) {
+// Initialize a URPC channel
+void urpc_chan_init(struct urpc_chan *chan) {
     
     // Set the counters to zero
     (*(uint32_t *)(chan->buf + URPC_APP_RX_OFFSET)) = 0;
@@ -299,6 +302,54 @@ void urpc_send_to_bsp(struct urpc_chan *chan) {
     
     // Clean (flush) the cache
     sys_armv7_cache_clean_poc((void *) ((uint32_t) chan->fi.base + URPC_APP_TX_OFFSET), (void *) ((uint32_t) chan->fi.base + URPC_APP_TX_OFFSET + URPC_APP_TX_SIZE));
+    
+}
+
+// Check for and receive a message from the APP cpu (non-blocking)
+void *urpc_recv_from_app(struct urpc_chan *chan) {
+    
+    static uint32_t last_counter = 0;
+    
+    // Invalidate the cache
+    sys_armv7_cache_invalidate((void *) ((uint32_t) chan->fi.base + URPC_BSP_RX_OFFSET), (void *) ((uint32_t) chan->fi.base + URPC_BSP_RX_OFFSET + URPC_BSP_RX_SIZE));
+    
+    // Memory barrier
+    dmb();
+    
+    // Check if a new message has been sent
+    if (*(uint32_t *)(chan->buf + URPC_BSP_RX_OFFSET) == last_counter + 1) {
+        
+        last_counter++;
+        
+        return chan->buf + URPC_BSP_RX_OFFSET + sizeof(uint32_t);
+        
+    }
+    
+    return NULL;
+    
+}
+
+// Check for and receive a message from the BSP cpu (non-blocking)
+void *urpc_recv_from_bsp(struct urpc_chan *chan) {
+    
+    static uint32_t last_counter = 0;
+    
+    // Invalidate the cache
+    sys_armv7_cache_invalidate((void *) ((uint32_t) chan->fi.base + URPC_APP_RX_OFFSET), (void *) ((uint32_t) chan->fi.base + URPC_APP_RX_OFFSET + URPC_APP_RX_SIZE));
+    
+    // Memory barrier
+    dmb();
+    
+    // Check if a new message has been sent
+    if (*(uint32_t *)(chan->buf + URPC_APP_RX_OFFSET) == last_counter + 1) {
+        
+        last_counter++;
+        
+        return chan->buf + URPC_APP_RX_OFFSET + sizeof(uint32_t);
+        
+    }
+    
+    return NULL;
     
 }
 

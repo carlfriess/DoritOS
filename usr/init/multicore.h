@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <aos/aos.h>
 
-#define URPC_BUF_SIZE       BASE_PAGE_SIZE
+#define URPC_BUF_SIZE       MON_URPC_SIZE
 
 #define URPC_APP_RX_OFFSET  0
 #define URPC_APP_RX_SIZE    URPC_BUF_SIZE/2
@@ -32,7 +32,7 @@ struct urpc_chan {
 errval_t boot_core(coreid_t core_id, struct urpc_chan *chan);
 
 // Initialize a URPC frame
-void urpc_frame_init(struct urpc_chan *chan);
+void urpc_chan_init(struct urpc_chan *chan);
 
 // On BSP: Get pointer to the memory region, where to write the message to be sent
 void *urpc_get_send_to_app_buf(struct urpc_chan *chan);
@@ -45,5 +45,12 @@ void urpc_send_to_app(struct urpc_chan *chan);
 
 // Send a message to the BSP cpu
 void urpc_send_to_bsp(struct urpc_chan *chan);
+
+// Check for and receive a message from the APP cpu (non-blocking)
+void *urpc_recv_from_app(struct urpc_chan *chan);
+
+// Check for and receive a message from the BSP cpu (non-blocking)
+void *urpc_recv_from_bsp(struct urpc_chan *chan);
+
 
 #endif /* multicore_h */
