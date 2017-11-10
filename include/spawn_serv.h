@@ -11,6 +11,8 @@
 
 #include <aos/urpc.h>
 
+errval_t spawn_serv_handler(char *name, coreid_t coreid, domainid_t *pid);
+
 errval_t spawn_serv_init(struct urpc_chan *chan);
 
 #endif /* SPAWN_SERV_H */

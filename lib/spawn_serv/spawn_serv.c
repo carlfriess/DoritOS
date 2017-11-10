@@ -29,12 +29,18 @@ static errval_t request_remote_spawn(char *name, coreid_t coreid, domainid_t *pi
     // Set pid of spawned process
     *pid = *(domainid_t *) (recv_buf + sizeof(enum urpc_msg_type) + sizeof(errval_t));
     
-    // Return error code
-    return *(errval_t *) (recv_buf + sizeof(enum urpc_msg_type));
+    // Returned error code
+    errval_t err = *(errval_t *) (recv_buf + sizeof(enum urpc_msg_type));
+    
+    // Ack the received message
+    urpc_ack_recv(urpc_chan);
+    
+    // Return status
+    return err;
     
 }
 
-static errval_t spawn_serv_handler(char *name, coreid_t coreid, domainid_t *pid) {
+errval_t spawn_serv_handler(char *name, coreid_t coreid, domainid_t *pid) {
     errval_t err;
     
     

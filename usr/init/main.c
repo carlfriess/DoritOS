@@ -182,11 +182,42 @@ int main(int argc, char *argv[])
     struct waitset *default_ws = get_default_waitset();
     while (true) {
 
-        err = event_dispatch(default_ws);
-        if (err_is_fail(err)) {
+        // Dispatch pending LMP events
+        err = event_dispatch_non_block(default_ws);
+        if (err_is_fail(err) && err != LIB_ERR_NO_EVENT) {
             DEBUG_ERR(err, "in event_dispatch");
             abort();
         }
+        
+        // Check if message received form different core
+        void *recv_buf = urpc_recv(&urpc_chan);
+        if (recv_buf != NULL) {
+
+            if (*(enum urpc_msg_type *) recv_buf == URPC_MessageType_Spawn) {
+                
+                domainid_t pid;
+                
+                // Pass message to spawn server
+                errval_t ret_err = spawn_serv_handler((char *) (recv_buf + sizeof(enum urpc_msg_type)), my_core_id, &pid);
+        
+                // Acknowledge urpc message
+                urpc_ack_recv(&urpc_chan);
+        
+                // Composing message
+                void *send_buf = urpc_get_send_buf(&urpc_chan);
+                *(enum urpc_msg_type *) send_buf = URPC_MessageType_SpawnAck;
+                *(errval_t *) (send_buf + sizeof(enum urpc_msg_type)) = ret_err;
+                *(domainid_t *) (send_buf + sizeof(enum urpc_msg_type) + sizeof(errval_t)) = pid;
+                
+                // Send message back to requesting core
+                urpc_send(&urpc_chan);
+                
+            }
+            else {
+                USER_PANIC("Unknown message type\n");
+            }
+        }
+        
     }
 
     return EXIT_SUCCESS;
