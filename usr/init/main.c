@@ -142,6 +142,9 @@ int main(int argc, char *argv[])
             DEBUG_ERR(err, "forging module caps");
         }
         
+        // We are done with the URPC message, so ack it.
+        urpc_ack_recv_from_bsp(&urpc_chan);
+        
     }
     
     

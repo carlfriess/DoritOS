@@ -7,6 +7,7 @@
 #define multicore_h
 
 #include <stdio.h>
+#include <stdint.h>
 #include <aos/aos.h>
 
 #define URPC_BUF_SIZE       MON_URPC_SIZE
@@ -25,6 +26,11 @@
 struct urpc_chan {
     struct frame_identity fi;
     void *buf;
+};
+
+struct urpc_buf_header {
+    uint32_t seq_counter;
+    uint32_t ack_counter;
 };
 
 struct module_frame_identity {
@@ -66,6 +72,12 @@ void *urpc_recv_from_app(struct urpc_chan *chan);
 
 // Check for and receive a message from the BSP cpu (non-blocking)
 void *urpc_recv_from_bsp(struct urpc_chan *chan);
+
+// Acknowledge the last message received from the APP
+void urpc_ack_recv_from_app(struct urpc_chan *chan);
+
+// Acknowledge the last message received from the BSP
+void urpc_ack_recv_from_bsp(struct urpc_chan *chan);
 
 
 #endif /* multicore_h */
