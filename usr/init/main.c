@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
     
     // MARK: - RAM setup
     
-    err = initialize_ram_alloc();
+    err = initialize_ram_alloc(my_core_id);
     if(err_is_fail(err)){
         DEBUG_ERR(err, "initialize_ram_alloc");
     }
