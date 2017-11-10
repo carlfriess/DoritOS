@@ -179,7 +179,8 @@ enum lmp_request_type {
     LMP_RequestType_NameLookup,
     LMP_RequestType_PidDiscover,
     LMP_RequestType_TerminalGetChar,
-    LMP_RequestType_TerminalPutChar
+    LMP_RequestType_TerminalPutChar,
+    LMP_RequestType_Echo
 };
 
 typedef errval_t (*lmp_server_spawn_handler)(char *name, coreid_t coreid, domainid_t *pid);

@@ -386,8 +386,8 @@ static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
     arch_registers_state_t *disabled_area = dispatcher_get_disabled_save_area(dcb_addr_parent_handle);
     
     // Set dispatcher information
-    disp_gen->core_id = 0;  // TODO: Core id of the dispatcher
-    disp->udisp = (lvaddr_t) dcb_addr_child;   // Address of dispatcher frame in child's vspace
+    disp_gen->core_id = disp_get_core_id();     // Core id of the dispatcher
+    disp->udisp = (lvaddr_t) dcb_addr_child;    // Address of dispatcher frame in child's vspace
     disp->disabled = 1;     // Start the dispatcher in disabled mode
     disp->fpu_trap = 1;     // Trap on fpr instructions
     strncpy(disp->name, si->binary_name, DISP_NAME_LEN);    // Name of dispatcher

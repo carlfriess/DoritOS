@@ -9,7 +9,7 @@
 #define PRINT_DEBUG 0
 
 
-/* ========== Server ========== */
+/* MARK: - ========== Server ========== */
 
 void lmp_server_dispatcher(void *arg) {
 
@@ -64,6 +64,7 @@ void lmp_server_dispatcher(void *arg) {
             free(string);
             break;
             
+            
         case LMP_RequestType_Register:
 #if PRINT_DEBUG
             debug_printf("Registration Message!\n");
@@ -114,17 +115,39 @@ void lmp_server_dispatcher(void *arg) {
             
         case LMP_RequestType_TerminalGetChar:
 #if PRINT_DEBUG
-            debug_printf("Terminal Put Message!\n");
+            debug_printf("Terminal Get Message!\n");
 #endif
             lmp_server_terminal_getchar(lc);
             break;
+            
+            
         case LMP_RequestType_TerminalPutChar:
 #if PRINT_DEBUG
             debug_printf("Terminal Message!\n");
 #endif
             lmp_server_terminal_putchar(lc, msg.words[1]);
             break;
-
+            
+            
+        case LMP_RequestType_Echo:
+#if PRINT_DEBUG
+            debug_printf("Echo Message!\n");
+#endif
+            do {
+                err = lmp_chan_send8(lc,
+                               LMP_SEND_FLAGS_DEFAULT,
+                               cap,
+                               msg.words[0],
+                               msg.words[1],
+                               msg.words[2],
+                               msg.words[3],
+                               msg.words[4],
+                               msg.words[5],
+                               msg.words[6],
+                               msg.words[7]);
+            } while (err_is_fail(err));
+            break;
+            
             
         default:
 #if PRINT_DEBUG
@@ -312,11 +335,11 @@ void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
     errval_t err = SYS_ERR_OK;
     sys_print(&c, sizeof(char));
 
-    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
+    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalPutChar, err, c);
 }
 
 
-/* ========== Client ========== */
+/* MARK: - ========== Client ========== */
 
 // Blocking call for receiving messages
 void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_msg *msg) {
@@ -346,7 +369,7 @@ void lmp_client_wait(void *arg) {
 }
 
 
-/* ========== Aux ========== */
+/* MARK: - ========== Aux ========== */
 
 
 // Send a string on a specific channel (automatically select protocol)

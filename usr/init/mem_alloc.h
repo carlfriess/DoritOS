@@ -21,7 +21,7 @@
 extern struct bootinfo *bi;
 extern struct mm aos_mm;
 
-errval_t initialize_ram_alloc(void);
+errval_t initialize_ram_alloc(coreid_t my_core_id);
 errval_t aos_ram_free(struct capref cap, size_t bytes);
 
 #endif /* _INIT_MEM_ALLOC_H_ */

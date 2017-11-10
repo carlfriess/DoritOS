@@ -30,7 +30,7 @@ errval_t aos_ram_free(struct capref cap, size_t bytes)
  * \brief Setups a local memory allocator for init to use till the memory server
  * is ready to be used.
  */
-errval_t initialize_ram_alloc(void)
+errval_t initialize_ram_alloc(coreid_t my_core_id)
 {
     errval_t err;
 
@@ -71,13 +71,35 @@ errval_t initialize_ram_alloc(void)
         .slot = 0,
     };
 
+    // Search for a non-consumed memory region
     for (int i = 0; i < bi->regions_length; i++) {
+        
         if (bi->regions[i].mr_type == RegionType_Empty) {
-            err = mm_add(&aos_mm, mem_cap, bi->regions[i].mr_base, bi->regions[i].mr_bytes);
-            if (err_is_ok(err)) {
-                mem_avail += bi->regions[i].mr_bytes;
-            } else {
-                DEBUG_ERR(err, "Warning: adding RAM region %d (%p/%zu) FAILED", i, bi->regions[i].mr_base, bi->regions[i].mr_bytes);
+            
+            if (bi->regions[i].mr_consumed == false) {
+                
+                if (my_core_id != 0) {
+                    
+                    err = ram_forge(mem_cap,
+                                    bi->regions[i].mr_base,
+                                    bi->regions[i].mr_bytes,
+                                    my_core_id);
+                    if (err_is_fail(err)) {
+                        USER_PANIC_ERR(err, "Can't forge RAM capability");
+                    }
+                    
+                }
+                
+                err = mm_add(&aos_mm, mem_cap, bi->regions[i].mr_base, bi->regions[i].mr_bytes);
+                if (err_is_ok(err)) {
+                    mem_avail += bi->regions[i].mr_bytes;
+                } else {
+                    DEBUG_ERR(err, "Warning: adding RAM region %d (%p/%zu) FAILED", i, bi->regions[i].mr_base, bi->regions[i].mr_bytes);
+                }
+                
+                bi->regions[i].mr_consumed = true;
+                break;
+                
             }
 
             // *** Disabled the slot preallocator ***
@@ -89,7 +111,9 @@ errval_t initialize_ram_alloc(void)
             }*/
 
             mem_cap.slot++;
+            
         }
+        
     }
     debug_printf("Added %"PRIu64" MB of physical memory.\n", mem_avail / 1024 / 1024);
 
