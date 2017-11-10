@@ -96,8 +96,6 @@ int main(int argc, char *argv[])
         // Make sure we recieved it
         assert(bi_frame_identity != NULL);
         
-        debug_printf("%llx\n\n\n\n", bi_frame_identity->base);
-        
         // Bootinfo frame capability
         struct capref bi_frame_cap = {
             .cnode = {

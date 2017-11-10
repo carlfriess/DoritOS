@@ -235,8 +235,6 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
         return err;
     }
     
-    debug_printf("%llx\n\n\n\n", bi_frame_identity->base);
-    
     // Send the message to the app cpu
     urpc_send_to_app(urpc_chan);
     
