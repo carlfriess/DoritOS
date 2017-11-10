@@ -38,6 +38,7 @@ struct urpc_chan urpc_chan; // URPC channel for communicating with the other CPU
 int main(int argc, char *argv[])
 {
     errval_t err;
+    struct urpc_bi_caps *bi_frame_identities = NULL;
     
 
     /* Set the core id in the disp_priv struct */
@@ -89,14 +90,14 @@ int main(int argc, char *argv[])
         
     }
     else {  // APP
-        
+       
         // Receive the bootinfo frame identity from the BSP
-        struct frame_identity *bi_frame_identity = (struct frame_identity *) urpc_recv_from_bsp(&urpc_chan);
+        bi_frame_identities = (struct urpc_bi_caps *) urpc_recv_from_bsp(&urpc_chan);
         
         // Make sure we recieved it
-        assert(bi_frame_identity != NULL);
+        assert(bi_frame_identities != NULL);
         
-        // Bootinfo frame capability
+        // Forge bootinfo frame capability
         struct capref bi_frame_cap = {
             .cnode = {
                 .croot = CPTR_ROOTCN,
@@ -105,17 +106,22 @@ int main(int argc, char *argv[])
             },
             .slot = TASKCN_SLOT_BOOTINFO
         };
-        
         err = frame_forge(bi_frame_cap,
-                          bi_frame_identity->base,
-                          bi_frame_identity->bytes,
+                          bi_frame_identities->bootinfo.base,
+                          bi_frame_identities->bootinfo.bytes,
                           my_core_id);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "bootinfo frame forge");
         }
         
-        err = paging_map_frame(get_current_paging_state(), (void **) &bi, bi_frame_identity->bytes, bi_frame_cap, NULL, NULL);
-        if(err_is_fail(err)){
+        // Map the bootinfo frame
+        err = paging_map_frame(get_current_paging_state(),
+                               (void **) &bi,
+                               bi_frame_identities->bootinfo.bytes,
+                               bi_frame_cap,
+                               NULL,
+                               NULL);
+        if (err_is_fail(err)) {
             DEBUG_ERR(err, "bootinfo frame map");
         }
         
@@ -123,10 +129,19 @@ int main(int argc, char *argv[])
     
     
     // MARK: - RAM setup
-    
     err = initialize_ram_alloc(my_core_id);
     if(err_is_fail(err)){
         DEBUG_ERR(err, "initialize_ram_alloc");
+    }
+    
+    // MARK: - Forge module caps (on APP)
+    if (my_core_id != 0) {
+        
+        err = forge_module_caps(bi_frame_identities, my_core_id);
+        if(err_is_fail(err)){
+            DEBUG_ERR(err, "forging module caps");
+        }
+        
     }
     
     

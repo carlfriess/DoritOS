@@ -32,7 +32,7 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     
     // Allocate frame for relocatable segment of kernel
     struct capref segment_frame_cap;
-    size_t segment_size = 1100 * BASE_PAGE_SIZE;
+    size_t segment_size = ARM_CORE_DATA_PAGES * BASE_PAGE_SIZE;
     err = frame_alloc(&segment_frame_cap, segment_size, &segment_size);
     if (err_is_fail(err)) {
         return err;
@@ -218,6 +218,9 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     sys_armv7_cache_invalidate((void *) ((uint32_t) init_frame_identity.base), (void *) ((uint32_t) init_frame_identity.base + (uint32_t) init_frame_identity.bytes));
     sys_armv7_cache_invalidate((void *) ((uint32_t) urpc_chan->fi.base), (void *) ((uint32_t) urpc_chan->fi.base + (uint32_t) urpc_chan->fi.bytes));
     
+    // Get buffer for message to send
+    struct urpc_bi_caps *msg = (struct urpc_bi_caps *) urpc_get_send_to_app_buf(urpc_chan);
+    
     // Get bootinfo frame capability
     struct capref bi_cap = {
         .cnode = {
@@ -228,12 +231,50 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
         .slot = TASKCN_SLOT_BOOTINFO
     };
     
-    // Write the frame identity to the sending buffer
-    struct frame_identity *bi_frame_identity = (struct frame_identity *) urpc_get_send_to_app_buf(urpc_chan);
-    err = frame_identify(bi_cap, bi_frame_identity);
+    // Write the bootinfo frame identity to the sending buffer
+    err = frame_identify(bi_cap, &msg->bootinfo);
     if (err_is_fail(err)) {
         return err;
     }
+    
+    // Get mmstrings frame capability
+    struct capref mmstrings_cap = {
+        .cnode = cnode_module,
+        .slot = 0
+    };
+    
+    // Write the mmstrings frame identity to the sending buffer
+    err = frame_identify(mmstrings_cap, &msg->mmstrings_cap);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Write the module frame identites to the sending buffer
+    size_t index = 0;
+    for (int i = 0; i < bi->regions_length; i++) {
+        
+        if (bi->regions[i].mr_type == RegionType_Module) {
+            
+            msg->modules[index].slot = bi->regions[i].mrmod_slot;
+            
+            // Constructing the capability reference
+            struct capref frame_cap = {
+                .cnode = cnode_module,
+                .slot = bi->regions[i].mrmod_slot
+            };
+            
+            // Write the frame identitiy
+            err = frame_identify(frame_cap, &msg->modules[index].fi);
+            if (err_is_fail(err)) {
+                return err;
+            }
+            
+            index++;
+            
+        }
+        
+    }
+    msg->num_modules = index;
     
     // Send the message to the app cpu
     urpc_send_to_app(urpc_chan);
@@ -251,6 +292,70 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
 #endif
     
     return err;
+}
+
+// Forge all the needed module and RAM capabilites based on bootinfo
+errval_t forge_module_caps(struct urpc_bi_caps *bi_frame_identities, coreid_t my_core_id) {
+    
+    assert(bi_frame_identities != NULL);
+    
+    errval_t err = SYS_ERR_OK;
+    
+    // Create modules cnode
+    struct capref cnode_module_ref = {
+        .cnode = {
+            .croot = CPTR_ROOTCN,
+            .cnode = 0,
+            .level = CNODE_TYPE_ROOT
+        },
+        .slot = ROOTCN_SLOT_MODULECN
+    };
+    cslot_t retslots;
+    err = cnode_create_raw(cnode_module_ref,
+                           &cnode_module,
+                           ObjType_L2CNode,
+                           L2_CNODE_SLOTS,
+                           &retslots);
+    assert(retslots == L2_CNODE_SLOTS);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Forge the modules string area capability
+    struct capref mmstrings_cap = {
+        .cnode = cnode_module,
+        .slot = 0
+    };
+    err = frame_forge(mmstrings_cap,
+                      bi_frame_identities->mmstrings_cap.base,
+                      bi_frame_identities->mmstrings_cap.bytes,
+                      my_core_id);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    // Iterate the received frame identities
+    for (int i = 0; i < bi_frame_identities->num_modules; i++) {
+
+        // Construct the capability reference
+        struct capref frame_cap = {
+            .cnode = cnode_module,
+            .slot = bi_frame_identities->modules[i].slot
+        };
+        
+        // Forge a frame for the received frame identity
+        err = frame_forge(frame_cap,
+                          bi_frame_identities->modules[i].fi.base,
+                          bi_frame_identities->modules[i].fi.bytes,
+                          my_core_id);
+        if (err_is_fail(err)) {
+            return err;
+        }
+
+    }
+    
+    return err;
+
 }
 
 

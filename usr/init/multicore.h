@@ -27,9 +27,24 @@ struct urpc_chan {
     void *buf;
 };
 
+struct module_frame_identity {
+    struct frame_identity fi;
+    cslot_t slot;
+};
+
+struct urpc_bi_caps {
+    struct frame_identity bootinfo;
+    struct frame_identity mmstrings_cap;
+    size_t num_modules;
+    struct module_frame_identity modules[];
+};
+
 
 // Boot the the core with the ID core_id
 errval_t boot_core(coreid_t core_id, struct urpc_chan *chan);
+
+// Forge all the needed module and RAM capabilites based on bootinfo
+errval_t forge_module_caps(struct urpc_bi_caps *bi_frame_identities, coreid_t my_core_id);
 
 // Initialize a URPC frame
 void urpc_chan_init(struct urpc_chan *chan);
