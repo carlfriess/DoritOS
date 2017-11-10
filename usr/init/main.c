@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
     register_ram_free_handler(aos_ram_free);
 
     // Initialize the spawn server
-    spawn_serv_init();
+    spawn_serv_init(&urpc_chan);
 
     
     // MARK: - Multicore
