@@ -173,6 +173,19 @@ int main(int argc, char *argv[])
             debug_printf("Failed booting core: %s\n", err_getstring(err));
         }
     }
+    
+    if (my_core_id == 1) {
+        
+        // Allocate spawninfo
+        struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+        
+        // Spawn memeater
+        spawn_load_by_name("memeater", si);
+        
+        // Free the process info for memeater
+        free(si);
+        
+    }
 
     
     // MARK: - Message handling
