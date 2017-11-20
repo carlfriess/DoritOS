@@ -37,9 +37,6 @@ errval_t urpc_send_one(struct urpc_chan *chan, void *buf, size_t size,
     // Get the correct URPC buffer
     struct urpc_buf *tx_buf = chan->buf + chan->buf_select;
     
-    // Set the index of the next slot to use for sending
-    chan->tx_counter = (chan->tx_counter + 1) % URPC_NUM_SLOTS;
-    
     // Make sure there is space in the ring buffer and wait otherwise
     while (tx_buf->slots[chan->tx_counter].valid) ;
     
@@ -51,11 +48,18 @@ errval_t urpc_send_one(struct urpc_chan *chan, void *buf, size_t size,
     tx_buf->slots[chan->tx_counter].msg_type = msg_type;
     tx_buf->slots[chan->tx_counter].last = last;
     
-    // Memory and instruction barrier
+    // Memory barrier
     dmb();
     
     // Mark the message as valid
     tx_buf->slots[chan->tx_counter].valid = 1;
+    
+    // Memory barrier
+    //  TODO: Is this necessary?
+    dmb();
+    
+    // Set the index of the next slot to use for sending
+    chan->tx_counter = (chan->tx_counter + 1) % URPC_NUM_SLOTS;
     
     return SYS_ERR_OK;
     
@@ -76,7 +80,7 @@ errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
                             buf,
                             msg_size,
                             msg_type,
-                            msg_size <= URPC_SLOT_DATA_BYTES);
+                            size <= URPC_SLOT_DATA_BYTES);
         if (err_is_fail(err)) {
             return err;
         }
@@ -108,16 +112,16 @@ errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
     *last = rx_buf->slots[chan->rx_counter].last;
 
     // Memory barrier
-    //dmb();
-    
-    // Set the index of the next slot to read
-    chan->rx_counter = (chan->rx_counter + 1) % URPC_NUM_SLOTS;
-    
-    // Memory and instruction barrier
     dmb();
     
     // Mark the message as invalid
     rx_buf->slots[chan->rx_counter].valid = 0;
+
+    // Memory barrier
+    dmb();
+    
+    // Set the index of the next slot to read
+    chan->rx_counter = (chan->rx_counter + 1) % URPC_NUM_SLOTS;
     
     return SYS_ERR_OK;
     
@@ -158,7 +162,10 @@ errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
         }
         
         // Receive the next message
-        err = urpc_recv_one(chan, *buf, &this_msg_type, &last);
+        err = urpc_recv_one(chan,
+                            *buf + *size - URPC_SLOT_DATA_BYTES,
+                            &this_msg_type,
+                            &last);
         if (err == LIB_ERR_NO_UMP_MSG) {
             continue;
         }
