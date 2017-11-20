@@ -56,6 +56,9 @@ int main(int argc, char *argv[])
     // MARK: - Set up URPC (on APP)
     if (my_core_id != 0) {
         
+        // Initialize the URPC channel
+        urpc_chan_init(&urpc_chan, URPC_APP_BUF_SELECT);
+        
         // URPC frame capability
         struct capref urpc_frame_cap = {
             .cnode = {

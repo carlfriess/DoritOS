@@ -71,6 +71,9 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     //        return err;
     //    }
     
+    // Initialize the URPC channel
+    urpc_chan_init(urpc_chan, URPC_BSP_BUF_SELECT);
+    
     // Allocate frame for URPC
     struct capref urpc_frame_cap;
     size_t urpc_size = URPC_BUF_SIZE;
@@ -84,9 +87,6 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     if (err_is_fail(err)) {
         return err;
     }
-    
-    // Initialize the URPC channel
-    urpc_chan_init(urpc_chan, URPC_BSP_BUF_SELECT);
     
 #if PRINT_DEBUG
     debug_printf("Set up KCB\n");
