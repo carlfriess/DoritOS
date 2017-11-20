@@ -199,33 +199,34 @@ int main(int argc, char *argv[])
             abort();
         }
         
-        // Check if message received form different core
-        void *recv_buf = urpc_recv(&urpc_chan);
-        if (recv_buf != NULL) {
+        // Check if a message was received form different core
+        void *msg;
+        size_t msg_size;
+        urpc_msg_type_t msg_type;
+        err = urpc_recv(&urpc_chan, &msg, &msg_size, &msg_type);
+        if (err_is_ok(err)) {
 
-            if (*(enum urpc_msg_type *) recv_buf == URPC_MessageType_Spawn) {
+            if (msg_type == URPC_MessageType_Spawn) {
                 
-                domainid_t pid;
+                struct urpc_spaw_response res;
                 
                 // Pass message to spawn server
-                errval_t ret_err = spawn_serv_handler((char *) (recv_buf + sizeof(enum urpc_msg_type)), my_core_id, &pid);
-        
-                // Acknowledge urpc message
-                urpc_ack_recv(&urpc_chan);
-        
-                // Composing message
-                void *send_buf = urpc_get_send_buf(&urpc_chan);
-                *(enum urpc_msg_type *) send_buf = URPC_MessageType_SpawnAck;
-                *(errval_t *) (send_buf + sizeof(enum urpc_msg_type)) = ret_err;
-                *(domainid_t *) (send_buf + sizeof(enum urpc_msg_type) + sizeof(errval_t)) = pid;
+                res.err = spawn_serv_handler((char *) msg, my_core_id, &res.pid);
                 
-                // Send message back to requesting core
-                urpc_send(&urpc_chan);
+                // Send response back to requesting core
+                urpc_send(&urpc_chan,
+                          (void *) &res,
+                          sizeof(struct urpc_spaw_response),
+                          URPC_MessageType_SpawnAck);
                 
             }
             else {
                 USER_PANIC("Unknown message type\n");
             }
+            
+        }
+        else if (err != LIB_ERR_NO_UMP_MSG) {
+            DEBUG_ERR(err, "in urpc_recv");
         }
         
     }
