@@ -95,9 +95,16 @@ int main(int argc, char *argv[])
     else {  // APP
        
         // Receive the bootinfo frame identity from the BSP
-        bi_frame_identities = (struct urpc_bi_caps *) urpc_recv_from_bsp(&urpc_chan);
+        size_t recv_size;
+        urpc_msg_type_t msg_type;
+        err = urpc_recv(&urpc_chan,
+                        (struct urpc_bi_caps *) &bi_frame_identities,
+                        &recv_size,
+                        &msg_type);
         
         // Make sure we recieved it
+        assert(err_is_ok(err));
+        assert(msg_type == URPC_MessageType_Bootinfo);
         assert(bi_frame_identities != NULL);
         
         // Forge bootinfo frame capability
@@ -145,8 +152,8 @@ int main(int argc, char *argv[])
             DEBUG_ERR(err, "forging module caps");
         }
         
-        // We are done with the URPC message, so ack it.
-        urpc_ack_recv_from_bsp(&urpc_chan);
+        // We are done with the URPC message, so free it.
+        free(bi_frame_identities);
         
     }
     
