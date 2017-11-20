@@ -79,6 +79,11 @@ struct urpc_bi_caps {
     struct module_frame_identity modules[];
 };
 
+struct urpc_spaw_response {
+    errval_t err;
+    domainid_t pid;
+};
+
 
 // Initialize a URPC frame
 void urpc_chan_init(struct urpc_chan *chan, uint8_t buf_select);
