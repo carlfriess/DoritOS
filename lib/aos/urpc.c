@@ -71,10 +71,12 @@ errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
         
         size_t msg_size = MIN(size, URPC_SLOT_DATA_BYTES);
         
-        err = urpc_send(chan,
-                        buf,
-                        msg_type,
-                        msg_size < URPC_SLOT_DATA_BYTES);
+        // Send fragment of entire message
+        err = urpc_send_one(chan,
+                            buf,
+                            msg_size,
+                            msg_type,
+                            msg_size <= URPC_SLOT_DATA_BYTES);
         if (err_is_fail(err)) {
             return err;
         }
