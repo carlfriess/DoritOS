@@ -9,31 +9,34 @@ static struct urpc_chan *urpc_chan;
 
 static errval_t request_remote_spawn(char *name, coreid_t coreid, domainid_t *pid) {
     
-    // Get message buffer
-    void *send_buf = urpc_get_send_buf(urpc_chan);
-    
-    // Set message type to spawn request
-    *(enum urpc_msg_type *) send_buf = URPC_MessageType_Spawn;
-    send_buf += sizeof(enum urpc_msg_type);
-    
-    // Copy name to message buffer
-    strcpy((char *) send_buf, name);
+    errval_t err = SYS_ERR_OK;
     
     // Send request to spawn server on other core
-    urpc_send(urpc_chan);
- 
+    err = urpc_send(urpc_chan, name, strlen(name) + 1, URPC_MessageType_Spawn);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
     // Waiting for response
-    void *recv_buf;
-    while (!(recv_buf = urpc_recv(urpc_chan)) || *(enum urpc_msg_type *) recv_buf != URPC_MessageType_SpawnAck);
+    size_t retsize;
+    urpc_msg_type_t msg_type;
+    
+    struct urpc_spaw_response *recv_buf;
+
+    // Receive response of spawn server and save it in recv_buf
+    err = urpc_recv(urpc_chan, (void **) &recv_buf, &retsize, &msg_type);
+    
+    // TODO: Handle incorrect URPC_MessageType gracefully
+    assert(msg_type == URPC_MessageType_SpawnAck);
     
     // Set pid of spawned process
-    *pid = *(domainid_t *) (recv_buf + sizeof(enum urpc_msg_type) + sizeof(errval_t));
+    *pid = recv_buf->pid;
     
     // Returned error code
-    errval_t err = *(errval_t *) (recv_buf + sizeof(enum urpc_msg_type));
+    err = recv_buf->err;
     
-    // Ack the received message
-    urpc_ack_recv(urpc_chan);
+    // Free memory of recv_buf
+    free(recv_buf);
     
     // Return status
     return err;
@@ -43,7 +46,7 @@ static errval_t request_remote_spawn(char *name, coreid_t coreid, domainid_t *pi
 errval_t spawn_serv_handler(char *name, coreid_t coreid, domainid_t *pid) {
     errval_t err;
     
-    
+    // Check if spawn request for this core
     if (coreid != disp_get_core_id()) {
         
         return request_remote_spawn(name, coreid, pid);
