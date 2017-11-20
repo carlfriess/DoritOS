@@ -86,7 +86,7 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     }
     
     // Initialize the URPC channel
-    urpc_chan_init(urpc_chan);
+    urpc_chan_init(urpc_chan, URPC_BSP_BUF_SELECT);
     
 #if PRINT_DEBUG
     debug_printf("Set up KCB\n");
