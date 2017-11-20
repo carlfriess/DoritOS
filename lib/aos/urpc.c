@@ -55,9 +55,9 @@ errval_t urpc_send_one(struct urpc_chan *chan, void *buf, size_t size,
     dmb();
     
     // Mark the message as valid
-    tx_buf->slots[next_slot_index].valid = 1;
+    tx_buf->slots[chan->tx_counter].valid = 1;
     
-    return ERR_SYS_OK;
+    return SYS_ERR_OK;
     
 }
 
@@ -65,7 +65,7 @@ errval_t urpc_send_one(struct urpc_chan *chan, void *buf, size_t size,
 errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
                    urpc_msg_type_t msg_type) {
     
-    errval_t err = ERR_SYS_OK;
+    errval_t err = SYS_ERR_OK;
     
     while (size > 0) {
         
@@ -101,7 +101,7 @@ errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
     }
     
     // Copy data from the slot
-    memcpy(*buf, rx_buf->slots[chan->rx_counter].data, URPC_SLOT_DATA_BYTES);
+    memcpy(buf, rx_buf->slots[chan->rx_counter].data, URPC_SLOT_DATA_BYTES);
     *msg_type = rx_buf->slots[chan->rx_counter].msg_type;
     *last = rx_buf->slots[chan->rx_counter].last;
 
@@ -115,9 +115,9 @@ errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
     dmb();
     
     // Mark the message as invalid
-    tx_buf->slots[next_slot_index].valid = 0;
+    rx_buf->slots[chan->rx_counter].valid = 0;
     
-    return ERR_SYS_OK;
+    return SYS_ERR_OK;
     
 }
 
@@ -127,18 +127,17 @@ errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
     
     errval_t err = SYS_ERR_OK;
     
-    urpc_msg_type_t msg_type;
     uint8_t last;
     
     // Allocate memory for the first message
     *size = URPC_SLOT_DATA_BYTES;
-    *buf = malloc(msg_size);
+    *buf = malloc(*size);
     if (*buf == NULL) {
         return LIB_ERR_MALLOC_FAIL;
     }
     
     // Check that we have received an initial message
-    err = urpc_recv_one(chan, *buf, &msg_type, &last);
+    err = urpc_recv_one(chan, *buf, msg_type, &last);
     if (err_is_fail(err)) {
         free(*buf);
         return err;
@@ -151,7 +150,7 @@ errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
         
         // Allocate more space for the next message
         *size += URPC_SLOT_DATA_BYTES;
-        *buf = realloc(*buf, msg_size);
+        *buf = realloc(*buf, *size);
         if (*buf == NULL) {
             return LIB_ERR_MALLOC_FAIL;
         }
@@ -167,7 +166,7 @@ errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
         }
         
         // Check the message types are consisten
-        assert(this_msg_type == msg_type);
+        assert(this_msg_type == *msg_type);
         
     }
     

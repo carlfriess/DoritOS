@@ -89,7 +89,7 @@ errval_t urpc_send_one(struct urpc_chan *chan, void *buf, size_t size,
 
 // Send a buffer on the URPC channel
 errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
-                   urpc_msg_type_t msg_type)
+                   urpc_msg_type_t msg_type);
 
 // Receive a buffer of URPC_SLOT_DATA_BYTES bytes on the URPC channel
 errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
