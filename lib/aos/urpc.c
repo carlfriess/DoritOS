@@ -3,6 +3,7 @@
 //  DoritOS
 //
 
+#include <string.h>
 
 #include <aos/capabilities.h>
 #include <machine/atomic.h>
@@ -10,21 +11,168 @@
 #include "aos/urpc.h"
 
 // Initialize a URPC channel
-void urpc_chan_init(struct urpc_chan *chan) {
+void urpc_chan_init(struct urpc_chan *chan, uint8_t buf_select) {
     
-    // Get the headers
-    struct urpc_buf_header *rx_header = (struct urpc_buf_header *) (chan->buf + URPC_BSP_RX_OFFSET);
-    struct urpc_buf_header *tx_header = (struct urpc_buf_header *) (chan->buf + URPC_BSP_TX_OFFSET);
+    // Set buffer selector
+    assert(buf_select < 2);
+    chan->buf_select = buf_select;
     
     // Set the counters to zero
-    rx_header->seq_counter = 0;
-    rx_header->ack_counter = 0;
-    tx_header->seq_counter = 0;
-    tx_header->ack_counter = 0;
+    chan->tx_counter = 0;
+    chan->rx_counter = 0;
+    chan->ack_counter = 0;
     
 }
 
-// On BSP: Get pointer to the memory region, where to write the message to be sent
+// Send a buffer of at most URPC_SLOT_DATA_BYTES bytes on the URPC channel
+errval_t urpc_send_one(struct urpc_chan *chan, void *buf, size_t size,
+                       urpc_msg_type_t msg_type, uint8_t last) {
+    
+    // Check for invalid sizes
+    //assert(size <= URPC_SLOT_DATA_BYTES);
+    if (size > URPC_SLOT_DATA_BYTES) {
+        return LIB_ERR_UMP_BUFSIZE_INVALID;
+    }
+    
+    // Get the correct URPC buffer
+    struct urpc_buf *tx_buf = chan->buf + chan->buf_select;
+    
+    // Set the index of the next slot to use for sending
+    chan->tx_counter = (chan->tx_counter + 1) % URPC_NUM_SLOTS;
+    
+    // Make sure there is space in the ring buffer and wait otherwise
+    while (tx_buf->slots[chan->tx_counter].valid) ;
+    
+    // Memory barrier
+    dmb();
+    
+    // Copy data to the slot
+    memcpy(tx_buf->slots[chan->tx_counter].data, buf, size);
+    tx_buf->slots[chan->tx_counter].msg_type = msg_type;
+    tx_buf->slots[chan->tx_counter].last = last;
+    
+    // Memory and instruction barrier
+    dmb();
+    
+    // Mark the message as valid
+    tx_buf->slots[next_slot_index].valid = 1;
+    
+    return ERR_SYS_OK;
+    
+}
+
+// Send a buffer on the URPC channel
+errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
+                   urpc_msg_type_t msg_type) {
+    
+    errval_t err = ERR_SYS_OK;
+    
+    while (size > 0) {
+        
+        size_t msg_size = MIN(size, URPC_SLOT_DATA_BYTES);
+        
+        err = urpc_send(chan,
+                        buf,
+                        msg_type,
+                        msg_size < URPC_SLOT_DATA_BYTES);
+        if (err_is_fail(err)) {
+            return err;
+        }
+        
+        buf += msg_size;
+        size -= msg_size;
+        
+    }
+    
+    return err;
+    
+}
+
+// Receive a buffer of URPC_SLOT_DATA_BYTES bytes on the URPC channel
+errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
+                       urpc_msg_type_t* msg_type, uint8_t *last) {
+    
+    // Get the correct URPC buffer
+    struct urpc_buf *rx_buf = chan->buf + !chan->buf_select;
+    
+    // Check if there is a new message
+    if (!rx_buf->slots[chan->rx_counter].valid) {
+        return LIB_ERR_NO_UMP_MSG;
+    }
+    
+    // Copy data from the slot
+    memcpy(*buf, rx_buf->slots[chan->rx_counter].data, URPC_SLOT_DATA_BYTES);
+    *msg_type = rx_buf->slots[chan->rx_counter].msg_type;
+    *last = rx_buf->slots[chan->rx_counter].last;
+
+    // Memory barrier
+    //dmb();
+    
+    // Set the index of the next slot to read
+    chan->rx_counter = (chan->rx_counter + 1) % URPC_NUM_SLOTS;
+    
+    // Memory and instruction barrier
+    dmb();
+    
+    // Mark the message as invalid
+    tx_buf->slots[next_slot_index].valid = 0;
+    
+    return ERR_SYS_OK;
+    
+}
+
+// Receive a buffer of at most `max_size` bytes on the URPC channel
+errval_t urpc_recv(struct urpc_chan *chan, void *buf, size_t max_size,
+                   urpc_msg_type_t* msg_type) {
+    
+    // Check that output buffer size is valid and sufficient
+    assert(!(max_size % URPC_SLOT_DATA_BYTES) && max_size >= URPC_SLOT_DATA_BYTES);
+    
+    errval_t err = SYS_ERR_OK;
+    
+    urpc_msg_type_t msg_type;
+    uint8_t last;
+    size_t msg_size = 0;
+    
+    // Check that we have received an initial message
+    err = urpc_recv_one(chan, buf, &msg_type, &last);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    //Increase the received message size
+    msg_size += URPC_SLOT_DATA_BYTES;
+    
+    // Loop until we received the final message
+    while (!last) {
+        
+        urpc_msg_type_t this_msg_type;
+        
+        // Receive the next message
+        err = urpc_recv_one(chan, buf + msg_size, &this_msg_type, &last);
+        if (err == LIB_ERR_NO_UMP_MSG) {
+            continue;
+        }
+        else if (err_is_fail(err)) {
+            return err;
+        }
+        
+        // Check the message types are consisten
+        assert(this_msg_type == msg_type);
+        
+        //Increase the received message size
+        msg_size += URPC_SLOT_DATA_BYTES;
+        
+    }
+    
+    return err;
+    
+}
+
+
+/* MARK: - ===== LEGACY CODE ===== */
+
+/*// On BSP: Get pointer to the memory region, where to write the message to be sent
 void *urpc_get_send_to_app_buf(struct urpc_chan *chan) {
     
     // Get the headers
@@ -187,4 +335,4 @@ void urpc_ack_recv_from_bsp(struct urpc_chan *chan) {
     // Clean (flush) the cache
     sys_armv7_cache_clean_poc((void *) ((uint32_t) chan->fi.base + URPC_APP_TX_OFFSET), (void *) ((uint32_t) chan->fi.base + URPC_APP_TX_OFFSET + URPC_APP_TX_SIZE));
     
-}
+}*/

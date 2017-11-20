@@ -10,7 +10,9 @@
 #include <stdint.h>
 #include <aos/aos.h>
 
-#define URPC_BUF_SIZE       MON_URPC_SIZE
+#define URPC_BUF_SIZE           MON_URPC_SIZE
+#define URPC_NUM_SLOTS          64
+#define URPC_SLOT_DATA_BYTES    63
 
 #define URPC_APP_RX_OFFSET  0
 #define URPC_APP_RX_SIZE    URPC_BUF_SIZE/2
@@ -23,15 +25,43 @@
 #define URPC_BSP_TX_SIZE    URPC_APP_RX_SIZE
 
 
+// URPC message types
+#define URPC_MessageType_Spawn      0
+#define URPC_MessageType_SpawnAck   1
+
+
+// URPC message types type
+typedef uint8_t urpc_msg_type_t;
+
+
 struct urpc_chan {
     struct frame_identity fi;
-    void *buf;
+    struct urpc_buf *buf;
+    uint8_t buf_select;         // Buffer for this process
+    uint8_t tx_counter;
+    uint8_t rx_counter;
+    uint8_t ack_counter;
 };
 
+
 struct urpc_buf_header {
-    uint32_t seq_counter;
-    uint32_t ack_counter;
+    uint8_t tx_counter;
+    uint8_t rx_counter;
+    uint8_t ack_counter;
+    char RESERVED[61];      // Make sure the size of the struct is 64 bytes
 };
+
+struct urpc_slot {
+    char data[63];
+    urpc_msg_type_t msg_type    : 6;
+    uint8_t last                : 1;
+    uint8_t valid               : 1;
+};
+
+struct urpc_buf {
+    struct urpc_slot slots[URPC_NUM_SLOTS];
+};
+
 
 struct module_frame_identity {
     struct frame_identity fi;
@@ -46,17 +76,26 @@ struct urpc_bi_caps {
 };
 
 
-// Enum for URPC message types
-enum urpc_msg_type {
-    URPC_MessageType_Spawn,
-    URPC_MessageType_SpawnAck
-};
-
-
 // Initialize a URPC frame
-void urpc_chan_init(struct urpc_chan *chan);
+void urpc_chan_init(struct urpc_chan *chan, uint8_t buf_select);
 
-// On BSP: Get pointer to the memory region, where to write the message to be sent
+// Send a buffer of at most URPC_SLOT_DATA_BYTES bytes on the URPC channel
+errval_t urpc_send_one(struct urpc_chan *chan, void *buf, size_t size,
+                       urpc_msg_type_t msg_type, uint8_t last);
+
+// Send a buffer on the URPC channel
+errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
+                   urpc_msg_type_t msg_type)
+
+// Receive a buffer of URPC_SLOT_DATA_BYTES bytes on the URPC channel
+errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
+                       urpc_msg_type_t* msg_type, uint8_t *last);
+
+// Receive a buffer of at most `max_size` bytes on the URPC channel
+errval_t urpc_recv(struct urpc_chan *chan, void *buf, size_t max_size,
+                   urpc_msg_type_t* msg_type);
+
+/*// On BSP: Get pointer to the memory region, where to write the message to be sent
 void *urpc_get_send_to_app_buf(struct urpc_chan *chan);
 
 // On APP: Get pointer to the memory region, where to write the message to be sent
@@ -114,6 +153,6 @@ inline void urpc_ack_recv(struct urpc_chan *chan) {
     else {
         urpc_ack_recv_from_bsp(chan);
     }
-}
+}*/
 
 #endif /* urpc_h */
