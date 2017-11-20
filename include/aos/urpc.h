@@ -26,8 +26,9 @@
 
 
 // URPC message types
-#define URPC_MessageType_Spawn      0
-#define URPC_MessageType_SpawnAck   1
+#define URPC_MessageType_Bootinfo   0
+#define URPC_MessageType_Spawn      1
+#define URPC_MessageType_SpawnAck   2
 
 
 // URPC message types type
