@@ -125,8 +125,8 @@ errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
 errval_t urpc_recv(struct urpc_chan *chan, void *buf, size_t max_size,
                    urpc_msg_type_t* msg_type) {
     
-    // Check that output buffer size is valid and sufficient
-    assert(!(max_size % URPC_SLOT_DATA_BYTES) && max_size >= URPC_SLOT_DATA_BYTES);
+    // Check that output buffer size is sufficient
+    assert(max_size >= URPC_SLOT_DATA_BYTES);
     
     errval_t err = SYS_ERR_OK;
     
@@ -140,11 +140,16 @@ errval_t urpc_recv(struct urpc_chan *chan, void *buf, size_t max_size,
         return err;
     }
     
-    //Increase the received message size
+    // Increase the received message size
     msg_size += URPC_SLOT_DATA_BYTES;
     
     // Loop until we received the final message
     while (!last) {
+        
+        // Check we still have enough space in the output buffer
+        if (msg_size + URPC_SLOT_DATA_BYTES > max_size) {
+            return UMP_FRAME_OVERFLOW;
+        }
         
         urpc_msg_type_t this_msg_type;
         
@@ -160,7 +165,7 @@ errval_t urpc_recv(struct urpc_chan *chan, void *buf, size_t max_size,
         // Check the message types are consisten
         assert(this_msg_type == msg_type);
         
-        //Increase the received message size
+        // Increase the received message size
         msg_size += URPC_SLOT_DATA_BYTES;
         
     }
