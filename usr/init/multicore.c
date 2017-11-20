@@ -83,7 +83,7 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     }
     
     // Map frame for URPC
-    err = paging_map_frame(st, &urpc_chan->buf, urpc_size, urpc_frame_cap, NULL, NULL);
+    err = paging_map_frame(st, (void **) &urpc_chan->buf, urpc_size, urpc_frame_cap, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
