@@ -121,52 +121,53 @@ errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
     
 }
 
-// Receive a buffer of at most `max_size` bytes on the URPC channel
-errval_t urpc_recv(struct urpc_chan *chan, void *buf, size_t max_size,
+// Receive a buffer of `size` bytes on the URPC channel
+errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
                    urpc_msg_type_t* msg_type) {
-    
-    // Check that output buffer size is sufficient
-    assert(max_size >= URPC_SLOT_DATA_BYTES);
     
     errval_t err = SYS_ERR_OK;
     
     urpc_msg_type_t msg_type;
     uint8_t last;
-    size_t msg_size = 0;
     
-    // Check that we have received an initial message
-    err = urpc_recv_one(chan, buf, &msg_type, &last);
-    if (err_is_fail(err)) {
-        return err;
+    // Allocate memory for the first message
+    *size = URPC_SLOT_DATA_BYTES;
+    *buf = malloc(msg_size);
+    if (*buf == NULL) {
+        return LIB_ERR_MALLOC_FAIL;
     }
     
-    // Increase the received message size
-    msg_size += URPC_SLOT_DATA_BYTES;
+    // Check that we have received an initial message
+    err = urpc_recv_one(chan, *buf, &msg_type, &last);
+    if (err_is_fail(err)) {
+        free(*buf);
+        return err;
+    }
     
     // Loop until we received the final message
     while (!last) {
         
-        // Check we still have enough space in the output buffer
-        if (msg_size + URPC_SLOT_DATA_BYTES > max_size) {
-            return UMP_FRAME_OVERFLOW;
-        }
-        
         urpc_msg_type_t this_msg_type;
         
+        // Allocate more space for the next message
+        *size += URPC_SLOT_DATA_BYTES;
+        *buf = realloc(*buf, msg_size);
+        if (*buf == NULL) {
+            return LIB_ERR_MALLOC_FAIL;
+        }
+        
         // Receive the next message
-        err = urpc_recv_one(chan, buf + msg_size, &this_msg_type, &last);
+        err = urpc_recv_one(chan, *buf, &this_msg_type, &last);
         if (err == LIB_ERR_NO_UMP_MSG) {
             continue;
         }
         else if (err_is_fail(err)) {
+            free(*buf);
             return err;
         }
         
         // Check the message types are consisten
         assert(this_msg_type == msg_type);
-        
-        // Increase the received message size
-        msg_size += URPC_SLOT_DATA_BYTES;
         
     }
     

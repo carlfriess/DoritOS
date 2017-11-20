@@ -95,8 +95,8 @@ errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
 errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
                        urpc_msg_type_t* msg_type, uint8_t *last);
 
-// Receive a buffer of at most `max_size` bytes on the URPC channel
-errval_t urpc_recv(struct urpc_chan *chan, void *buf, size_t max_size,
+// Receive a buffer of `size` bytes on the URPC channel
+errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
                    urpc_msg_type_t* msg_type);
 
 /*// On BSP: Get pointer to the memory region, where to write the message to be sent
