@@ -101,6 +101,9 @@ int main(int argc, char *argv[])
                         (void **) &bi_frame_identities,
                         &recv_size,
                         &msg_type);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "bootinfo receive");
+        }
         
         // Make sure we recieved it
         assert(err_is_ok(err));
