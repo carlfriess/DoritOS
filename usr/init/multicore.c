@@ -214,8 +214,8 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     sys_armv7_cache_invalidate((void *) ((uint32_t) init_frame_identity.base), (void *) ((uint32_t) init_frame_identity.base + (uint32_t) init_frame_identity.bytes));
     sys_armv7_cache_invalidate((void *) ((uint32_t) urpc_chan->fi.base), (void *) ((uint32_t) urpc_chan->fi.base + (uint32_t) urpc_chan->fi.bytes));
     
-    // Get buffer for message to send
-    struct urpc_bi_caps *msg = (struct urpc_bi_caps *) urpc_get_send_to_app_buf(urpc_chan);
+    // Structured buffer for message to send
+    struct urpc_bi_caps msg;
     
     // Get bootinfo frame capability
     struct capref bi_cap = {
@@ -228,7 +228,7 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     };
     
     // Write the bootinfo frame identity to the sending buffer
-    err = frame_identify(bi_cap, &msg->bootinfo);
+    err = frame_identify(bi_cap, &msg.bootinfo);
     if (err_is_fail(err)) {
         return err;
     }
@@ -240,7 +240,7 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     };
     
     // Write the mmstrings frame identity to the sending buffer
-    err = frame_identify(mmstrings_cap, &msg->mmstrings_cap);
+    err = frame_identify(mmstrings_cap, &msg.mmstrings_cap);
     if (err_is_fail(err)) {
         return err;
     }
@@ -251,7 +251,7 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
         
         if (bi->regions[i].mr_type == RegionType_Module) {
             
-            msg->modules[index].slot = bi->regions[i].mrmod_slot;
+            msg.modules[index].slot = bi->regions[i].mrmod_slot;
             
             // Constructing the capability reference
             struct capref frame_cap = {
@@ -260,7 +260,7 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
             };
             
             // Write the frame identitiy
-            err = frame_identify(frame_cap, &msg->modules[index].fi);
+            err = frame_identify(frame_cap, &msg.modules[index].fi);
             if (err_is_fail(err)) {
                 return err;
             }
@@ -270,10 +270,13 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
         }
         
     }
-    msg->num_modules = index;
+    msg.num_modules = index;
     
     // Send the message to the app cpu
-    urpc_send_to_app(urpc_chan);
+    urpc_send(urpc_chan,
+              &msg,
+              sizeof(struct urpc_bi_caps)+ msg.num_modules * sizeof(struct module_frame_identity),
+              URPC_MessageType_Bootinfo);
     
     
 #if PRINT_DEBUG
