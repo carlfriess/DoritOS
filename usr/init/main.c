@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
         size_t recv_size;
         urpc_msg_type_t msg_type;
         err = urpc_recv(&urpc_chan,
-                        (struct urpc_bi_caps *) &bi_frame_identities,
+                        (void **) &bi_frame_identities,
                         &recv_size,
                         &msg_type);
         
