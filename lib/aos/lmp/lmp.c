@@ -2,6 +2,7 @@
 #include <aos/aos.h>
 #include <aos/waitset.h>
 #include <aos/lmp.h>
+#include <aos/urpc.h>
 #include <aos/process.h>
 
 #define MAX_ALLOCATION 100000000
@@ -10,6 +11,8 @@
 
 
 /* MARK: - ========== Server ========== */
+
+struct urpc_chan init_uc;
 
 void lmp_server_dispatcher(void *arg) {
 

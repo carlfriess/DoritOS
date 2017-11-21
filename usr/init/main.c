@@ -33,7 +33,7 @@
 
 coreid_t my_core_id;
 struct bootinfo *bi;
-struct urpc_chan urpc_chan; // URPC channel for communicating with the other CPU
+extern struct urpc_chan init_uc; // URPC channel for communicating with the other CPU
 
 int main(int argc, char *argv[])
 {
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     if (my_core_id != 0) {
         
         // Initialize the URPC channel
-        urpc_chan_init(&urpc_chan, URPC_APP_BUF_SELECT);
+        urpc_chan_init(&init_uc, URPC_APP_BUF_SELECT);
         
         // URPC frame capability
         struct capref urpc_frame_cap = {
@@ -69,12 +69,12 @@ int main(int argc, char *argv[])
             .slot = TASKCN_SLOT_MON_URPC
         };
         
-        err = frame_identify(urpc_frame_cap, &urpc_chan.fi);
+        err = frame_identify(urpc_frame_cap, &init_uc.fi);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "initialize urpc (1)");
         }
         
-        err = paging_map_frame(get_current_paging_state(), (void **) &urpc_chan.buf, URPC_BUF_SIZE, urpc_frame_cap, NULL, NULL);
+        err = paging_map_frame(get_current_paging_state(), (void **) &init_uc.buf, URPC_BUF_SIZE, urpc_frame_cap, NULL, NULL);
         if(err_is_fail(err)){
             DEBUG_ERR(err, "initialize urpc (2)");
         }
@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
         // Receive the bootinfo frame identity from the BSP
         size_t recv_size;
         urpc_msg_type_t msg_type;
-        err = urpc_recv(&urpc_chan,
+        err = urpc_recv(&init_uc,
                         (void **) &bi_frame_identities,
                         &recv_size,
                         &msg_type);
@@ -174,14 +174,14 @@ int main(int argc, char *argv[])
     register_ram_free_handler(aos_ram_free);
 
     // Initialize the spawn server
-    spawn_serv_init(&urpc_chan);
+    spawn_serv_init(&init_uc);
 
     
     // MARK: - Multicore
     
     // If on the BSP, boot the other core
     if (my_core_id == 0) {
-        err = boot_core(1, &urpc_chan);
+        err = boot_core(1, &init_uc);
         if (err_is_fail(err)) {
             debug_printf("Failed booting core: %s\n", err_getstring(err));
         }
@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
         void *msg;
         size_t msg_size;
         urpc_msg_type_t msg_type;
-        err = urpc_recv(&urpc_chan, &msg, &msg_size, &msg_type);
+        err = urpc_recv(&init_uc, &msg, &msg_size, &msg_type);
         if (err_is_ok(err)) {
 
             if (msg_type == URPC_MessageType_Spawn) {
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
                 res.err = spawn_serv_handler((char *) msg, my_core_id, &res.pid);
                 
                 // Send response back to requesting core
-                urpc_send(&urpc_chan,
+                urpc_send(&init_uc,
                           (void *) &res,
                           sizeof(struct urpc_spaw_response),
                           URPC_MessageType_SpawnAck);
