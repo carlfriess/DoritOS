@@ -23,8 +23,18 @@ static errval_t request_remote_spawn(char *name, coreid_t coreid, domainid_t *pi
     
     struct urpc_spaw_response *recv_buf;
 
-    // Receive response of spawn server and save it in recv_buf
-    err = urpc_recv(urpc_chan, (void **) &recv_buf, &retsize, &msg_type);
+    // Repeat until a message is received
+    do {
+        
+        // Receive response of spawn server and save it in recv_buf
+        err = urpc_recv(urpc_chan, (void **) &recv_buf, &retsize, &msg_type);
+        
+    } while (err == LIB_ERR_NO_UMP_MSG);
+    
+    // Check that receive was successful
+    if (err_is_fail(err)) {
+        return err;
+    }
     
     // TODO: Handle incorrect URPC_MessageType gracefully
     assert(msg_type == URPC_MessageType_SpawnAck);
