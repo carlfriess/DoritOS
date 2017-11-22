@@ -67,24 +67,6 @@ struct urpc_buf {
 };
 
 
-struct module_frame_identity {
-    struct frame_identity fi;
-    cslot_t slot;
-};
-
-struct urpc_bi_caps {
-    struct frame_identity bootinfo;
-    struct frame_identity mmstrings_cap;
-    size_t num_modules;
-    struct module_frame_identity modules[];
-};
-
-struct urpc_spaw_response {
-    errval_t err;
-    domainid_t pid;
-};
-
-
 // Initialize a URPC frame
 void urpc_chan_init(struct urpc_chan *chan, uint8_t buf_select);
 

@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <aos/aos.h>
 #include <aos/urpc.h>
+#include <aos/urpc_protocol.h>
+
 
 // Boot the the core with the ID core_id
 errval_t boot_core(coreid_t core_id, struct urpc_chan *chan);

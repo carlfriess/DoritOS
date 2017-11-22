@@ -2,6 +2,7 @@
 #include <aos/aos.h>
 #include <aos/lmp.h>
 #include <spawn/spawn.h>
+#include <aos/urpc_protocol.h>
 
 #include "spawn_serv.h"
 
