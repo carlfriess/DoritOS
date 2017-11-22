@@ -6,21 +6,21 @@
 
 #include "spawn_serv.h"
 
-static struct urpc_chan *urpc_chan;
+static struct ump_chan *ump_chan;
 
 static errval_t request_remote_spawn(char *name, coreid_t coreid, domainid_t *pid) {
     
     errval_t err = SYS_ERR_OK;
     
     // Send request to spawn server on other core
-    err = urpc_send(urpc_chan, name, strlen(name) + 1, URPC_MessageType_Spawn);
+    err = ump_send(ump_chan, name, strlen(name) + 1, UMP_MessageType_Spawn);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
     
     // Waiting for response
     size_t retsize;
-    urpc_msg_type_t msg_type;
+    ump_msg_type_t msg_type;
     
     struct urpc_spaw_response *recv_buf;
 
@@ -28,7 +28,7 @@ static errval_t request_remote_spawn(char *name, coreid_t coreid, domainid_t *pi
     do {
         
         // Receive response of spawn server and save it in recv_buf
-        err = urpc_recv(urpc_chan, (void **) &recv_buf, &retsize, &msg_type);
+        err = ump_recv(ump_chan, (void **) &recv_buf, &retsize, &msg_type);
         
     } while (err == LIB_ERR_NO_UMP_MSG);
     
@@ -37,8 +37,8 @@ static errval_t request_remote_spawn(char *name, coreid_t coreid, domainid_t *pi
         return err;
     }
     
-    // TODO: Handle incorrect URPC_MessageType gracefully
-    assert(msg_type == URPC_MessageType_SpawnAck);
+    // TODO: Handle incorrect UMP_MessageType gracefully
+    assert(msg_type == UMP_MessageType_SpawnAck);
     
     // Set pid of spawned process
     *pid = recv_buf->pid;
@@ -93,9 +93,9 @@ errval_t spawn_serv_handler(char *name, coreid_t coreid, domainid_t *pid) {
     
 }
 
-errval_t spawn_serv_init(struct urpc_chan *chan) {
+errval_t spawn_serv_init(struct ump_chan *chan) {
     
-    urpc_chan = chan;
+    ump_chan = chan;
     
     lmp_server_spawn_register_handler(spawn_serv_handler);
     

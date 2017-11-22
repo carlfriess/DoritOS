@@ -20,7 +20,7 @@ extern struct bootinfo *bi;
 
 
 // Boot the the core with the ID core_id
-errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
+errval_t boot_core(coreid_t core_id, struct ump_chan *ump_chan) {
     
     errval_t err;
     
@@ -71,19 +71,19 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     //        return err;
     //    }
     
-    // Initialize the URPC channel
-    urpc_chan_init(urpc_chan, URPC_BSP_BUF_SELECT);
+    // Initialize the UMP channel
+    ump_chan_init(ump_chan, UMP_BSP_BUF_SELECT);
     
     // Allocate frame for URPC
     struct capref urpc_frame_cap;
-    size_t urpc_size = URPC_BUF_SIZE;
+    size_t urpc_size = UMP_BUF_SIZE;
     err = frame_alloc(&urpc_frame_cap, urpc_size, &urpc_size);
     if (err_is_fail(err)) {
         return err;
     }
     
     // Map frame for URPC
-    err = paging_map_frame(st, (void **) &urpc_chan->buf, urpc_size, urpc_frame_cap, NULL, NULL);
+    err = paging_map_frame(st, (void **) &ump_chan->buf, urpc_size, urpc_frame_cap, NULL, NULL);
     if (err_is_fail(err)) {
         return err;
     }
@@ -174,7 +174,7 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
         return err;
     }
     
-    err = frame_identify(urpc_frame_cap, &urpc_chan->fi);
+    err = frame_identify(urpc_frame_cap, &ump_chan->fi);
     if (err_is_fail(err)) {
         return err;
     }
@@ -193,8 +193,8 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     core_data->memory_bytes = init_frame_identity.bytes;
     
     // Set the location of the URPC frame
-    core_data->urpc_frame_base = (uint32_t) urpc_chan->fi.base;
-    core_data->urpc_frame_size = (uint32_t) urpc_chan->fi.bytes;
+    core_data->urpc_frame_base = (uint32_t) ump_chan->fi.base;
+    core_data->urpc_frame_size = (uint32_t) ump_chan->fi.bytes;
     
     // Set the name of the init process
     strcpy(core_data->init_name, "init");
@@ -272,10 +272,10 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     msg->num_modules = index;
     
     // Send the message to the app cpu
-    urpc_send(urpc_chan,
-              msg,
-              sizeof(struct urpc_bi_caps)+ msg->num_modules * sizeof(struct module_frame_identity),
-              URPC_MessageType_Bootinfo);
+    ump_send(ump_chan,
+             msg,
+             sizeof(struct urpc_bi_caps)+ msg->num_modules * sizeof(struct module_frame_identity),
+             UMP_MessageType_Bootinfo);
     
     // Free the message buffer
     free(msg);
@@ -285,8 +285,8 @@ errval_t boot_core(coreid_t core_id, struct urpc_chan *urpc_chan) {
     sys_armv7_cache_invalidate((void *) ((uint32_t) segment_frame_identity.base), (void *) ((uint32_t) segment_frame_identity.base + (uint32_t) segment_frame_identity.bytes));
     sys_armv7_cache_clean_poc((void *) ((uint32_t) init_frame_identity.base), (void *) ((uint32_t) init_frame_identity.base + (uint32_t) init_frame_identity.bytes));
     sys_armv7_cache_invalidate((void *) ((uint32_t) init_frame_identity.base), (void *) ((uint32_t) init_frame_identity.base + (uint32_t) init_frame_identity.bytes));
-    sys_armv7_cache_clean_poc((void *) ((uint32_t) urpc_chan->fi.base), (void *) ((uint32_t) urpc_chan->fi.base + (uint32_t) urpc_chan->fi.bytes));
-    sys_armv7_cache_invalidate((void *) ((uint32_t) urpc_chan->fi.base), (void *) ((uint32_t) urpc_chan->fi.base + (uint32_t) urpc_chan->fi.bytes));
+    sys_armv7_cache_clean_poc((void *) ((uint32_t) ump_chan->fi.base), (void *) ((uint32_t) ump_chan->fi.base + (uint32_t) ump_chan->fi.bytes));
+    sys_armv7_cache_invalidate((void *) ((uint32_t) ump_chan->fi.base), (void *) ((uint32_t) ump_chan->fi.base + (uint32_t) ump_chan->fi.bytes));
     
     
 #if PRINT_DEBUG

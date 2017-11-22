@@ -50,7 +50,7 @@
                              "thread_once.c",
                              "thread_sync.c",
                              "threads.c",
-                             "urpc.c",
+                             "ump.c",
                              "waitset.c" ],
                   assemblyFiles = [ "arch/arm/entry.S", "arch/arm/syscall.S" ],
                   addIncludes =   [ "include", "include/arch/arm" ],

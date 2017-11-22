@@ -33,7 +33,7 @@
 
 coreid_t my_core_id;
 struct bootinfo *bi;
-extern struct urpc_chan init_uc; // URPC channel for communicating with the other CPU
+extern struct ump_chan init_uc; // UMP channel for communicating with the other CPU
 
 int main(int argc, char *argv[])
 {
@@ -53,13 +53,13 @@ int main(int argc, char *argv[])
     printf("\n");
     
     
-    // MARK: - Set up URPC (on APP)
+    // MARK: - Set up UMP (on APP)
     if (my_core_id != 0) {
         
-        // Initialize the URPC channel
-        urpc_chan_init(&init_uc, URPC_APP_BUF_SELECT);
+        // Initialize the UMP channel
+        ump_chan_init(&init_uc, UMP_APP_BUF_SELECT);
         
-        // URPC frame capability
+        // UMP frame capability
         struct capref urpc_frame_cap = {
             .cnode = {
                 .croot = CPTR_ROOTCN,
@@ -71,12 +71,12 @@ int main(int argc, char *argv[])
         
         err = frame_identify(urpc_frame_cap, &init_uc.fi);
         if (err_is_fail(err)) {
-            DEBUG_ERR(err, "initialize urpc (1)");
+            DEBUG_ERR(err, "initialize ump (1)");
         }
         
-        err = paging_map_frame(get_current_paging_state(), (void **) &init_uc.buf, URPC_BUF_SIZE, urpc_frame_cap, NULL, NULL);
+        err = paging_map_frame(get_current_paging_state(), (void **) &init_uc.buf, UMP_BUF_SIZE, urpc_frame_cap, NULL, NULL);
         if(err_is_fail(err)){
-            DEBUG_ERR(err, "initialize urpc (2)");
+            DEBUG_ERR(err, "initialize ump (2)");
         }
         
     }
@@ -96,18 +96,18 @@ int main(int argc, char *argv[])
        
         // Receive the bootinfo frame identity from the BSP
         size_t recv_size;
-        urpc_msg_type_t msg_type;
-        err = urpc_recv(&init_uc,
-                        (void **) &bi_frame_identities,
-                        &recv_size,
-                        &msg_type);
+        ump_msg_type_t msg_type;
+        err = ump_recv(&init_uc,
+                       (void **) &bi_frame_identities,
+                       &recv_size,
+                       &msg_type);
         if (err_is_fail(err)) {
             DEBUG_ERR(err, "bootinfo receive");
         }
         
         // Make sure we recieved it
         assert(err_is_ok(err));
-        assert(msg_type == URPC_MessageType_Bootinfo);
+        assert(msg_type == UMP_MessageType_Bootinfo);
         assert(bi_frame_identities != NULL);
         
         // Forge bootinfo frame capability
@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
             DEBUG_ERR(err, "forging module caps");
         }
         
-        // We are done with the URPC message, so free it.
+        // We are done with the UMP message, so free it.
         free(bi_frame_identities);
         
     }
@@ -205,11 +205,11 @@ int main(int argc, char *argv[])
         // Check if a message was received form different core
         void *msg;
         size_t msg_size;
-        urpc_msg_type_t msg_type;
-        err = urpc_recv(&init_uc, &msg, &msg_size, &msg_type);
+        ump_msg_type_t msg_type;
+        err = ump_recv(&init_uc, &msg, &msg_size, &msg_type);
         if (err_is_ok(err)) {
 
-            if (msg_type == URPC_MessageType_Spawn) {
+            if (msg_type == UMP_MessageType_Spawn) {
                 
                 struct urpc_spaw_response res;
                 
@@ -217,10 +217,10 @@ int main(int argc, char *argv[])
                 res.err = spawn_serv_handler((char *) msg, my_core_id, &res.pid);
                 
                 // Send response back to requesting core
-                urpc_send(&init_uc,
+                ump_send(&init_uc,
                           (void *) &res,
                           sizeof(struct urpc_spaw_response),
-                          URPC_MessageType_SpawnAck);
+                          UMP_MessageType_SpawnAck);
                 
             }
             else {
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
             
         }
         else if (err != LIB_ERR_NO_UMP_MSG) {
-            DEBUG_ERR(err, "in urpc_recv");
+            DEBUG_ERR(err, "in ump_recv");
         }
         
     }

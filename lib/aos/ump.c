@@ -1,5 +1,5 @@
 //
-//  urpc.c
+//  ump.c
 //  DoritOS
 //
 
@@ -8,10 +8,10 @@
 #include <aos/capabilities.h>
 #include <machine/atomic.h>
 
-#include "aos/urpc.h"
+#include "aos/ump.h"
 
-// Initialize a URPC channel
-void urpc_chan_init(struct urpc_chan *chan, uint8_t buf_select) {
+// Initialize a UMP channel
+void ump_chan_init(struct ump_chan *chan, uint8_t buf_select) {
     
     // Set buffer selector
     assert(buf_select < 2);
@@ -24,18 +24,18 @@ void urpc_chan_init(struct urpc_chan *chan, uint8_t buf_select) {
     
 }
 
-// Send a buffer of at most URPC_SLOT_DATA_BYTES bytes on the URPC channel
-errval_t urpc_send_one(struct urpc_chan *chan, void *buf, size_t size,
-                       urpc_msg_type_t msg_type, uint8_t last) {
+// Send a buffer of at most UMP_SLOT_DATA_BYTES bytes on the URPC channel
+errval_t ump_send_one(struct ump_chan *chan, void *buf, size_t size,
+                       ump_msg_type_t msg_type, uint8_t last) {
     
     // Check for invalid sizes
-    //assert(size <= URPC_SLOT_DATA_BYTES);
-    if (size > URPC_SLOT_DATA_BYTES) {
+    //assert(size <= UMP_SLOT_DATA_BYTES);
+    if (size > UMP_SLOT_DATA_BYTES) {
         return LIB_ERR_UMP_BUFSIZE_INVALID;
     }
     
-    // Get the correct URPC buffer
-    struct urpc_buf *tx_buf = chan->buf + chan->buf_select;
+    // Get the correct UMP buffer
+    struct ump_buf *tx_buf = chan->buf + chan->buf_select;
     
     // Make sure there is space in the ring buffer and wait otherwise
     while (tx_buf->slots[chan->tx_counter].valid) ;
@@ -59,28 +59,28 @@ errval_t urpc_send_one(struct urpc_chan *chan, void *buf, size_t size,
     dmb();
     
     // Set the index of the next slot to use for sending
-    chan->tx_counter = (chan->tx_counter + 1) % URPC_NUM_SLOTS;
+    chan->tx_counter = (chan->tx_counter + 1) % UMP_NUM_SLOTS;
     
     return SYS_ERR_OK;
     
 }
 
-// Send a buffer on the URPC channel
-errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
-                   urpc_msg_type_t msg_type) {
+// Send a buffer on the UMP channel
+errval_t ump_send(struct ump_chan *chan, void *buf, size_t size,
+                   ump_msg_type_t msg_type) {
     
     errval_t err = SYS_ERR_OK;
     
     while (size > 0) {
         
-        size_t msg_size = MIN(size, URPC_SLOT_DATA_BYTES);
+        size_t msg_size = MIN(size, UMP_SLOT_DATA_BYTES);
         
         // Send fragment of entire message
-        err = urpc_send_one(chan,
+        err = ump_send_one(chan,
                             buf,
                             msg_size,
                             msg_type,
-                            size <= URPC_SLOT_DATA_BYTES);
+                            size <= UMP_SLOT_DATA_BYTES);
         if (err_is_fail(err)) {
             return err;
         }
@@ -94,12 +94,12 @@ errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
     
 }
 
-// Receive a buffer of URPC_SLOT_DATA_BYTES bytes on the URPC channel
-errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
-                       urpc_msg_type_t* msg_type, uint8_t *last) {
+// Receive a buffer of UMP_SLOT_DATA_BYTES bytes on the UMP channel
+errval_t ump_recv_one(struct ump_chan *chan, void *buf,
+                       ump_msg_type_t* msg_type, uint8_t *last) {
     
-    // Get the correct URPC buffer
-    struct urpc_buf *rx_buf = chan->buf + !chan->buf_select;
+    // Get the correct UMP buffer
+    struct ump_buf *rx_buf = chan->buf + !chan->buf_select;
     
     // Check if there is a new message
     if (!rx_buf->slots[chan->rx_counter].valid) {
@@ -107,7 +107,7 @@ errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
     }
     
     // Copy data from the slot
-    memcpy(buf, rx_buf->slots[chan->rx_counter].data, URPC_SLOT_DATA_BYTES);
+    memcpy(buf, rx_buf->slots[chan->rx_counter].data, UMP_SLOT_DATA_BYTES);
     *msg_type = rx_buf->slots[chan->rx_counter].msg_type;
     *last = rx_buf->slots[chan->rx_counter].last;
 
@@ -121,29 +121,29 @@ errval_t urpc_recv_one(struct urpc_chan *chan, void *buf,
     dmb();
     
     // Set the index of the next slot to read
-    chan->rx_counter = (chan->rx_counter + 1) % URPC_NUM_SLOTS;
+    chan->rx_counter = (chan->rx_counter + 1) % UMP_NUM_SLOTS;
     
     return SYS_ERR_OK;
     
 }
 
-// Receive a buffer of `size` bytes on the URPC channel
-errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
-                   urpc_msg_type_t* msg_type) {
+// Receive a buffer of `size` bytes on the UMP channel
+errval_t ump_recv(struct ump_chan *chan, void **buf, size_t *size,
+                   ump_msg_type_t* msg_type) {
     
     errval_t err = SYS_ERR_OK;
     
     uint8_t last;
     
     // Allocate memory for the first message
-    *size = URPC_SLOT_DATA_BYTES;
+    *size = UMP_SLOT_DATA_BYTES;
     *buf = malloc(*size);
     if (*buf == NULL) {
         return LIB_ERR_MALLOC_FAIL;
     }
     
     // Check that we have received an initial message
-    err = urpc_recv_one(chan, *buf, msg_type, &last);
+    err = ump_recv_one(chan, *buf, msg_type, &last);
     if (err_is_fail(err)) {
         free(*buf);
         return err;
@@ -152,18 +152,18 @@ errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
     // Loop until we received the final message
     while (!last) {
         
-        urpc_msg_type_t this_msg_type;
+        ump_msg_type_t this_msg_type;
         
         // Allocate more space for the next message
-        *size += URPC_SLOT_DATA_BYTES;
+        *size += UMP_SLOT_DATA_BYTES;
         *buf = realloc(*buf, *size);
         if (*buf == NULL) {
             return LIB_ERR_MALLOC_FAIL;
         }
         
         // Receive the next message
-        err = urpc_recv_one(chan,
-                            *buf + *size - URPC_SLOT_DATA_BYTES,
+        err = ump_recv_one(chan,
+                            *buf + *size - UMP_SLOT_DATA_BYTES,
                             &this_msg_type,
                             &last);
         if (err == LIB_ERR_NO_UMP_MSG) {
