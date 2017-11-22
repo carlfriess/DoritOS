@@ -17,6 +17,8 @@
 
 #include <aos/aos.h>
 #include <aos/waitset.h>
+#include <aos/waitset_chan.h>
+#include <aos/event_queue.h>
 #include <aos/morecore.h>
 #include <aos/paging.h>
 #include <spawn/spawn.h>
@@ -34,6 +36,46 @@
 coreid_t my_core_id;
 struct bootinfo *bi;
 extern struct ump_chan init_uc; // UMP channel for communicating with the other CPU
+
+struct event_queue_pair {
+    struct event_queue queue;
+    struct event_queue_node node;
+};
+
+static void ump_event_handler(void *arg) {
+    struct event_queue_pair *pair = arg;
+    event_queue_add(&pair->queue, &pair->node, MKCLOSURE(ump_event_handler, (void *) pair));
+
+    // Check if a message was received form different core
+    errval_t err;
+    void *msg;
+    size_t msg_size;
+    urpc_msg_type_t msg_type;
+    err = urpc_recv(&init_uc, &msg, &msg_size, &msg_type);
+    if (err_is_ok(err)) {
+
+        if (msg_type == URPC_MessageType_Spawn) {
+            struct urpc_spaw_response res;
+
+            // Pass message to spawn server
+            res.err = spawn_serv_handler((char *) msg, my_core_id, &res.pid);
+
+            // Send response back to requesting core
+            urpc_send(&init_uc,
+                      (void *) &res,
+                      sizeof(struct urpc_spaw_response),
+                      URPC_MessageType_SpawnAck);
+
+        }
+        else {
+            USER_PANIC("Unknown message type\n");
+        }
+
+    }
+    else if (err != LIB_ERR_NO_UMP_MSG) {
+        DEBUG_ERR(err, "in urpc_recv");
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -193,45 +235,15 @@ int main(int argc, char *argv[])
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
+
+    // Register Event Queue for UMP
+
+    struct event_queue_pair pair;
+    event_queue_init(&pair.queue, default_ws, EVENT_QUEUE_CONTINUOUS);
+    event_queue_add(&pair.queue, &pair.node, MKCLOSURE(ump_event_handler, (void *) &pair));
+
     while (true) {
-
-        // Dispatch pending LMP events
-        err = event_dispatch_non_block(default_ws);
-        if (err_is_fail(err) && err != LIB_ERR_NO_EVENT) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-        
-        // Check if a message was received form different core
-        void *msg;
-        size_t msg_size;
-        ump_msg_type_t msg_type;
-        err = ump_recv(&init_uc, &msg, &msg_size, &msg_type);
-        if (err_is_ok(err)) {
-
-            if (msg_type == UMP_MessageType_Spawn) {
-                
-                struct urpc_spaw_response res;
-                
-                // Pass message to spawn server
-                res.err = spawn_serv_handler((char *) msg, my_core_id, &res.pid);
-                
-                // Send response back to requesting core
-                ump_send(&init_uc,
-                          (void *) &res,
-                          sizeof(struct urpc_spaw_response),
-                          UMP_MessageType_SpawnAck);
-                
-            }
-            else {
-                USER_PANIC("Unknown message type\n");
-            }
-            
-        }
-        else if (err != LIB_ERR_NO_UMP_MSG) {
-            DEBUG_ERR(err, "in ump_recv");
-        }
-        
+        event_dispatch(default_ws);
     }
 
     return EXIT_SUCCESS;
