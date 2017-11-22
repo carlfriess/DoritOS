@@ -43,6 +43,7 @@ struct event_queue_pair {
 };
 
 static void ump_event_handler(void *arg) {
+    // Reregister event node
     struct event_queue_pair *pair = arg;
     event_queue_add(&pair->queue, &pair->node, MKCLOSURE(ump_event_handler, (void *) pair));
 
@@ -56,7 +57,6 @@ static void ump_event_handler(void *arg) {
 
         if (msg_type == UMP_MessageType_Spawn) {
             struct urpc_spaw_response res;
-
             // Pass message to spawn server
             res.err = spawn_serv_handler((char *) msg, my_core_id, &res.pid);
 
@@ -65,12 +65,19 @@ static void ump_event_handler(void *arg) {
                       (void *) &res,
                       sizeof(struct urpc_spaw_response),
                       UMP_MessageType_SpawnAck);
+        } else if (msg_type == UMP_MessageType_TerminalGetChar) {
+            // TODO: Test me!
+            // TODO: Move to other file
+            char c;
 
-        }
-        else {
+            do {
+                sys_getchar(&c);
+            } while (c == '\0');
+
+            ump_send(&init_uc, &c, sizeof(char), UMP_MessageType_TerminalGetCharAck);
+        } else {
             USER_PANIC("Unknown message type\n");
         }
-
     }
     else if (err != LIB_ERR_NO_UMP_MSG) {
         DEBUG_ERR(err, "in urpc_recv");

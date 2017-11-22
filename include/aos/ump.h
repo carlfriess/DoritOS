@@ -19,9 +19,13 @@
 
 
 // UMP message types
-#define UMP_MessageType_Bootinfo   0
-#define UMP_MessageType_Spawn      1
-#define UMP_MessageType_SpawnAck   2
+#define UMP_MessageType_Bootinfo            0
+#define UMP_MessageType_Spawn               1
+#define UMP_MessageType_SpawnAck            2
+#define UMP_MessageType_TerminalGetChar     3
+#define UMP_MessageType_TerminalGetCharAck  4
+#define UMP_MessageType_TerminalPutChar     5
+#define UMP_MessageType_TerminalPutCharAck  6
 
 
 // UMP message types type
@@ -76,5 +80,9 @@ errval_t ump_recv_one(struct ump_chan *chan, void *buf,
 errval_t ump_recv(struct ump_chan *chan, void **buf, size_t *size,
                    ump_msg_type_t* msg_type);
 
+
+// Block until receive a buffer of `size` bytes on the UMP channel
+void ump_recv_blocking(struct ump_chan *chan, void **buf, size_t *size,
+                    ump_msg_type_t *msg_type);
 
 #endif /* ump_h */

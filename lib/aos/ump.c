@@ -174,11 +174,19 @@ errval_t ump_recv(struct ump_chan *chan, void **buf, size_t *size,
             return err;
         }
         
-        // Check the message types are consisten
+        // Check the message types are consistent
         assert(this_msg_type == *msg_type);
         
     }
     
     return err;
     
+}
+
+void ump_recv_blocking(struct ump_chan *chan, void **buf, size_t *size,
+                            ump_msg_type_t* msg_type) {
+    errval_t err;
+    do {
+        err = ump_recv(chan, buf, size, msg_type);
+    } while(err == LIB_ERR_NO_UMP_MSG);
 }

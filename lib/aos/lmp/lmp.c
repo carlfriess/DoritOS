@@ -4,6 +4,7 @@
 #include <aos/lmp.h>
 #include <aos/ump.h>
 #include <aos/process.h>
+#include <aos/domain.h>
 
 #define MAX_ALLOCATION 100000000
 
@@ -326,8 +327,25 @@ errval_t lmp_server_pid_discovery(struct lmp_chan *lc) {
 void lmp_server_terminal_getchar(struct lmp_chan *lc) {
     errval_t err = SYS_ERR_OK;
     char c = '\0';
-    while (c == '\0') {
-        sys_getchar(&c);
+
+    // UMP call if not core 0
+    if (!disp_get_core_id()) {
+        while (c == '\0') {
+            sys_getchar(&c);
+        }
+    } else {
+        // TODO: Test me!
+        ump_msg_type_t msg_type = UMP_MessageType_TerminalGetChar;
+        size_t size = 1;
+        void *ptr;
+
+        // Send request message
+        ump_send(&init_uc, &c, size, msg_type);
+
+        // Receive response
+        ump_recv_blocking(&init_uc, &ptr, &size, &msg_type);
+        assert(msg_type == UMP_MessageType_TerminalGetCharAck);
+        c = *((char *) ptr);
     }
 
     lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
