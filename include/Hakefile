@@ -113,6 +113,7 @@
    "aos/ump_endpoint.h",
    "aos/ump_impl.h",
    "aos/ump.h",
+   "aos/urpc.h",
    "aos/urpc_protocol.h",
    "aos/vregion.h",
    "aos/vspace_common.h",
