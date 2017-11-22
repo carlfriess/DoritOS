@@ -50,21 +50,21 @@ static void ump_event_handler(void *arg) {
     errval_t err;
     void *msg;
     size_t msg_size;
-    urpc_msg_type_t msg_type;
-    err = urpc_recv(&init_uc, &msg, &msg_size, &msg_type);
+    ump_msg_type_t msg_type;
+    err = ump_recv(&init_uc, &msg, &msg_size, &msg_type);
     if (err_is_ok(err)) {
 
-        if (msg_type == URPC_MessageType_Spawn) {
+        if (msg_type == UMP_MessageType_Spawn) {
             struct urpc_spaw_response res;
 
             // Pass message to spawn server
             res.err = spawn_serv_handler((char *) msg, my_core_id, &res.pid);
 
             // Send response back to requesting core
-            urpc_send(&init_uc,
+            ump_send(&init_uc,
                       (void *) &res,
                       sizeof(struct urpc_spaw_response),
-                      URPC_MessageType_SpawnAck);
+                      UMP_MessageType_SpawnAck);
 
         }
         else {
