@@ -24,6 +24,7 @@
 #include <spawn/spawn.h>
 #include <aos/process.h>
 #include <aos/lmp.h>
+#include <aos/urpc.h>
 #include <spawn_serv.h>
 
 #include <mm/mm.h>
@@ -55,29 +56,12 @@ static void ump_event_handler(void *arg) {
     err = ump_recv(&init_uc, &msg, &msg_size, &msg_type);
     if (err_is_ok(err)) {
 
-        if (msg_type == UMP_MessageType_Spawn) {
-            struct urpc_spaw_response res;
-            // Pass message to spawn server
-            res.err = spawn_serv_handler((char *) msg, my_core_id, &res.pid);
-
-            // Send response back to requesting core
-            ump_send(&init_uc,
-                      (void *) &res,
-                      sizeof(struct urpc_spaw_response),
-                      UMP_MessageType_SpawnAck);
-        } else if (msg_type == UMP_MessageType_TerminalGetChar) {
-            // TODO: Test me!
-            // TODO: Move to other file
-            char c;
-
-            do {
-                sys_getchar(&c);
-            } while (c == '\0');
-
-            ump_send(&init_uc, &c, sizeof(char), UMP_MessageType_TerminalGetCharAck);
-        } else {
-            USER_PANIC("Unknown message type\n");
-        }
+        // Invoke the URPC server
+        urpc_init_server_handler(&init_uc, msg, msg_size, msg_type);
+        
+        // Free the received message buffer
+        free(msg);
+        
     }
     else if (err != LIB_ERR_NO_UMP_MSG) {
         DEBUG_ERR(err, "in urpc_recv");
