@@ -155,10 +155,10 @@ int main(int argc, char *argv[])
 {
     errval_t err;
 
+    /* Test Terminal Get/Put
     char c;
     size_t size;
 
-    /* Test Terminal Get/Put
     do {
         size = aos_rpc_terminal_read(&c, sizeof(char));
         aos_rpc_terminal_write(&c, sizeof(char));
