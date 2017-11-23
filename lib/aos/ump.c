@@ -10,6 +10,9 @@
 
 #include "aos/ump.h"
 
+// Struct for UMP channel with the other init (only in init)
+struct ump_chan init_uc;
+
 // Initialize a UMP channel
 void ump_chan_init(struct ump_chan *chan, uint8_t buf_select) {
     

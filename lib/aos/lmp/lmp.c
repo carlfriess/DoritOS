@@ -13,7 +13,7 @@
 
 /* MARK: - ========== Server ========== */
 
-struct ump_chan init_uc;
+extern struct ump_chan init_uc;
 
 void lmp_server_dispatcher(void *arg) {
 
