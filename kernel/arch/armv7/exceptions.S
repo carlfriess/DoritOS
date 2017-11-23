@@ -471,10 +471,10 @@ do_resume:
     // Restore the user stack pointer and link register.  n.b. LR is
     // banked in SVC mode, so *our* LR isn't affected.  Also, this can't
     // write back, so we've got to add the offset ourselves.
-    add lr, #5*4
+    add lr, #4*4
     vldmia lr!, {d0-d15}
-    vldmia lr, {d16-d31}
-    sub lr, #(5+32)*4
+    vldmia lr!, {d16-d31}
+    sub lr, #4*4+(32*8)
     ldmia  lr, {r13, r14}^
     // Load the (banked SVC) LR with the return address (add the offset
     // that the last ldmia couldn't).

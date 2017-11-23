@@ -336,10 +336,11 @@ elf64_find_symbol_by_addr(genvaddr_t elf_base, size_t elf_bytes,
     uintptr_t idx = 0;
     for (uintptr_t i = 0; i < symtab->sh_size; i += sizeof(struct Elf64_Sym)) {
         // getting the symbol
-        sym = (struct Elf64_Sym *)(symbase + i);
+        struct Elf64_Sym *test_sym = (struct Elf64_Sym *)(symbase + i);
 
         /* XXX: not handling relocatable symbols */
-        if (sym->st_value == addr) {
+        if (test_sym->st_value == addr) {
+            sym = test_sym;
             break;
         }
 

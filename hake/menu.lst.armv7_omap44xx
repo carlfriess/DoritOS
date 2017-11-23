@@ -16,6 +16,10 @@ module /armv7/sbin/init
 # milestone 3
 module /armv7/sbin/memeater
 
+# milestone 7 filesystem
+module /armv7/sbin/mmchs
+module /armv7/sbin/filereader
+
 # For pandaboard, use following values.
 mmap map 0x40000000 0x40000000 13 # Devices
 mmap map 0x80000000 0x40000000  1

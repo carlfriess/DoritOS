@@ -177,7 +177,7 @@ elf32_find_symbol_by_name(genvaddr_t elf_base, size_t elf_bytes,
     struct Elf32_Ehdr *head = (struct Elf32_Ehdr *)elfbase;
 
     // just a sanity check
-    if (!IS_ELF(*head) || head->e_ident[EI_CLASS] != ELFCLASS64) {
+    if (!IS_ELF(*head) || head->e_ident[EI_CLASS] != ELFCLASS32) {
         return NULL;
     }
 
@@ -244,7 +244,7 @@ elf32_count_symbol_by_name(genvaddr_t elf_base, size_t elf_bytes,
     struct Elf32_Ehdr *head = (struct Elf32_Ehdr *)elfbase;
 
     // just a sanity check
-    if (!IS_ELF(*head) || head->e_ident[EI_CLASS] != ELFCLASS64) {
+    if (!IS_ELF(*head) || head->e_ident[EI_CLASS] != ELFCLASS32) {
         return 0;
     }
 
@@ -329,10 +329,11 @@ elf32_find_symbol_by_addr(genvaddr_t elf_base, size_t elf_bytes,
     uintptr_t idx = 0;
     for (uintptr_t i = 0; i < symtab->sh_size; i += sizeof(struct Elf32_Sym)) {
         // getting the symbol
-        sym = (struct Elf32_Sym *)(symbase + i);
+        struct Elf32_Sym *test_sym = (struct Elf32_Sym *)(symbase + i);
 
         /* XXX: not handling relocatable symbols */
-        if (sym->st_value == addr) {
+        if (test_sym->st_value == addr) {
+            sym = test_sym;
             break;
         }
 
@@ -355,7 +356,7 @@ elf32_get_symbolname(struct Elf32_Ehdr *head,
     struct Elf32_Shdr *symtab;
 
     // just a sanity check
-    if (!IS_ELF(*head) || head->e_ident[EI_CLASS] != ELFCLASS64) {
+    if (!IS_ELF(*head) || head->e_ident[EI_CLASS] != ELFCLASS32) {
         return NULL;
     }
 
