@@ -33,6 +33,9 @@
 #define UMP_MessageType_RegisterProcessAck  8
 #define UMP_MessageType_UrpcBindAck         9
 
+#define UMP_MessageType_Ping 69
+#define UMP_MessageType_Pong 70
+
 
 // UMP message types type
 typedef uint8_t ump_msg_type_t;
