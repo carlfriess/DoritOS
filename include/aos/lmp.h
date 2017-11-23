@@ -170,6 +170,12 @@ extern unsigned serial_console_port;
 enum lmp_request_type {
     LMP_RequestType_NULL = 0,
     LMP_RequestType_Number,
+  
+    LMP_RequestType_StringShort,
+    LMP_RequestType_StringLong,
+    LMP_RequestType_SpawnShort,
+    LMP_RequestType_SpawnLong,
+    
     LMP_RequestType_ShortBuf,
     LMP_RequestType_FrameSend,
     LMP_RequestType_Register,
@@ -209,10 +215,10 @@ void lmp_client_wait(void *arg);
 errval_t lmp_send_string(struct lmp_chan *lc, const char *string);
 
 // Send a short buffer (using LMP arguments)
-errval_t lmp_send_short_buf(struct lmp_chan *lc, void *buf, size_t size);
+errval_t lmp_send_short_buf(struct lmp_chan *lc, enum lmp_request_type type, void *buf, size_t size);
 
 // Send an entire frame capability
-errval_t lmp_send_frame(struct lmp_chan *lc, struct capref frame_cap, size_t frame_size);
+errval_t lmp_send_frame(struct lmp_chan *lc, enum lmp_request_type type, struct capref frame_cap, size_t frame_size);
 
 // Blocking call to receive a string on a channel (automatically select protocol)
 errval_t lmp_recv_string(struct lmp_chan *lc, char **string);
@@ -221,18 +227,25 @@ errval_t lmp_recv_string(struct lmp_chan *lc, char **string);
 errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
                                   uintptr_t *words, char **string);
 
+// Blocking call to receive a spawn process name on a channel (automatically select protocol)
+errval_t lmp_recv_spawn(struct lmp_chan *lc, char **name);
+
+// Process a spawn received through a message (automatically select protocol)
+errval_t lmp_recv_spawn_from_msg(struct lmp_chan *lc, struct capref cap,
+                                 uintptr_t *words, char **name);
+
 // Receive a short buffer on a channel (using LMP arguments)
-errval_t lmp_recv_short_buf(struct lmp_chan *lc, void **buf, size_t *size);
+errval_t lmp_recv_short_buf(struct lmp_chan *lc, enum lmp_request_type type, void **buf, size_t *size);
 
 // Process a short buffer received through a message (using LMP arguments)
-errval_t lmp_recv_short_buf_from_msg(struct lmp_chan *lc, uintptr_t *words,
+errval_t lmp_recv_short_buf_from_msg(struct lmp_chan *lc, enum lmp_request_type type, uintptr_t *words,
                                      void **buf, size_t *size);
 
 // Receive a frame on a channel
-errval_t lmp_recv_frame(struct lmp_chan *lc, struct capref *frame_cap, size_t *size);
+errval_t lmp_recv_frame(struct lmp_chan *lc, enum lmp_request_type type, struct capref *frame_cap, size_t *size);
 
 // Process a frame received through a message
-errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, struct capref msg_cap,
+errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, enum lmp_request_type type, struct capref msg_cap,
                                  uintptr_t *words, struct capref *frame_cap,
                                  size_t *size);
 

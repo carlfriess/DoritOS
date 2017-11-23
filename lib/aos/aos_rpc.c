@@ -286,6 +286,7 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
     struct capref array_frame;
     size_t array_frame_size;
     err = lmp_recv_frame(chan->lc, &array_frame, &array_frame_size);
+    err = lmp_recv_frame(chan->lc, LMP_RequestType_StringLong, &array_frame, &array_frame_size);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
