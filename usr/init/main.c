@@ -225,13 +225,14 @@ int main(int argc, char *argv[])
         // Allocate spawninfo
         struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
 
-        // Spawn memeater
-        spawn_load_by_name("memeater", si);
+        // Spawn bind_server
+        spawn_load_by_name("bind_server", si);
 
         // Free the process info for memeater
         free(si);
 
     }
+    
 
     // MARK: - Message handling
     

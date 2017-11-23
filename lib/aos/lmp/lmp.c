@@ -3,6 +3,7 @@
 #include <aos/waitset.h>
 #include <aos/lmp.h>
 #include <aos/ump.h>
+#include <aos/urpc.h>
 #include <aos/process.h>
 #include <aos/domain.h>
 
@@ -150,6 +151,20 @@ void lmp_server_dispatcher(void *arg) {
                                msg.words[6],
                                msg.words[7]);
             } while (err_is_fail(err));
+            break;
+            
+            
+        case LMP_RequestType_UmpBind:
+#if PRINT_DEBUG
+            debug_printf("UMP Bind Message!\n");
+#endif
+            // Make a new slot available for the next incoming capability
+            err = lmp_chan_alloc_recv_slot(lc);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+            }
+            // Handle the request
+            urpc_handle_lmp_bind_request(cap, msg);
             break;
             
             

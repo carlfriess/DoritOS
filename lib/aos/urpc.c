@@ -176,13 +176,22 @@ errval_t urpc_accept(struct ump_chan *chan) {
     
     errval_t err;
     
+    // Get the channel to this core's init
+    struct lmp_chan *lc = get_init_lmp_chan();
+    
     // Wait for and receive a binding request
     struct capref ump_frame_cap;
     struct lmp_recv_msg msg;
-    lmp_client_recv(get_init_lmp_chan(), &ump_frame_cap, &msg);
+    lmp_client_recv(lc, &ump_frame_cap, &msg);
     
     // Check we received a correct message
     assert(msg.words[0] == LMP_RequestType_UmpBind);
+    
+    // Make a new slot available for the next incoming capability
+    err = lmp_chan_alloc_recv_slot(lc);
+    if (err_is_fail(err)) {
+        return err;
+    }
     
     // Initialize the UMP channel
     ump_chan_init(chan, UMP_SERVER_BUF_SELECT);
@@ -201,7 +210,7 @@ errval_t urpc_accept(struct ump_chan *chan) {
     }
     
     // Send the ack over UMP
-    char *buf = "Hi there!";
+    char buf[] = "Hi there!";
     err = ump_send(chan, (void *) buf, sizeof(buf), UMP_MessageType_UrpcBindAck);
     
     return err;
