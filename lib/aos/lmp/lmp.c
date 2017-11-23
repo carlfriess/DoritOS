@@ -38,7 +38,7 @@ void lmp_server_dispatcher(void *arg) {
 
         return;
     }
-    
+
     char *string;
 
     // Check message type and handle
@@ -334,9 +334,8 @@ void lmp_server_terminal_getchar(struct lmp_chan *lc) {
             sys_getchar(&c);
         }
     } else {
-        // TODO: Test me!
         ump_msg_type_t msg_type = UMP_MessageType_TerminalGetChar;
-        size_t size = 1;
+        size_t size = sizeof(char);
         void *ptr;
 
         // Send request message
@@ -354,7 +353,21 @@ void lmp_server_terminal_getchar(struct lmp_chan *lc) {
 // TERMINALSERV: Handle requests to print a char
 void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
     errval_t err = SYS_ERR_OK;
-    sys_print(&c, sizeof(char));
+
+    if (!disp_get_core_id()) {
+        sys_print(&c, sizeof(char));
+    } else {
+        size_t size = sizeof(char);
+        void *ptr;
+
+        ump_msg_type_t msg_type = UMP_MessageType_TerminalPutChar;
+
+        ump_send(&init_uc, &c, size, msg_type);
+
+        ump_recv_blocking(&init_uc, &ptr, &size, &msg_type);
+        assert(msg_type == UMP_MessageType_TerminalPutCharAck);
+    }
+
 
     lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalPutChar, err, c);
 }
