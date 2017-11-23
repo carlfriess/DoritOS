@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <aos/aos.h>
+#include <aos/aos_rpc.h>
 #include <aos/lmp.h>
 #include <aos/urpc_protocol.h>
 #include <spawn_serv.h>
@@ -142,3 +143,85 @@ void urpc_process_register(struct process_info *pi) {
     
 }
 
+
+
+// MARK: - Generic Server
+
+
+
+// MARK: - Generic Client
+
+static struct lmp_chan *get_init_lmp_chan(void) {
+    return get_init_rpc()->lc;
+}
+
+// Bind to a URPC server with a specific PID
+errval_t urpc_bind(domainid_t pid, struct ump_chan *chan) {
+    
+    errval_t err;
+    
+    // Get the channel to this core's init
+    struct lmp_chan *lc = get_init_lmp_chan();
+    
+    // Allocate a frame for the new UMP channel
+    struct capref ump_frame_cap;
+    size_t ump_frame_size = UMP_BUF_SIZE;
+    err = frame_alloc(&ump_frame_cap, ump_frame_size, &ump_frame_size);
+    assert(ump_frame_size >= UMP_BUF_SIZE);
+    
+    // Send a bind request with the frame capability to this core's init
+    lmp_chan_send2(lc,
+                   LMP_SEND_FLAGS_DEFAULT,
+                   ump_frame_cap,
+                   LMP_RequestType_UmpBind,
+                   pid);
+    
+    // Initialize the UMP channel
+    ump_chan_init(chan, UMP_CLIENT_BUF_SELECT);
+    
+    // Map the allocated UMP frame
+    err = paging_map_frame(get_current_paging_state(), (void **) &chan->buf,
+                           ump_frame_size, ump_frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Get the frame identity
+    err = frame_identify(ump_frame_cap, &chan->fi);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Wait for ack from server
+    errval_t *reterr;
+    size_t retsize;
+    ump_msg_type_t msg_type;
+    do {
+        err = ump_recv(chan, (void **) &reterr, &retsize, &msg_type);
+    }
+    while (err == LIB_ERR_NO_UMP_MSG);
+    
+    // Check we recieved the correct message
+    assert(msg_type == UMP_MessageType_UrpcBindAck);
+    
+    return *reterr;
+    
+}
+
+
+
+// MARK: - URPC bind handlers
+
+static void urpc_forward_request_ump(void) {
+    // TODO
+}
+
+static void urpc_forward_request_lmp(void) {
+    // TODO
+}
+
+// Handle a URPC bind request received via LMP
+void urpc_handle_lmp_bind_request(void) {
+    urpc_forward_request_ump();
+    urpc_forward_request_lmp();
+}

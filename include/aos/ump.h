@@ -17,6 +17,9 @@
 #define UMP_BSP_BUF_SELECT     0
 #define UMP_APP_BUF_SELECT     1
 
+#define UMP_CLIENT_BUF_SELECT     0
+#define UMP_SERVER_BUF_SELECT     1
+
 
 // UMP message types
 #define UMP_MessageType_Bootinfo            0
@@ -28,6 +31,7 @@
 #define UMP_MessageType_TerminalPutCharAck  6
 #define UMP_MessageType_RegisterProcess     7
 #define UMP_MessageType_RegisterProcessAck  8
+#define UMP_MessageType_UrpcBindAck         9
 
 
 // UMP message types type
