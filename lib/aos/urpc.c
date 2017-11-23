@@ -50,6 +50,10 @@ void urpc_init_server_handler(struct ump_chan *chan, void *msg, size_t size,
             urpc_register_process_handler(chan, msg, size, msg_type);
             break;
             
+        case UMP_MessageType_UrpcBindRequest:
+            urpc_handle_ump_bind_request(chan, msg, size, msg_type);
+            break;
+            
         default:
             USER_PANIC("Unknown UMP message type\n");
             break;
@@ -163,13 +167,50 @@ void urpc_process_register(struct process_info *pi) {
 
 // MARK: - Generic Server
 
-
-
-// MARK: - Generic Client
-
 static struct lmp_chan *get_init_lmp_chan(void) {
     return get_init_rpc()->lc;
 }
+
+// Accept a bind request and set up the UMP channel
+errval_t urpc_accept(struct ump_chan *chan) {
+    
+    errval_t err;
+    
+    // Wait for and receive a binding request
+    struct capref ump_frame_cap;
+    struct lmp_recv_msg msg;
+    lmp_client_recv(get_init_lmp_chan(), &ump_frame_cap, &msg);
+    
+    // Check we received a correct message
+    assert(msg.words[0] == LMP_RequestType_UmpBind);
+    
+    // Initialize the UMP channel
+    ump_chan_init(chan, UMP_SERVER_BUF_SELECT);
+    
+    // Get the UMP frame identity
+    err = frame_identify(ump_frame_cap, &chan->fi);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Map the received UMP frame
+    err = paging_map_frame(get_current_paging_state(), (void **) &chan->buf,
+                           chan->fi.bytes, ump_frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Send the ack over UMP
+    char *buf = "Hi there!";
+    err = ump_send(chan, (void *) buf, sizeof(buf), UMP_MessageType_UrpcBindAck);
+    
+    return err;
+    
+}
+
+
+
+// MARK: - Generic Client
 
 // Bind to a URPC server with a specific PID
 errval_t urpc_bind(domainid_t pid, struct ump_chan *chan) {
@@ -209,18 +250,20 @@ errval_t urpc_bind(domainid_t pid, struct ump_chan *chan) {
     }
     
     // Wait for ack from server
-    errval_t *reterr;
+    char *retmsg;
     size_t retsize;
     ump_msg_type_t msg_type;
     do {
-        err = ump_recv(chan, (void **) &reterr, &retsize, &msg_type);
+        err = ump_recv(chan, (void **) &retmsg, &retsize, &msg_type);
     }
     while (err == LIB_ERR_NO_UMP_MSG);
     
     // Check we recieved the correct message
     assert(msg_type == UMP_MessageType_UrpcBindAck);
     
-    return *reterr;
+    debug_printf("BIND: Received \"%s\" from server.", retmsg);
+    
+    return SYS_ERR_OK;
     
 }
 
@@ -228,16 +271,118 @@ errval_t urpc_bind(domainid_t pid, struct ump_chan *chan) {
 
 // MARK: - URPC bind handlers
 
-static void urpc_forward_request_ump(void) {
-    // TODO
+// Forward a URPC bind request over UMP to the other core
+static void urpc_forward_request_ump(struct capref ump_frame_cap, domainid_t pid) {
+    
+    errval_t err;
+    
+    // Structured message for UMP request
+    struct urpc_bind_request req;
+    req.pid = pid;
+    
+    // Get the frame identity of the UMP frame
+    err = frame_identify(ump_frame_cap, &req.fi);
+    if (err_is_fail(err)) {
+        debug_printf("Failed to identify UMP frame: %s\n", err_getstring(err));
+        return;
+    }
+    
+    // Send the UMP message to the other core
+    err = ump_send(&init_uc,
+                   &req,
+                   sizeof(struct urpc_bind_request),
+                   UMP_MessageType_UrpcBindRequest);
+    if (err_is_fail(err)) {
+        debug_printf("Failed sending UMP message: %s\n", err_getstring(err));
+        return;
+    }
+    
 }
 
-static void urpc_forward_request_lmp(void) {
-    // TODO
+// Forward a URPC bind request over LMP to the server process
+static void urpc_forward_request_lmp(struct lmp_chan *lc,
+                                     struct capref ump_frame_cap) {
+    
+    // Send a bind request with the frame capability to the server process
+    lmp_chan_send1(lc,
+                   LMP_SEND_FLAGS_DEFAULT,
+                   ump_frame_cap,
+                   LMP_RequestType_UmpBind);
+    
 }
 
 // Handle a URPC bind request received via LMP
-void urpc_handle_lmp_bind_request(void) {
-    urpc_forward_request_ump();
-    urpc_forward_request_lmp();
+void urpc_handle_lmp_bind_request(struct capref msg_cap, struct lmp_recv_msg msg) {
+    
+    // Sanity check: cannot bind to init
+    assert(msg.words[1] != 0 && "Cannot bind to init!");
+    
+    // Get the requested process by it's PID
+    struct process_info *pi = process_info_for_pid(msg.words[1]);
+    
+    // Check the process exists
+    if (pi == NULL) {
+        return;
+    }
+    
+    // Check if the process is on this core
+    if (disp_get_core_id() == pi->core_id) {
+        
+        // Forward the request to the process
+        urpc_forward_request_lmp(pi->lc, msg_cap);
+        
+    }
+    else {
+        
+        // Forward the request to the other core
+        urpc_forward_request_ump(msg_cap, pi->pid);
+        
+    }
+    
+}
+
+// Handle a URPC bind request received via UMP
+void urpc_handle_ump_bind_request(struct ump_chan *chan, void *msg, size_t size,
+                                  ump_msg_type_t msg_type) {
+    
+    errval_t err;
+    
+    // Sanity check: make sure we have a correct message
+    assert(msg_type == UMP_MessageType_UrpcBindRequest);
+    
+    // Get the request
+    struct urpc_bind_request *req = (struct urpc_bind_request *) msg;
+    
+    // Get the requested process by it's PID
+    struct process_info *pi = process_info_for_pid(req->pid);
+    
+    // Check the process exists
+    if (pi == NULL) {
+        return;
+    }
+    
+    // Sanity check: make sure we are on the correct core
+    assert(disp_get_core_id() == pi->core_id);
+    
+    // Allocate a slot for the UMP frame
+    struct capref ump_frame_cap;
+    err = slot_alloc(&ump_frame_cap);
+    if (err_is_fail(err)) {
+        debug_printf("Slot allocation for UMP frame failed: %s\n", err_getstring(err));
+        return;
+    }
+    
+    // Forge the frame cap for the UMP frame
+    err = frame_forge(ump_frame_cap,
+                      req->fi.base,
+                      req->fi.bytes,
+                      disp_get_core_id());
+    if (err_is_fail(err)) {
+        debug_printf("Frame forge for UMP frame failed: %s\n", err_getstring(err));
+        return;
+    }
+    
+    // Forward the request to the correct process
+    urpc_forward_request_lmp(pi->lc, ump_frame_cap);
+    
 }

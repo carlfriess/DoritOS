@@ -29,6 +29,12 @@ void urpc_register_process_handler(struct ump_chan *chan, void *msg,
 void urpc_process_register(struct process_info *pi);
 
 
+// MARK: - Generic Server
+
+// Accept a bind request and set up the UMP channel
+errval_t urpc_accept(struct ump_chan *chan);
+
+
 // MARK: - Generic Client
 
 // Bind to a URPC server with a specific PID
@@ -38,6 +44,10 @@ errval_t urpc_bind(domainid_t pid, struct ump_chan *chan);
 // MARK: - URPC bind handlers
 
 // Handle a URPC bind request received via LMP
-void urpc_handle_lmp_bind_request(void);
+void urpc_handle_lmp_bind_request(struct capref msg_cap, struct lmp_recv_msg msg);
+
+// Handle a URPC bind request received via UMP
+void urpc_handle_ump_bind_request(struct ump_chan *chan, void *msg, size_t size,
+                                  ump_msg_type_t msg_type);
 
 #endif /* urpc_h */

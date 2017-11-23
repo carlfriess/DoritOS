@@ -31,7 +31,8 @@
 #define UMP_MessageType_TerminalPutCharAck  6
 #define UMP_MessageType_RegisterProcess     7
 #define UMP_MessageType_RegisterProcessAck  8
-#define UMP_MessageType_UrpcBindAck         9
+#define UMP_MessageType_UrpcBindRequest     9
+#define UMP_MessageType_UrpcBindAck         10
 
 #define UMP_MessageType_Ping 69
 #define UMP_MessageType_Pong 70
