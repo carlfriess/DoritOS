@@ -19,6 +19,9 @@
 void urpc_init_server_handler(struct ump_chan *chan, void *msg, size_t size,
                               ump_msg_type_t msg_type);
 
+// Handle UMP_MessageType_RegisterProcess
+void urpc_register_process_handler(struct ump_chan *chan, void *msg,
+                                   size_t size, ump_msg_type_t msg_type);
 
 // MARK: - Init URPC Client
 

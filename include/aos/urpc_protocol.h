@@ -29,6 +29,7 @@ struct urpc_spaw_response {
 
 struct urpc_process_register {
     coreid_t core_id;
+    domainid_t pid;
     char name[];
 };
 

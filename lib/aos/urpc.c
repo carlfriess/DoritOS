@@ -24,8 +24,6 @@ static void urpc_spawn_handler(struct ump_chan *chan, void *msg, size_t size,
                                ump_msg_type_t msg_type);
 static void urpc_get_char_handler(struct ump_chan *chan, void *msg, size_t size,
                                   ump_msg_type_t msg_type);
-static void urpc_register_process_handler(struct ump_chan *chan, void *msg,
-                                          size_t size, ump_msg_type_t msg_type);
 
 // Handler for init URPC server:
 void urpc_init_server_handler(struct ump_chan *chan, void *msg, size_t size,
@@ -84,14 +82,15 @@ static void urpc_get_char_handler(struct ump_chan *chan, void *msg, size_t size,
 }
 
 // Handle UMP_MessageType_RegisterProcess
-static void urpc_register_process_handler(struct ump_chan *chan, void *msg,
-                                          size_t size, ump_msg_type_t msg_type) {
+void urpc_register_process_handler(struct ump_chan *chan, void *msg,
+                                   size_t size, ump_msg_type_t msg_type) {
     
     struct urpc_process_register *req = msg;
     struct process_info *new_process = malloc(sizeof(struct process_info));
     assert(new_process != NULL);
     
     new_process->core_id = req->core_id;
+    new_process->pid = req->pid;
     new_process->name = (char *) malloc(strlen(req->name));
     assert(new_process->name != NULL);
     strcpy(new_process->name, req->name);
@@ -118,6 +117,7 @@ void urpc_process_register(struct process_info *pi) {
     assert(msg != NULL);
     
     msg->core_id = pi->core_id;
+    msg->pid = pi->pid;
     strcpy(msg->name, pi->name);
     
     ump_send(&init_uc, (void *)msg, msg_size, UMP_MessageType_RegisterProcess);

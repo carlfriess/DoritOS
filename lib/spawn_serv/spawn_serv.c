@@ -2,6 +2,7 @@
 #include <aos/aos.h>
 #include <aos/lmp.h>
 #include <spawn/spawn.h>
+#include <aos/urpc.h>
 #include <aos/urpc_protocol.h>
 
 #include "spawn_serv.h"
@@ -29,6 +30,20 @@ static errval_t request_remote_spawn(char *name, coreid_t coreid, domainid_t *pi
         
         // Receive response of spawn server and save it in recv_buf
         err = ump_recv(ump_chan, (void **) &recv_buf, &retsize, &msg_type);
+        
+        // Check for a process register message
+        if (err_is_ok(err) && msg_type == UMP_MessageType_RegisterProcess) {
+            
+            // Pass message to URPC handler
+            urpc_register_process_handler(ump_chan,
+                                          (void *)recv_buf,
+                                          retsize,
+                                          msg_type);
+            free(recv_buf);
+            
+            // Continue looping
+            err = LIB_ERR_NO_UMP_MSG;
+        }
         
     } while (err == LIB_ERR_NO_UMP_MSG);
     

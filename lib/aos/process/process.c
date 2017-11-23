@@ -8,18 +8,26 @@ static struct process_info *process_list = NULL;
 void process_register(struct process_info *pi) {
     
     // Counter for assigning new PIDs
-    static domainid_t pid_counter = 1;
+    static domainid_t pid_counter = 0;
     
     if (disp_get_core_id() == 0) {
         
         // Set the PID for the new process
-        pi->pid = pid_counter++;
+        pi->pid = ++pid_counter;
         
     }
-    else {
+    
+    if (disp_get_core_id() == pi->core_id) {
         
-        // Register process with init.0
+        // Register process with the other init
         urpc_process_register(pi);
+        
+    }
+        
+    if (disp_get_core_id() == 0) {
+        
+        // Reset the PID in case it changed during UMP call
+        pi->pid = pid_counter;
         
     }
     
