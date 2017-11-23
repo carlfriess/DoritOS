@@ -6,6 +6,7 @@
 struct process_info {
     struct process_info *next;
     domainid_t pid;
+    coreid_t core_id;
     char *name;
     struct capref *dispatcher_cap;
     struct lmp_chan *lc;

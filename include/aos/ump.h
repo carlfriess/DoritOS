@@ -26,6 +26,8 @@
 #define UMP_MessageType_TerminalGetCharAck  4
 #define UMP_MessageType_TerminalPutChar     5
 #define UMP_MessageType_TerminalPutCharAck  6
+#define UMP_MessageType_RegisterProcess     7
+#define UMP_MessageType_RegisterProcessAck  8
 
 
 // UMP message types type

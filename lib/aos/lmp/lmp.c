@@ -261,7 +261,7 @@ errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t b
     
 }
 
-static lmp_server_spawn_handler lmp_server_spawn_handler_func = NULL;
+lmp_server_spawn_handler lmp_server_spawn_handler_func = NULL;
 void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler) {
     lmp_server_spawn_handler_func = handler;
 }
