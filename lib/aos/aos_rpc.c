@@ -35,7 +35,7 @@ size_t aos_rpc_terminal_read(char *buf, size_t len) {
 
     struct aos_rpc *chan = aos_rpc_get_serial_channel();
 
-    for (size_t i = len; i < len; i++) {
+    for (size_t i = 0; i < len; i++) {
         err = aos_rpc_serial_getchar(chan, &buf[i]);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
