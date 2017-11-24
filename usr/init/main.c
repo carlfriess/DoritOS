@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
             debug_printf("%s\n", err_getstring(err));
         }
         
-        // Free the process info for memeater
+        // Free the process info
         free(si);
 
     }
