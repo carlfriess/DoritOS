@@ -69,19 +69,7 @@ void lmp_server_dispatcher(void *arg) {
             printf("Received string: %s\n", string);
             free(string);
             break;
-            
-            /*
-        case LMP_RequestType_ShortBuf:
-        case LMP_RequestType_FrameSend:
 
-#if PRINT_DEBUG
-            debug_printf("String Message!\n");
-#endif
-            lmp_recv_string_from_msg(lc, cap, msg.words, &string);
-            printf("Received string: %s\n", string);
-            free(string);
-            break;
-            */
             
         case LMP_RequestType_SpawnShort:
         case LMP_RequestType_SpawnLong:
@@ -92,15 +80,7 @@ void lmp_server_dispatcher(void *arg) {
             lmp_recv_spawn_from_msg(lc, cap, msg.words, &string);
             free(string);
             break;
-            
-            /*
-        case LMP_RequestType_Spawn:
-#if PRINT_DEBUG
-            debug_printf("Spawn Message!\n");
-#endif
-            lmp_server_spawn(lc, msg.words);
-            break;
-            */
+
             
         case LMP_RequestType_Register:
 #if PRINT_DEBUG
@@ -327,9 +307,8 @@ errval_t lmp_server_pid_discovery(struct lmp_chan *lc) {
     // Send array of PIDs
     err = lmp_send_frame(lc, LMP_RequestType_StringLong, frame_cap, ret_size);
     
-    // TODO: figure out which request type to use
-    //lmp_send_frame(lc, frame_cap, ret_size); // OLD
-    //err = lmp_send_frame(lc, LMP_RequestType_PidDiscover, frame_cap, ret_size); // POTENTIAL NEW?
+    //  TODO: figure out which request type to use for pid discover
+    //err = lmp_send_frame(lc, LMP_RequestType_PidDiscover, frame_cap, ret_size);
 
     return err;
     
@@ -662,21 +641,6 @@ errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core) {
     
 }
 
-/*
- // SPAWNSERV: Pass spawn requests to spawn_serv module
- void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
- 
-    errval_t err;
-    domainid_t pid = 0;
- 
-    err = lmp_server_spawn_handler_func((char *)(args+2), (coreid_t) args[1], &pid);
- 
-    // Send result to client
-    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Spawn, err, pid);
- 
- }
- */
-
 // Blocking call to receive a spawn process name on a channel (automatically select protocol)
 errval_t lmp_recv_spawn(struct lmp_chan *lc, char **name) {
     
@@ -991,30 +955,3 @@ errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, enum lmp_request_type type
     
 }
 
-/*
-// Receive a frame with further arguments on a channel
-errval_t lmp_recv_args_and_frame(struct lmp_chan *lc, enum lmp_request_type type, struct capref *frame_cap, size_t *size, void** args) {
-    
-    errval_t err;
-    
-    struct capref cap;
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    lmp_client_recv(lc, &cap, &msg);
-    
-    // Process the reveived frame
-    err = lmp_recv_frame_from_msg(lc, type, cap, msg.words, frame_cap, size);
-    
-    // Allocate new space for the received args
-    size_t arg_size = 6 * sizeof(uintptr_t);
-    *args = malloc(arg_size);
-    if (*args == NULL) {
-        return LIB_ERR_MALLOC_FAIL;
-    }
-    
-    // Copy in the new string
-    memcpy(*args, words+3, arg_size);
-    
-    return err;
-    
-}
-*/

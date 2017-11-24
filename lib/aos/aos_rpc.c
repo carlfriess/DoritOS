@@ -215,8 +215,7 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
 errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
                                   char **name)
 {
-    // TODO (milestone 5): implement name lookup for process given a process
-    // id
+    // TODO (milestone 5): implement name lookup for process given a process id
     
     errval_t err;
     
@@ -258,7 +257,7 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
     // Return the PID count
     *pid_count = msg.words[1];
 
-    // TODO: Refactor receiving of PID array!
+    //  TODO: Refactor receiving of PID array!
 
     // Receive the array of PIDs
     struct capref array_frame;
