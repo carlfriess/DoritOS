@@ -9,6 +9,8 @@
 
 #define MAX_ALLOCATION 100000000
 
+#define SHORT_BUF_SIZE 7
+
 #define PRINT_DEBUG 0
 
 
@@ -58,17 +60,28 @@ void lmp_server_dispatcher(void *arg) {
                            msg.words[1]);
             break;
             
-            
-        case LMP_RequestType_ShortBuf:
-        case LMP_RequestType_FrameSend:
+        case LMP_RequestType_StringShort:
+        case LMP_RequestType_StringLong:
+       
 #if PRINT_DEBUG
-            debug_printf("String Message!\n");
+            debug_printf("Short or Long String Message!\n");
 #endif
             lmp_recv_string_from_msg(lc, cap, msg.words, &string);
             printf("Received string: %s\n", string);
             free(string);
             break;
+
             
+        case LMP_RequestType_SpawnShort:
+        case LMP_RequestType_SpawnLong:
+            
+#if PRINT_DEBUG
+            debug_printf("Short or Long Spawn Message!\n");
+#endif
+            lmp_recv_spawn_from_msg(lc, cap, msg.words, &string);
+            free(string);
+            break;
+
             
         case LMP_RequestType_Register:
 #if PRINT_DEBUG
@@ -90,14 +103,6 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Memory Free Message!\n");
 #endif
-            break;
-            
-            
-        case LMP_RequestType_Spawn:
-#if PRINT_DEBUG
-            debug_printf("Spawn Message!\n");
-#endif
-            lmp_server_spawn(lc, msg.words);
             break;
             
             
@@ -177,7 +182,7 @@ void lmp_server_dispatcher(void *arg) {
             
     }
 
-
+    // Register again
     err = lmp_chan_register_recv(lc, get_default_waitset(), MKCLOSURE(lmp_server_dispatcher, (void *) lc));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
@@ -276,23 +281,6 @@ errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t b
     
 }
 
-lmp_server_spawn_handler lmp_server_spawn_handler_func = NULL;
-void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler) {
-    lmp_server_spawn_handler_func = handler;
-}
-
-// SPAWNSERV: Pass spawn requests to spawn_serv module
-void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args) {
-
-    errval_t err;
-    domainid_t pid = 0;
-    
-    err = lmp_server_spawn_handler_func((char *)(args+2), (coreid_t) args[1], &pid);
-    
-    // Send result to client
-    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_Spawn, err, pid);
-    
-}
 
 // SPAWNSERV: Report all current PIDs
 errval_t lmp_server_pid_discovery(struct lmp_chan *lc) {
@@ -332,8 +320,11 @@ errval_t lmp_server_pid_discovery(struct lmp_chan *lc) {
     }
     
     // Send array of PIDs
-    lmp_send_frame(lc, frame_cap, ret_size);
+    err = lmp_send_frame(lc, LMP_RequestType_StringLong, frame_cap, ret_size);
     
+    //  TODO: figure out which request type to use for pid discover
+    //err = lmp_send_frame(lc, LMP_RequestType_PidDiscover, frame_cap, ret_size);
+
     return err;
     
 }
@@ -348,7 +339,8 @@ void lmp_server_terminal_getchar(struct lmp_chan *lc) {
         while (c == '\0') {
             sys_getchar(&c);
         }
-    } else {
+    }
+    else {
         ump_msg_type_t msg_type = UMP_MessageType_TerminalGetChar;
         size_t size = sizeof(char);
         void *ptr;
@@ -371,7 +363,8 @@ void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
 
     if (!disp_get_core_id()) {
         sys_print(&c, sizeof(char));
-    } else {
+    }
+    else {
         size_t size = sizeof(char);
         void *ptr;
 
@@ -418,21 +411,20 @@ void lmp_client_wait(void *arg) {
 }
 
 
-/* MARK: - ========== Aux ========== */
-
+/* MARK: - ========== String ========== */
 
 // Send a string on a specific channel (automatically select protocol)
 errval_t lmp_send_string(struct lmp_chan *lc, const char *string) {
     
     errval_t err;
     
-    // Get length of the string
-    size_t len = strlen(string);
+    // Get length of entire buffer (including '\0')
+    size_t buf_len = strlen(string) + 1;
     
-    // Check wether to use ShortBuf or FrameSend protocol
-    if (len < sizeof(uintptr_t) * 7) {
+    // Check wether to use StringShort with send_short_buf() or StringLong with send_frame()
+    if (buf_len <= sizeof(uintptr_t) * SHORT_BUF_SIZE) {
         
-        return lmp_send_short_buf(lc, (void *) string, len);
+        return lmp_send_short_buf(lc, LMP_RequestType_StringShort, (void *) string, buf_len);
         
     }
     else {
@@ -440,7 +432,7 @@ errval_t lmp_send_string(struct lmp_chan *lc, const char *string) {
         // Allocating frame capability
         size_t ret_size;
         struct capref frame_cap;
-        err = frame_alloc(&frame_cap, len + 1, &ret_size);
+        err = frame_alloc(&frame_cap, buf_len, &ret_size);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
             return err;
@@ -455,12 +447,11 @@ errval_t lmp_send_string(struct lmp_chan *lc, const char *string) {
             return err;
         }
         
-        // Copy string into memory
-        memcpy(buf, string, len);
-        *((char *)buf + len) = '\0';
+        // Copy string (including '\0') into memory/frame
+        memcpy(buf, string, buf_len);
         
         // Send the frame to the recipient
-        err = lmp_send_frame(lc, frame_cap, ret_size);
+        err = lmp_send_frame(lc, LMP_RequestType_StringLong, frame_cap, ret_size);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
             return err;
@@ -485,102 +476,16 @@ errval_t lmp_send_string(struct lmp_chan *lc, const char *string) {
         
     }
 
-    
-}
-
-// Send a short buffer (using LMP arguments)
-errval_t lmp_send_short_buf(struct lmp_chan *lc, void *buf, size_t size) {
-    
-    errval_t err;
-    
-    assert(size <= sizeof(uintptr_t) * 7);
-    
-    // Allocate new memory to construct the arguments
-    char *buf_arg = calloc(sizeof(uintptr_t), 7);
-    if (buf_arg == NULL) {
-        return LIB_ERR_MALLOC_FAIL;
-    }
-    
-    // Copy in the string
-    memcpy(buf_arg, buf, size);
-    
-    // Send the LMP message
-    err = lmp_chan_send9(lc,
-                         LMP_SEND_FLAGS_DEFAULT,
-                         NULL_CAP,
-                         LMP_RequestType_ShortBuf,
-                         size,
-                         ((uintptr_t *)buf_arg)[0],
-                         ((uintptr_t *)buf_arg)[1],
-                         ((uintptr_t *)buf_arg)[2],
-                         ((uintptr_t *)buf_arg)[3],
-                         ((uintptr_t *)buf_arg)[4],
-                         ((uintptr_t *)buf_arg)[5],
-                         ((uintptr_t *)buf_arg)[6]);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        free(buf_arg);
-        return err;
-    }
-    
-    // Free the memory for constructing the arguments
-    free(buf_arg);
-    
-    // Receive the status code form recipient
-    struct capref cap;
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    lmp_client_recv(lc, &cap, &msg);
-    
-    // Check we actually got a valid response
-    assert(msg.words[0] == LMP_RequestType_ShortBuf);
-    
-    // Return an error if things didn't work
-    if (err_is_fail(msg.words[1])) {
-        return msg.words[1];
-    }
-    
-    // Return the status code
-    return msg.words[2] == size ? SYS_ERR_OK : -1;
-    
-}
-
-// Send an entire frame capability
-errval_t lmp_send_frame(struct lmp_chan *lc, struct capref frame_cap, size_t frame_size) {
-    
-    errval_t err;
-    
-    // Sending frame capability and it's size
-    err = lmp_chan_send2(lc,
-                         LMP_SEND_FLAGS_DEFAULT,
-                         frame_cap,
-                         LMP_RequestType_FrameSend,
-                         frame_size);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return err;
-    }
-    
-    // Receive ack from recipient
-    struct capref cap;
-    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    lmp_client_recv(lc, &cap, &msg);
-    
-    // Check we actually got a valid response
-    assert(msg.words[0] == LMP_RequestType_FrameSend);
-    
-    // Return an error if things didn't work
-    if (err_is_fail(msg.words[1])) {
-        return msg.words[1];
-    }
-    
-    // Return the status code
-    return msg.words[2] == frame_size ? SYS_ERR_OK : -1;
 }
 
 // Blocking call to receive a string on a channel (automatically select protocol)
 errval_t lmp_recv_string(struct lmp_chan *lc, char **string) {
+    
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait for string receive
     lmp_client_recv(lc, &cap, &msg);
     
     return lmp_recv_string_from_msg(lc, cap, msg.words, string);
@@ -593,19 +498,23 @@ errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
     errval_t err;
     
     // Assert that the message is valid
-    assert(words[0] == LMP_RequestType_ShortBuf ||
-           words[0] == LMP_RequestType_FrameSend);
+    assert(words[0] == LMP_RequestType_StringShort ||
+           words[0] == LMP_RequestType_StringLong);
     
-    if (words[0] == LMP_RequestType_ShortBuf) {
+    if (words[0] == LMP_RequestType_StringShort) {
+        
         size_t size;
-        return lmp_recv_short_buf_from_msg(lc, words, (void **) string,
-                                           &size);
+        
+        // Receive short buffer from message and copy it in newly allocated return argument string
+        return lmp_recv_short_buf_from_msg(lc, LMP_RequestType_StringShort, words, (void **) string, &size);
+    
     }
     else {
+        
         // Process the message and get the capability and size
         struct capref frame_cap;
         size_t size;
-        err = lmp_recv_frame_from_msg(lc, cap, words, &frame_cap, &size);
+        err = lmp_recv_frame_from_msg(lc, LMP_RequestType_StringLong, cap, words, &frame_cap, &size);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
             return err;
@@ -620,18 +529,17 @@ errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
             return err;
         }
         
-        // Get effective length of string
-        size_t len = strlen((char *)buf);
+        // Get length of entire buffer (including '\0')
+        size_t buf_len = strlen((char *) buf) + 1;
         
-        // Allocate space to move the string onto the heap
-        *string = malloc(len + 1);
+        // Allocate space to move return argument string onto the heap
+        *string = malloc(buf_len);
         if (*string == NULL) {
             return LIB_ERR_MALLOC_FAIL;
         }
         
-        // Copy the new string
-        memcpy(*string, buf, len);
-        *(*string + len) = '\0';
+        // Copy the new string (including '\0')
+        memcpy(*string, buf, buf_len);
         
         // Clean up the frame
         err = paging_unmap(get_current_paging_state(), buf);
@@ -654,23 +562,356 @@ errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
     
 }
 
-// Receive a short buffer on a channel (using LMP arguments)
-errval_t lmp_recv_short_buf(struct lmp_chan *lc, void **buf, size_t *size) {
+
+/* MARK: - ========== Spawn ========== */
+
+lmp_server_spawn_handler lmp_server_spawn_handler_func = NULL;
+void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler) {
+    lmp_server_spawn_handler_func = handler;
+}
+
+errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core) {
+    
+    errval_t err;
+    
+    // Get length of the name
+    size_t name_len = strlen(name);
+    
+    // Get length of entire buffer (including '\0')
+    size_t buf_len = sizeof(coreid_t) + name_len + 1;
+    
+    // Check wether to use SpawnShort with send_short_buf() or SpawnLong with send_frame()
+    if (buf_len <= sizeof(uintptr_t) * SHORT_BUF_SIZE) {
+        
+        // Construct buffer of length buf_len and fill in core id and name (including '\0')
+        char buf[buf_len];
+        
+        // Copy core id into beginning of buffer
+        *(coreid_t *) buf = core;
+        
+        // Initialize string as beginning of name
+        char *string = ((char *) buf) + sizeof(coreid_t);
+
+        // Copy name into buffer after core id
+        memcpy(string, name, name_len + 1);
+        
+        // Send buffer using arguments
+        return lmp_send_short_buf(lc, LMP_RequestType_SpawnShort, (void *) buf, buf_len);
+        
+    }
+    else {
+        
+        // Allocating frame capability
+        size_t ret_size;
+        struct capref frame_cap;
+        err = frame_alloc(&frame_cap, buf_len, &ret_size);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Mapping frame into virtual address space
+        void *buf;
+        err = paging_map_frame(get_current_paging_state(), &buf,
+                               ret_size, frame_cap, NULL, NULL);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Fill in core id and name string (including \0) into memory/frame
+        
+        // Copy core id into beginning of buffer
+        *(coreid_t *) buf = core;
+        
+        // Initialize string as beginning of name
+        char *string = ((char *) buf) + sizeof(coreid_t);
+        
+        // Copy name into buffer after core id
+        memcpy(string, name, name_len + 1);
+        
+        // Send the frame to the recipient
+        err = lmp_send_frame(lc, LMP_RequestType_SpawnLong, frame_cap, ret_size);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Cleaning up after sending
+        err = paging_unmap(get_current_paging_state(), buf);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        // FIXME: Make this work
+        /*err = ram_free_handler(frame_cap, ret_size);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }*/
+        // Temporary less optimal soution:
+        cap_delete(frame_cap);
+        slot_free(frame_cap);
+        
+        return err;
+        
+    }
+
+    return err;
+    
+}
+
+// Blocking call to receive a spawn process name on a channel (automatically select protocol)
+errval_t lmp_recv_spawn(struct lmp_chan *lc, char **name) {
+    
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait for spawn receive
     lmp_client_recv(lc, &cap, &msg);
     
-    return lmp_recv_short_buf_from_msg(lc, msg.words, buf, size);
+    return lmp_recv_spawn_from_msg(lc, cap, msg.words, name);
+}
+
+// Process a spawn received through a message (automatically select protocol)
+errval_t lmp_recv_spawn_from_msg(struct lmp_chan *lc, struct capref cap,
+                                 uintptr_t *words, char **name) {
+    
+    errval_t err;
+    
+    // Assert that the message is valid
+    assert(words[0] == LMP_RequestType_SpawnShort ||
+           words[0] == LMP_RequestType_SpawnLong);
+    
+    if (words[0] == LMP_RequestType_SpawnShort) {
+        
+        // Receive short buffer from message and copy it in newly allocated buffer
+        void *buf;
+        size_t size;
+        lmp_recv_short_buf_from_msg(lc, LMP_RequestType_SpawnShort, words, &buf, &size);
+        
+        // Get core id out of buffer
+        coreid_t core = *(coreid_t *) buf;
+        
+        // Initialize string as beginning of name
+        char *string = ((char *) buf) + sizeof(coreid_t);
+        
+        // Get length of string
+        size_t string_len = strlen(string);
+        
+        // Allocate space to move return argument name onto the heap
+        *name = (char *) malloc(string_len + 1);
+        if (*name == NULL) {
+            return LIB_ERR_MALLOC_FAIL;
+        }
+        
+        // Copy string (including '\0') from buffer into name
+        memcpy(*name, string, string_len + 1);
+        
+        // Handle spawn request by passing it on to the spawn server
+        domainid_t pid = 0;
+        err = lmp_server_spawn_handler_func(*name, core, &pid);
+        
+        // Free buffer
+        free(buf);
+        
+        // Send result to client
+        lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_SpawnShort, err, pid);
+        
+        return err;
+
+    }
+    else if (words[0] == LMP_RequestType_SpawnLong) {
+        
+        // Process the message and get the capability and size
+        struct capref frame_cap;
+        size_t size;
+        err = lmp_recv_frame_from_msg(lc, LMP_RequestType_SpawnLong, cap, words, &frame_cap, &size);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Map the recieved frame into memory
+        void *buf;
+        err = paging_map_frame(get_current_paging_state(), &buf,
+                               size, frame_cap, NULL, NULL);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Extract core out of buffer
+        coreid_t core = *(coreid_t *) buf;
+        
+        // Initialize string as beginning of name
+        char *string = ((char *) buf) + sizeof(coreid_t);
+
+        // Get length of string
+        size_t string_len = strlen(string);
+        
+        // Allocate space to move return argument name onto the heap
+        *name = malloc(string_len + 1);
+        if (*name == NULL) {
+            return LIB_ERR_MALLOC_FAIL;
+        }
+        
+        // Copy the string (including '\0') from buffer to name
+        memcpy(*name, string, string_len + 1);
+        
+        // Handle spawn request by passing it on to the spawn server
+        domainid_t pid = 0;
+        err = lmp_server_spawn_handler_func(*name, core, &pid);
+        
+        // Send result to client
+        lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_SpawnLong, err, pid);
+        
+        // Clean up the frame
+        err = paging_unmap(get_current_paging_state(), buf);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        // FIXME: Make this work
+        /*err = ram_free_handler(frame_cap, size);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }*/
+        // Temporary less optimal soution:
+        cap_delete(frame_cap);
+        slot_free(frame_cap);
+        
+        return err;
+        
+    }
+    
+    return err;
+    
+}
+
+
+/* MARK: - ========== Aux ========== */
+
+/* MARK: - ========== Send buffer ==========  */
+
+// Send a short buffer (using LMP arguments)
+errval_t lmp_send_short_buf(struct lmp_chan *lc, enum lmp_request_type type, void *buf, size_t size) {
+    
+    errval_t err;
+    
+    assert(size <= sizeof(uintptr_t) * SHORT_BUF_SIZE);
+    
+    // Allocate new memory to construct the arguments
+    char *buf_arg = calloc(sizeof(uintptr_t), SHORT_BUF_SIZE);
+    if (buf_arg == NULL) {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+    
+    // Copy in the string
+    memcpy(buf_arg, buf, size);
+    
+    // Send the LMP message
+    err = lmp_chan_send9(lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         NULL_CAP,
+                         type,
+                         size,
+                         ((uintptr_t *)buf_arg)[0],
+                         ((uintptr_t *)buf_arg)[1],
+                         ((uintptr_t *)buf_arg)[2],
+                         ((uintptr_t *)buf_arg)[3],
+                         ((uintptr_t *)buf_arg)[4],
+                         ((uintptr_t *)buf_arg)[5],
+                         ((uintptr_t *)buf_arg)[6]);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        free(buf_arg);
+        return err;
+    }
+    
+    // Free the memory for constructing the arguments
+    free(buf_arg);
+    
+    // Initialize capref and message
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive the status code form recipient
+    lmp_client_recv(lc, &cap, &msg);
+    
+    // Check we actually got a valid response
+    assert(msg.words[0] == type);
+    
+    // Return an error if things didn't work
+    if (err_is_fail(msg.words[1])) {
+        return msg.words[1];
+    }
+    
+    // Return the status code
+    return msg.words[2] == size ? SYS_ERR_OK : -1;
+    
+}
+
+// Send an entire frame capability
+errval_t lmp_send_frame(struct lmp_chan *lc, enum lmp_request_type type, struct capref frame_cap, size_t frame_size) {
+    
+    errval_t err;
+    
+    // Sending frame capability and it's size
+    err = lmp_chan_send2(lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         frame_cap,
+                         type,
+                         frame_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Initialize capref and message
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive ack from recipient
+    lmp_client_recv(lc, &cap, &msg);
+    
+    // Check we actually got a valid response
+    assert(msg.words[0] == type);
+    
+    // Return an error if things didn't work
+    if (err_is_fail(msg.words[1])) {
+        return msg.words[1];
+    }
+    
+    // Return the status code
+    return msg.words[2] == frame_size ? SYS_ERR_OK : -1;
+}
+
+
+/* MARK: - ========== Receive buffer ==========  */
+
+// Receive a short buffer on a channel (using LMP arguments)
+errval_t lmp_recv_short_buf(struct lmp_chan *lc, enum lmp_request_type type, void **buf, size_t *size) {
+    
+    // Initialize capref and message
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait for short buffer receive
+    lmp_client_recv(lc, &cap, &msg);
+    
+    // Receive short buffer from message and copy it in newly allocated buffer
+    return lmp_recv_short_buf_from_msg(lc, type, msg.words, buf, size);
 }
 
 // Process a short buffer received through a message (using LMP arguments)
-errval_t lmp_recv_short_buf_from_msg(struct lmp_chan *lc, uintptr_t *words,
+errval_t lmp_recv_short_buf_from_msg(struct lmp_chan *lc, enum lmp_request_type type, uintptr_t *words,
                                      void **buf, size_t *size) {
     
     errval_t err;
     
     // Assert this is a valid message
-    assert(words[0] == LMP_RequestType_ShortBuf);
+    assert(words[0] == type);
     
     // Get the length of the buffer
     *size = words[1];
@@ -681,15 +922,14 @@ errval_t lmp_recv_short_buf_from_msg(struct lmp_chan *lc, uintptr_t *words,
         return LIB_ERR_MALLOC_FAIL;
     }
     
-    // Copy in the new string
-    memcpy(*buf, words+2, *size);
-    *((char *) (*buf + *size)) = '\0';
+    // Copy words from message to buffer (size includes '\0')
+    memcpy(*buf, words + 2, *size);
     
     // Send a confirmation
     err = lmp_chan_send3(lc,
                          LMP_SEND_FLAGS_DEFAULT,
                          NULL_CAP,
-                         LMP_RequestType_ShortBuf,
+                         type,
                          SYS_ERR_OK,
                          *size);
     if (err_is_fail(err)) {
@@ -701,23 +941,26 @@ errval_t lmp_recv_short_buf_from_msg(struct lmp_chan *lc, uintptr_t *words,
 }
 
 // Receive a frame on a channel
-errval_t lmp_recv_frame(struct lmp_chan *lc, struct capref *frame_cap, size_t *size) {
+errval_t lmp_recv_frame(struct lmp_chan *lc, enum lmp_request_type type, struct capref *frame_cap, size_t *size) {
+    
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait for frame receive
     lmp_client_recv(lc, &cap, &msg);
     
-    return lmp_recv_frame_from_msg(lc, cap, msg.words, frame_cap, size);
+    return lmp_recv_frame_from_msg(lc, type, cap, msg.words, frame_cap, size);
 }
 
 // Process a frame received through a message
-errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, struct capref msg_cap,
-                                 uintptr_t *words, struct capref *frame_cap,
-                                 size_t *size) {
+errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, enum lmp_request_type type, struct capref msg_cap,
+                                 uintptr_t *words, struct capref *frame_cap, size_t *size) {
     
     errval_t err;
     
     // Assert this is a valid message
-    assert(words[0] == LMP_RequestType_FrameSend);
+    assert(words[0] == type);
     
     // Get the size of the received frame
     *size = words[1];
@@ -735,7 +978,7 @@ errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, struct capref msg_cap,
     err = lmp_chan_send3(lc,
                          LMP_SEND_FLAGS_DEFAULT,
                          NULL_CAP,
-                         LMP_RequestType_FrameSend,
+                         type,
                          SYS_ERR_OK,
                          *size);
     if (err_is_fail(err)) {
@@ -745,7 +988,4 @@ errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, struct capref msg_cap,
     return err;
     
 }
-
-
-// lmp_recv_big
 

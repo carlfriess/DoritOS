@@ -226,11 +226,29 @@ int main(int argc, char *argv[])
         struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
 
         // Spawn bind_server
-        spawn_load_by_name("bind_server", si);
-
-        // Free the process info for memeater
+        err = spawn_load_by_name("bind_server", si);
+        if(err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }
+        
+        // Free the process info
         free(si);
-
+        
+        
+        // Demonstrate that spawning processes with very long module names works
+        
+        // Allocate spawninfo
+        struct spawninfo *really_long_si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+        
+        // Spawn really_long_module_name_such_that_it_will_use_spawn_long to demonstrate SpawnLong
+        err = spawn_load_by_name("really_long_module_name_such_that_it_will_use_spawn_long", really_long_si);
+        if(err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }
+        
+        // Free the process info
+        free(really_long_si);
+        
     }
     
 

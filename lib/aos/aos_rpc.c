@@ -63,9 +63,11 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
         return err;
     }
     
-    // Wait to receive an acknowledgement
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+    // Wait to receive an acknowledgement
     lmp_client_recv(chan->lc, &cap, &msg);
     
     // Check we actually got a valid response
@@ -155,6 +157,7 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
 {
     errval_t err = SYS_ERR_OK;
 
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
 
@@ -163,6 +166,8 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
+    
+    // Wait for receive
     lmp_client_recv(chan->lc, &cap, &msg);
 
     *retc = msg.words[2];
@@ -175,6 +180,7 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
 {
     errval_t err = SYS_ERR_OK;
 
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
 
@@ -183,6 +189,8 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
+    
+    // Wait for receive
     lmp_client_recv(chan->lc, &cap, &msg);
 
     return msg.words[1];
@@ -191,62 +199,39 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
 errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
                                coreid_t core, domainid_t *newpid)
 {
-    errval_t err = SYS_ERR_OK;
     
-    // Get length of the name string
-    size_t len = strlen(name);
+    errval_t err;
     
-    // FIXME: Currently the maximum process name size is very limited
-    assert(len <= sizeof(uintptr_t) * 7);
-    
-    // Allocate new memory to construct the arguments
-    char *name_arg = calloc(sizeof(uintptr_t), 7);
-    
-    // Copy in the name string
-    memcpy(name_arg, name, len);
-    
-    // Send the LMP message
-    err = lmp_chan_send9(chan->lc,
-                         LMP_SEND_FLAGS_DEFAULT,
-                         NULL_CAP,
-                         LMP_RequestType_Spawn,
-                         core,
-                         ((uintptr_t *)name_arg)[0],
-                         ((uintptr_t *)name_arg)[1],
-                         ((uintptr_t *)name_arg)[2],
-                         ((uintptr_t *)name_arg)[3],
-                         ((uintptr_t *)name_arg)[4],
-                         ((uintptr_t *)name_arg)[5],
-                         ((uintptr_t *)name_arg)[6]);
+    // Send spawn request with send_short_buf() or send_frame() depending on size of name
+    err = lmp_send_spawn(chan->lc, name, core);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
-        free(name_arg);
-        return err;
     }
     
-    // Free the memory for constructing the arguments
-    free(name_arg);
-    
-    // Receive the status code and pid form the spawn server
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive the status code and pid form the spawn server
     lmp_client_recv(chan->lc, &cap, &msg);
     
     // Check we actually got a valid response
-    assert(msg.words[0] == LMP_RequestType_Spawn);
-
+    assert(msg.words[0] == LMP_RequestType_SpawnShort ||
+           msg.words[0] == LMP_RequestType_SpawnLong);
+    
     // Return the PID of the new process
     *newpid = msg.words[2];
     
     // Return the status code
-    return (errval_t) msg.words[1];
+    err = (errval_t) msg.words[1];
+    return err;
+    
 }
 
 errval_t aos_rpc_process_get_name(struct aos_rpc *chan, domainid_t pid,
                                   char **name)
 {
-    // TODO (milestone 5): implement name lookup for process given a process
-    // id
+    // TODO (milestone 5): implement name lookup for process given a process id
     
     errval_t err;
     
@@ -277,9 +262,11 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
         return err;
     }
     
-    // Receive the number of PIDs form the spawn server
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive the number of PIDs form the spawn server
     lmp_client_recv(chan->lc, &cap, &msg);
     
     // Check we actually got a valid response
@@ -287,11 +274,13 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
     
     // Return the PID count
     *pid_count = msg.words[1];
-    
+
+    //  TODO: Refactor receiving of PID array!
+
     // Receive the array of PIDs
     struct capref array_frame;
     size_t array_frame_size;
-    err = lmp_recv_frame(chan->lc, &array_frame, &array_frame_size);
+    err = lmp_recv_frame(chan->lc, LMP_RequestType_StringLong, &array_frame, &array_frame_size);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;

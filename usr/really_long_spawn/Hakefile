@@ -6,12 +6,12 @@
 -- If you do not find this file, copies can be found by writing to:
 -- ETH Zurich D-INFK, Universitaetstr 6, CH-8092 Zurich. Attn: Systems Group.
 --
--- Hakefile for /usr/hello
+-- Hakefile for /usr/really_long_spawn
 --
 --------------------------------------------------------------------------
 
-[ build application { target = "hello",
-  		              cFiles = [ "hello.c" ],
+[ build application { target = "really_long_module_name_such_that_it_will_use_spawn_long",
+  		              cFiles = [ "main.c" ],
                       architectures = allArchitectures
                     }
 ]

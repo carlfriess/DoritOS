@@ -179,9 +179,11 @@ errval_t urpc_accept(struct ump_chan *chan) {
     // Get the channel to this core's init
     struct lmp_chan *lc = get_init_lmp_chan();
     
-    // Wait for and receive a binding request
+    // Initialize capref and message
     struct capref ump_frame_cap;
-    struct lmp_recv_msg msg;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+    // Wait for and receive a binding request
     lmp_client_recv(lc, &ump_frame_cap, &msg);
     
     // Check we received a correct message
