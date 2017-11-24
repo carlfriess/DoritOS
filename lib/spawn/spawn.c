@@ -563,6 +563,7 @@ static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
 
     // Complete process info
     si->pi->name = si->binary_name;
+    si->pi->core_id = disp_get_core_id();
     si->pi->dispatcher_cap = &si->child_dispatcher_cap;
 
     // Register the process

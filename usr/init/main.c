@@ -17,11 +17,14 @@
 
 #include <aos/aos.h>
 #include <aos/waitset.h>
+#include <aos/waitset_chan.h>
+#include <aos/event_queue.h>
 #include <aos/morecore.h>
 #include <aos/paging.h>
 #include <spawn/spawn.h>
 #include <aos/process.h>
 #include <aos/lmp.h>
+#include <aos/urpc.h>
 #include <spawn_serv.h>
 
 #include <mm/mm.h>
@@ -33,7 +36,37 @@
 
 coreid_t my_core_id;
 struct bootinfo *bi;
-struct urpc_chan urpc_chan; // URPC channel for communicating with the other CPU
+extern struct ump_chan init_uc; // UMP channel for communicating with the other CPU
+
+struct event_queue_pair {
+    struct event_queue queue;
+    struct event_queue_node node;
+};
+
+static void ump_event_handler(void *arg) {
+    // Reregister event node
+    struct event_queue_pair *pair = arg;
+    event_queue_add(&pair->queue, &pair->node, MKCLOSURE(ump_event_handler, (void *) pair));
+
+    // Check if a message was received form different core
+    errval_t err;
+    void *msg;
+    size_t msg_size;
+    ump_msg_type_t msg_type;
+    err = ump_recv(&init_uc, &msg, &msg_size, &msg_type);
+    if (err_is_ok(err)) {
+
+        // Invoke the URPC server
+        urpc_init_server_handler(&init_uc, msg, msg_size, msg_type);
+        
+        // Free the received message buffer
+        free(msg);
+        
+    }
+    else if (err != LIB_ERR_NO_UMP_MSG) {
+        DEBUG_ERR(err, "in urpc_recv");
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -53,10 +86,13 @@ int main(int argc, char *argv[])
     printf("\n");
     
     
-    // MARK: - Set up URPC (on APP)
+    // MARK: - Set up UMP (on APP)
     if (my_core_id != 0) {
         
-        // URPC frame capability
+        // Initialize the UMP channel
+        ump_chan_init(&init_uc, UMP_APP_BUF_SELECT);
+        
+        // UMP frame capability
         struct capref urpc_frame_cap = {
             .cnode = {
                 .croot = CPTR_ROOTCN,
@@ -66,14 +102,14 @@ int main(int argc, char *argv[])
             .slot = TASKCN_SLOT_MON_URPC
         };
         
-        err = frame_identify(urpc_frame_cap, &urpc_chan.fi);
+        err = frame_identify(urpc_frame_cap, &init_uc.fi);
         if (err_is_fail(err)) {
-            DEBUG_ERR(err, "initialize urpc (1)");
+            DEBUG_ERR(err, "initialize ump (1)");
         }
         
-        err = paging_map_frame(get_current_paging_state(), (void **) &urpc_chan.buf, URPC_BUF_SIZE, urpc_frame_cap, NULL, NULL);
+        err = paging_map_frame(get_current_paging_state(), (void **) &init_uc.buf, UMP_BUF_SIZE, urpc_frame_cap, NULL, NULL);
         if(err_is_fail(err)){
-            DEBUG_ERR(err, "initialize urpc (2)");
+            DEBUG_ERR(err, "initialize ump (2)");
         }
         
     }
@@ -92,9 +128,19 @@ int main(int argc, char *argv[])
     else {  // APP
        
         // Receive the bootinfo frame identity from the BSP
-        bi_frame_identities = (struct urpc_bi_caps *) urpc_recv_from_bsp(&urpc_chan);
+        size_t recv_size;
+        ump_msg_type_t msg_type;
+        err = ump_recv(&init_uc,
+                       (void **) &bi_frame_identities,
+                       &recv_size,
+                       &msg_type);
+        if (err_is_fail(err)) {
+            DEBUG_ERR(err, "bootinfo receive");
+        }
         
         // Make sure we recieved it
+        assert(err_is_ok(err));
+        assert(msg_type == UMP_MessageType_Bootinfo);
         assert(bi_frame_identities != NULL);
         
         // Forge bootinfo frame capability
@@ -142,8 +188,8 @@ int main(int argc, char *argv[])
             DEBUG_ERR(err, "forging module caps");
         }
         
-        // We are done with the URPC message, so ack it.
-        urpc_ack_recv_from_bsp(&urpc_chan);
+        // We are done with the UMP message, so free it.
+        free(bi_frame_identities);
         
     }
     
@@ -161,63 +207,47 @@ int main(int argc, char *argv[])
     register_ram_free_handler(aos_ram_free);
 
     // Initialize the spawn server
-    spawn_serv_init(&urpc_chan);
+    spawn_serv_init(&init_uc);
 
     
     // MARK: - Multicore
     
     // If on the BSP, boot the other core
     if (my_core_id == 0) {
-        err = boot_core(1, &urpc_chan);
+        err = boot_core(1, &init_uc);
         if (err_is_fail(err)) {
             debug_printf("Failed booting core: %s\n", err_getstring(err));
         }
     }
 
+    if (my_core_id == 1) {
+
+        // Allocate spawninfo
+        struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+
+        // Spawn bind_server
+        spawn_load_by_name("bind_server", si);
+
+        // Free the process info for memeater
+        free(si);
+
+    }
     
+
     // MARK: - Message handling
     
     debug_printf("Message handler loop\n");
     // Hang around
     struct waitset *default_ws = get_default_waitset();
+
+    // Register Event Queue for UMP
+
+    struct event_queue_pair pair;
+    event_queue_init(&pair.queue, default_ws, EVENT_QUEUE_CONTINUOUS);
+    event_queue_add(&pair.queue, &pair.node, MKCLOSURE(ump_event_handler, (void *) &pair));
+
     while (true) {
-
-        // Dispatch pending LMP events
-        err = event_dispatch_non_block(default_ws);
-        if (err_is_fail(err) && err != LIB_ERR_NO_EVENT) {
-            DEBUG_ERR(err, "in event_dispatch");
-            abort();
-        }
-        
-        // Check if message received form different core
-        void *recv_buf = urpc_recv(&urpc_chan);
-        if (recv_buf != NULL) {
-
-            if (*(enum urpc_msg_type *) recv_buf == URPC_MessageType_Spawn) {
-                
-                domainid_t pid;
-                
-                // Pass message to spawn server
-                errval_t ret_err = spawn_serv_handler((char *) (recv_buf + sizeof(enum urpc_msg_type)), my_core_id, &pid);
-        
-                // Acknowledge urpc message
-                urpc_ack_recv(&urpc_chan);
-        
-                // Composing message
-                void *send_buf = urpc_get_send_buf(&urpc_chan);
-                *(enum urpc_msg_type *) send_buf = URPC_MessageType_SpawnAck;
-                *(errval_t *) (send_buf + sizeof(enum urpc_msg_type)) = ret_err;
-                *(domainid_t *) (send_buf + sizeof(enum urpc_msg_type) + sizeof(errval_t)) = pid;
-                
-                // Send message back to requesting core
-                urpc_send(&urpc_chan);
-                
-            }
-            else {
-                USER_PANIC("Unknown message type\n");
-            }
-        }
-        
+        event_dispatch(default_ws);
     }
 
     return EXIT_SUCCESS;

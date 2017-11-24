@@ -2,7 +2,10 @@
 #include <aos/aos.h>
 #include <aos/waitset.h>
 #include <aos/lmp.h>
+#include <aos/ump.h>
+#include <aos/urpc.h>
 #include <aos/process.h>
+#include <aos/domain.h>
 
 #define MAX_ALLOCATION 100000000
 
@@ -10,6 +13,8 @@
 
 
 /* MARK: - ========== Server ========== */
+
+extern struct ump_chan init_uc;
 
 void lmp_server_dispatcher(void *arg) {
 
@@ -34,7 +39,7 @@ void lmp_server_dispatcher(void *arg) {
 
         return;
     }
-    
+
     char *string;
 
     // Check message type and handle
@@ -149,6 +154,20 @@ void lmp_server_dispatcher(void *arg) {
             break;
             
             
+        case LMP_RequestType_UmpBind:
+#if PRINT_DEBUG
+            debug_printf("UMP Bind Message!\n");
+#endif
+            // Make a new slot available for the next incoming capability
+            err = lmp_chan_alloc_recv_slot(lc);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+            }
+            // Handle the request
+            urpc_handle_lmp_bind_request(cap, msg);
+            break;
+            
+            
         default:
 #if PRINT_DEBUG
             debug_printf("Invalid Message!\n");
@@ -257,7 +276,7 @@ errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t b
     
 }
 
-static lmp_server_spawn_handler lmp_server_spawn_handler_func = NULL;
+lmp_server_spawn_handler lmp_server_spawn_handler_func = NULL;
 void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler) {
     lmp_server_spawn_handler_func = handler;
 }
@@ -323,8 +342,24 @@ errval_t lmp_server_pid_discovery(struct lmp_chan *lc) {
 void lmp_server_terminal_getchar(struct lmp_chan *lc) {
     errval_t err = SYS_ERR_OK;
     char c = '\0';
-    while (c == '\0') {
-        sys_getchar(&c);
+
+    // UMP call if not core 0
+    if (!disp_get_core_id()) {
+        while (c == '\0') {
+            sys_getchar(&c);
+        }
+    } else {
+        ump_msg_type_t msg_type = UMP_MessageType_TerminalGetChar;
+        size_t size = sizeof(char);
+        void *ptr;
+
+        // Send request message
+        ump_send(&init_uc, &c, size, msg_type);
+
+        // Receive response
+        ump_recv_blocking(&init_uc, &ptr, &size, &msg_type);
+        assert(msg_type == UMP_MessageType_TerminalGetCharAck);
+        c = *((char *) ptr);
     }
 
     lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
@@ -333,7 +368,21 @@ void lmp_server_terminal_getchar(struct lmp_chan *lc) {
 // TERMINALSERV: Handle requests to print a char
 void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
     errval_t err = SYS_ERR_OK;
-    sys_print(&c, sizeof(char));
+
+    if (!disp_get_core_id()) {
+        sys_print(&c, sizeof(char));
+    } else {
+        size_t size = sizeof(char);
+        void *ptr;
+
+        ump_msg_type_t msg_type = UMP_MessageType_TerminalPutChar;
+
+        ump_send(&init_uc, &c, size, msg_type);
+
+        ump_recv_blocking(&init_uc, &ptr, &size, &msg_type);
+        assert(msg_type == UMP_MessageType_TerminalPutCharAck);
+    }
+
 
     lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalPutChar, err, c);
 }
