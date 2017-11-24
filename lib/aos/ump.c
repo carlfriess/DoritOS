@@ -57,10 +57,6 @@ errval_t ump_send_one(struct ump_chan *chan, void *buf, size_t size,
     // Mark the message as valid
     tx_buf->slots[chan->tx_counter].valid = 1;
     
-    // Memory barrier
-    //  TODO: Is this necessary?
-    dmb();
-    
     // Set the index of the next slot to use for sending
     chan->tx_counter = (chan->tx_counter + 1) % UMP_NUM_SLOTS;
     
@@ -119,9 +115,6 @@ errval_t ump_recv_one(struct ump_chan *chan, void *buf,
     
     // Mark the message as invalid
     rx_buf->slots[chan->rx_counter].valid = 0;
-
-    // Memory barrier
-    dmb();
     
     // Set the index of the next slot to read
     chan->rx_counter = (chan->rx_counter + 1) % UMP_NUM_SLOTS;

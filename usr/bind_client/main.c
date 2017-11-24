@@ -50,7 +50,6 @@ int main(int argc, char *argv[]) {
     }
 
     
-    debug_printf("1\n");
     // Bind to the server
     struct ump_chan chan;
     err = urpc_bind(pid, &chan);
