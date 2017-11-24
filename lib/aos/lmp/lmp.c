@@ -720,7 +720,7 @@ errval_t lmp_recv_spawn_from_msg(struct lmp_chan *lc, struct capref cap,
         }
         
         // Copy string (including '\0') from buffer into name
-        memcpy(name, string, string_len + 1);
+        memcpy(*name, string, string_len + 1);
         
         // Handle spawn request by passing it on to the spawn server
         domainid_t pid = 0;
