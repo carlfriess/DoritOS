@@ -63,9 +63,11 @@ errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
         return err;
     }
     
-    // Wait to receive an acknowledgement
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+    // Wait to receive an acknowledgement
     lmp_client_recv(chan->lc, &cap, &msg);
     
     // Check we actually got a valid response
@@ -155,6 +157,7 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
 {
     errval_t err = SYS_ERR_OK;
 
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
 
@@ -163,6 +166,8 @@ errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
+    
+    // Wait for receive
     lmp_client_recv(chan->lc, &cap, &msg);
 
     *retc = msg.words[2];
@@ -175,6 +180,7 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
 {
     errval_t err = SYS_ERR_OK;
 
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
 
@@ -183,6 +189,8 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
+    
+    // Wait for receive
     lmp_client_recv(chan->lc, &cap, &msg);
 
     return msg.words[1];
@@ -200,9 +208,11 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
         debug_printf("%s\n", err_getstring(err));
     }
     
-    // Receive the status code and pid form the spawn server
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive the status code and pid form the spawn server
     lmp_client_recv(chan->lc, &cap, &msg);
     
     // Check we actually got a valid response
@@ -252,9 +262,11 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
         return err;
     }
     
-    // Receive the number of PIDs form the spawn server
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive the number of PIDs form the spawn server
     lmp_client_recv(chan->lc, &cap, &msg);
     
     // Check we actually got a valid response

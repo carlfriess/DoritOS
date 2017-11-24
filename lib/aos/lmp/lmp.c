@@ -480,8 +480,12 @@ errval_t lmp_send_string(struct lmp_chan *lc, const char *string) {
 
 // Blocking call to receive a string on a channel (automatically select protocol)
 errval_t lmp_recv_string(struct lmp_chan *lc, char **string) {
+    
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait for string receive
     lmp_client_recv(lc, &cap, &msg);
     
     return lmp_recv_string_from_msg(lc, cap, msg.words, string);
@@ -659,8 +663,11 @@ errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core) {
 // Blocking call to receive a spawn process name on a channel (automatically select protocol)
 errval_t lmp_recv_spawn(struct lmp_chan *lc, char **name) {
     
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait for spawn receive
     lmp_client_recv(lc, &cap, &msg);
     
     return lmp_recv_spawn_from_msg(lc, cap, msg.words, name);
@@ -825,9 +832,11 @@ errval_t lmp_send_short_buf(struct lmp_chan *lc, enum lmp_request_type type, voi
     // Free the memory for constructing the arguments
     free(buf_arg);
     
-    // Receive the status code form recipient
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive the status code form recipient
     lmp_client_recv(lc, &cap, &msg);
     
     // Check we actually got a valid response
@@ -859,9 +868,11 @@ errval_t lmp_send_frame(struct lmp_chan *lc, enum lmp_request_type type, struct 
         return err;
     }
     
-    // Receive ack from recipient
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive ack from recipient
     lmp_client_recv(lc, &cap, &msg);
     
     // Check we actually got a valid response
@@ -881,8 +892,12 @@ errval_t lmp_send_frame(struct lmp_chan *lc, enum lmp_request_type type, struct 
 
 // Receive a short buffer on a channel (using LMP arguments)
 errval_t lmp_recv_short_buf(struct lmp_chan *lc, enum lmp_request_type type, void **buf, size_t *size) {
+    
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait for short buffer receive
     lmp_client_recv(lc, &cap, &msg);
     
     // Receive short buffer from message and copy it in newly allocated buffer
@@ -927,8 +942,12 @@ errval_t lmp_recv_short_buf_from_msg(struct lmp_chan *lc, enum lmp_request_type 
 
 // Receive a frame on a channel
 errval_t lmp_recv_frame(struct lmp_chan *lc, enum lmp_request_type type, struct capref *frame_cap, size_t *size) {
+    
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait for frame receive
     lmp_client_recv(lc, &cap, &msg);
     
     return lmp_recv_frame_from_msg(lc, type, cap, msg.words, frame_cap, size);

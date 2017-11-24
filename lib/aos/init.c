@@ -200,9 +200,11 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
         return err;
     }
 
-    // Wait on response
+    // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait on response
     lmp_client_recv(lc, &cap, &msg);
     
     // Initialize RPC state and register it in application's core state
