@@ -90,7 +90,6 @@ void lmp_server_dispatcher(void *arg) {
             debug_printf("Short or Long Spawn Message!\n");
 #endif
             lmp_recv_spawn_from_msg(lc, cap, msg.words, &string);
-            printf("Received pr: %s\n", string);
             free(string);
             break;
             
@@ -733,6 +732,8 @@ errval_t lmp_recv_spawn_from_msg(struct lmp_chan *lc, struct capref cap,
         // Send result to client
         lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_SpawnShort, err, pid);
         
+        return err;
+
     }
     else if (words[0] == LMP_RequestType_SpawnLong) {
         
