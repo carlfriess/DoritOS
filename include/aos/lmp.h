@@ -230,6 +230,9 @@ errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
 
 void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler);
 
+// Send a name on a specific channel (automatically select protocol)
+errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core);
+
 //void lmp_server_spawn(struct lmp_chan *lc, uintptr_t *args);
 
 // Blocking call to receive a spawn process name on a channel (automatically select protocol)
