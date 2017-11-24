@@ -311,7 +311,20 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc,
                                 lpaddr_t paddr, size_t bytes,
                                 struct capref *frame)
 {
-    return LIB_ERR_NOT_IMPLEMENTED;
+    
+    errval_t err;
+
+    err = lmp_chan_send3(rpc->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_GetDeviceCap, paddr, bytes);
+    assert(err_is_ok(err));
+    
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    lmp_client_recv(rpc->lc, frame, &msg);
+    assert(msg.words[0] == LMP_RequestType_GetDeviceCap);
+    
+    err = lmp_chan_alloc_recv_slot(rpc->lc);
+    assert(err_is_ok(err));
+    
+    return SYS_ERR_OK;
 }
 
 errval_t aos_rpc_init(struct aos_rpc *rpc, struct lmp_chan *lc)

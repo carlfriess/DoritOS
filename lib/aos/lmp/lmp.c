@@ -168,6 +168,26 @@ void lmp_server_dispatcher(void *arg) {
             break;
             
             
+        case LMP_RequestType_GetDeviceCap:
+//#if PRINT_DEBUG
+            debug_printf("Device Capability Message!\n");
+//#endif
+            struct capref devcap;
+            err = slot_alloc(&devcap);
+            assert(err_is_ok(err));
+            err = frame_forge(devcap,
+                              msg.words[1],
+                              msg.words[2],
+                              disp_get_core_id());
+            assert(err_is_ok(err));
+            err = lmp_chan_send1(lc,
+                                 LMP_SEND_FLAGS_DEFAULT,
+                                 devcap,
+                                 LMP_RequestType_GetDeviceCap);
+            assert(err_is_ok(err));
+            break;
+            
+            
         default:
 #if PRINT_DEBUG
             debug_printf("Invalid Message!\n");
