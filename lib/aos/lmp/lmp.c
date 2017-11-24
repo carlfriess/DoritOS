@@ -927,9 +927,8 @@ errval_t lmp_recv_short_buf_from_msg(struct lmp_chan *lc, enum lmp_request_type 
         return LIB_ERR_MALLOC_FAIL;
     }
     
-    // Copy in the new string
-    memcpy(*buf, words+2, *size);
-    *((char *) (*buf + *size)) = '\0';
+    // Copy words from message to buffer (size includes '\0')
+    memcpy(*buf, words + 2, *size);
     
     // Send a confirmation
     err = lmp_chan_send3(lc,
