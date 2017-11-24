@@ -13,6 +13,7 @@
 [ build application
   {
     target = "bind_client",
-    cFiles = [ "main.c" ]
+    cFiles = [ "main.c" ],
+    addLibraries = [ "omap_timer" ]
   }
 ]

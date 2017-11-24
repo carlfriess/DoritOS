@@ -6,12 +6,18 @@
 #include <aos/urpc.h>
 #include <aos/aos_rpc.h>
 
+#include <omap_timer/timer.h>
+
 #define UMP_MessageType_Ping UMP_MessageType_User0
 #define UMP_MessageType_Pong UMP_MessageType_User1
 
 int main(int argc, char *argv[]) {
     
     errval_t err;
+    
+    
+    omap_timer_init();
+    
 
     struct aos_rpc *rpc_chan = aos_rpc_get_init_channel();
 
