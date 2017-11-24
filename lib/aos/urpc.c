@@ -270,7 +270,7 @@ errval_t urpc_bind(domainid_t pid, struct ump_chan *chan) {
     // Check we recieved the correct message
     assert(msg_type == UMP_MessageType_UrpcBindAck);
     
-    debug_printf("BIND: Received \"%s\" from server.", retmsg);
+    debug_printf("BIND: Received \"%s\" from server.\n", retmsg);
     
     return SYS_ERR_OK;
     

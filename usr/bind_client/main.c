@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
             // Compare the name
             if (!strcmp("bind_server", name)) {
                 pid = pids[i];
-                printf("Found bind_server, PID: %d", pid);
+                printf("Found bind_server, PID: %d\n", pid);
                 free(name);
                 break;
             }
@@ -73,6 +73,9 @@ int main(int argc, char *argv[]) {
 
         // Deref, increment and assign counter
         counter = (*((uint32_t *) ptr)) + 1;
+        
+        // Free the message
+        free(ptr);
 
         if (counter % 1000 == 0) {
             debug_printf("PONG: %d\n", counter);

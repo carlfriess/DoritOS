@@ -40,6 +40,9 @@ int main(int argc, char *argv[]) {
         if (counter % 100 == 0) {
             printf("PING: %d\n", counter);
         }
+        
+        // Free the message
+        free(ptr);
 
         // Send counter value
         ump_send(&chan, (void *) &counter, sizeof(uint32_t), UMP_MessageType_Pong);
