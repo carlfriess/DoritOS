@@ -226,8 +226,11 @@ int main(int argc, char *argv[])
         struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
 
         // Spawn bind_server
-        spawn_load_by_name("bind_server", si);
-
+        err = spawn_load_by_name("bind_server", si);
+        if(err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }
+        
         // Free the process info for memeater
         free(si);
 
