@@ -67,7 +67,7 @@ struct ump_buf_header {
 
 struct ump_slot {
     char data[63];
-    ump_msg_type_t msg_type    : 6;
+    ump_msg_type_t msg_type     : 6;
     uint8_t last                : 1;
     uint8_t valid               : 1;
 };

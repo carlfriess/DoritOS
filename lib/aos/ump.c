@@ -104,6 +104,9 @@ errval_t ump_recv_one(struct ump_chan *chan, void *buf,
     if (!rx_buf->slots[chan->rx_counter].valid) {
         return LIB_ERR_NO_UMP_MSG;
     }
+
+    // Memory barrier
+    dmb();
     
     // Copy data from the slot
     memcpy(buf, rx_buf->slots[chan->rx_counter].data, UMP_SLOT_DATA_BYTES);
