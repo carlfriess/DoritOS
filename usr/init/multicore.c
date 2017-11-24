@@ -299,6 +299,12 @@ errval_t boot_core(coreid_t core_id, struct ump_chan *ump_chan) {
 #if PRINT_DEBUG
     debug_printf("Booted core\n");
 #endif
+
+    // Unmap regions
+    paging_unmap_fixed(st, (lvaddr_t) segment_vaddr, segment_size);
+    paging_unmap_fixed(st, (lvaddr_t) core_data, core_data_size);
+    paging_unmap_fixed(st, (lvaddr_t) elf_buf, mem->mrmod_size);
+
     
     return err;
 }
