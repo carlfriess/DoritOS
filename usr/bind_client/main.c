@@ -77,8 +77,8 @@ int main(int argc, char *argv[]) {
         // Free the message
         free(ptr);
 
-        if (counter % 1000 == 0) {
-            debug_printf("PONG: %d\n", counter);
+        if (counter % 100000 == 0) {
+            printf("PONG: %d\n", counter);
         }
         
     }

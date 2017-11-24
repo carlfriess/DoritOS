@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
         // Deref, increment and assign counter
         counter = (*((uint32_t *) ptr)) + 1;
 
-        if (counter % 100 == 0) {
+        if (counter % 100000 == 1) {
             printf("PING: %d\n", counter);
         }
         
