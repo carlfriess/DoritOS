@@ -90,6 +90,12 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     
     errval_t err = SYS_ERR_OK;
     
+    // Make sure that there are enough slots in advance.
+    // If there are not, this will trigger a refill.
+    struct capref dummy_slot;
+    slot_alloc(&dummy_slot);
+    slot_free(dummy_slot);
+    
     err = lmp_chan_send3(chan->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryAlloc, size, align);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));

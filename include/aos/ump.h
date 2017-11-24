@@ -31,10 +31,17 @@
 #define UMP_MessageType_TerminalPutCharAck  6
 #define UMP_MessageType_RegisterProcess     7
 #define UMP_MessageType_RegisterProcessAck  8
-#define UMP_MessageType_UrpcBindAck         9
+#define UMP_MessageType_UrpcBindRequest     9
+#define UMP_MessageType_UrpcBindAck         10
 
-#define UMP_MessageType_Ping 69
-#define UMP_MessageType_Pong 70
+#define UMP_MessageType_User0 32
+#define UMP_MessageType_User1 33
+#define UMP_MessageType_User2 34
+#define UMP_MessageType_User3 35
+#define UMP_MessageType_User4 36
+#define UMP_MessageType_User5 37
+#define UMP_MessageType_User6 38
+#define UMP_MessageType_User7 39
 
 
 // UMP message types type

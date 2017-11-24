@@ -33,5 +33,10 @@ struct urpc_process_register {
     char name[];
 };
 
+struct urpc_bind_request {
+    struct frame_identity fi;
+    domainid_t pid;
+};
+
 
 #endif /* urpc_protocol_h */
