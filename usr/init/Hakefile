@@ -16,7 +16,11 @@
                         "mem_alloc.c",
                         "multicore.c",
                         "m1_test.c",
-                        "m2_test.c"
+                        "m2_test.c",
+                        "distops/caplock.c",
+                        "distops/capqueue.c",
+                        "distops/deletestep.c",
+                        "distops/invocations.c"
                       ],
                       addLinkFlags = [ "-e _start_init"],
                       addLibraries = [ "mm", "getopt", "elf", "spawn", "spawn_serv" ],
