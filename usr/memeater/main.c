@@ -169,12 +169,12 @@ int main(int argc, char *argv[])
 
     init_rpc = aos_rpc_get_init_channel();
     if (!init_rpc) {
-        USER_PANIC_ERR(err, "init RPC channel NULL?\n");
+        USER_PANIC("init RPC channel NULL?\n");
     }
 
     mem_rpc = aos_rpc_get_memory_channel();
     if (!mem_rpc) {
-        USER_PANIC_ERR(err, "memory RPC channel NULL?\n");
+        USER_PANIC("memory RPC channel NULL?\n");
     }
 
     char *ptr = (char *) malloc(100*1024*1024);
@@ -190,23 +190,18 @@ int main(int argc, char *argv[])
     }
 
     recurse(0);
-
-    err = aos_rpc_init(&init_rpc, aos_rpc_get_init_channel()->lc);
-    if (err_is_fail(err)) {
-        USER_PANIC_ERR(err, "could not initialize RPC\n");
-    }
     
     domainid_t pid;
-    aos_rpc_process_spawn(&init_rpc, "hello", 0, &pid);
+    aos_rpc_process_spawn(init_rpc, "hello", 0, &pid);
     
     char *string;
-    aos_rpc_process_get_name(&init_rpc, 1, &string);
+    aos_rpc_process_get_name(init_rpc, 1, &string);
     debug_printf("Got process name by RPC: %s\n", string);
     
     debug_printf("Getting list of PIDs:\n");
     domainid_t *pids;
     size_t count;
-    aos_rpc_process_get_all_pids(&init_rpc, &pids, &count);
+    aos_rpc_process_get_all_pids(init_rpc, &pids, &count);
     for (size_t i = 0; i < count; i++) {
         debug_printf("%d\n", pids[i]);
     }

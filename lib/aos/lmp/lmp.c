@@ -259,12 +259,12 @@ void register_ram_free_handler(ram_free_handler_t ram_free_function) {
 
 // MEMSERV: Handle requests to free memory
 //  TODO: Test this!
-errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap, size_t bytes) {
+errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap) {
     
     errval_t err = SYS_ERR_OK;
     
     // Freeing ram capability
-    err = ram_free_handler(cap, bytes);
+    err = ram_free_handler(cap);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_MemoryFree, MM_ERR_MM_FREE);
