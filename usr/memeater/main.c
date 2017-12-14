@@ -20,7 +20,7 @@
 #include <aos/waitset.h>
 #include <aos/paging.h>
 
-static struct aos_rpc init_rpc;
+static struct aos_rpc *init_rpc, *mem_rpc;
 
 const char *str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
                   "sed do eiusmod tempor incididunt ut labore et dolore magna "
@@ -44,7 +44,7 @@ static errval_t request_and_map_memory(void)
     debug_printf("obtaining cap of %" PRIu32 " bytes...\n", BASE_PAGE_SIZE);
 
     struct capref cap1;
-    err = aos_rpc_get_ram_cap(&init_rpc, BASE_PAGE_SIZE, BASE_PAGE_SIZE, &cap1, &bytes);
+    err = aos_rpc_get_ram_cap(mem_rpc, BASE_PAGE_SIZE, BASE_PAGE_SIZE, &cap1, &bytes);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "could not get BASE_PAGE_SIZE cap\n");
         return err;
@@ -113,21 +113,21 @@ static errval_t test_basic_rpc(void)
     debug_printf("RPC: testing basic RPCs...\n");
 
     debug_printf("RPC: sending number...\n");
-    err =  aos_rpc_send_number(&init_rpc, 42);
+    err =  aos_rpc_send_number(init_rpc, 42);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "could not send a string\n");
         return err;
     }
 
     debug_printf("RPC: sending small string...\n");
-    err =  aos_rpc_send_string(&init_rpc, "Hello init");
+    err =  aos_rpc_send_string(init_rpc, "Hello init");
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "could not send a string\n");
         return err;
     }
 
     debug_printf("RPC: sending large string...\n");
-    err =  aos_rpc_send_string(&init_rpc, str);
+    err =  aos_rpc_send_string(init_rpc, str);
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "could not send a string\n");
         return err;
@@ -167,6 +167,16 @@ int main(int argc, char *argv[])
 
     debug_printf("memeater started....\n");
 
+    init_rpc = aos_rpc_get_init_channel();
+    if (!init_rpc) {
+        USER_PANIC("init RPC channel NULL?\n");
+    }
+
+    mem_rpc = aos_rpc_get_memory_channel();
+    if (!mem_rpc) {
+        USER_PANIC("memory RPC channel NULL?\n");
+    }
+
     char *ptr = (char *) malloc(100*1024*1024);
     debug_printf("MALLOC: %p\n", ptr);
     ptr += 50*1024*1024;
@@ -180,28 +190,23 @@ int main(int argc, char *argv[])
     }
 
     recurse(0);
-
-    err = aos_rpc_init(&init_rpc, aos_rpc_get_init_channel()->lc);
-    if (err_is_fail(err)) {
-        USER_PANIC_ERR(err, "could not initialize RPC\n");
-    }
     
     domainid_t pid;
-    aos_rpc_process_spawn(&init_rpc, "hello", 0, &pid);
+    aos_rpc_process_spawn(init_rpc, "hello", 0, &pid);
     
     char *string;
-    aos_rpc_process_get_name(&init_rpc, 1, &string);
+    aos_rpc_process_get_name(init_rpc, 1, &string);
     debug_printf("Got process name by RPC: %s\n", string);
     
     debug_printf("Getting list of PIDs:\n");
     domainid_t *pids;
     size_t count;
-    aos_rpc_process_get_all_pids(&init_rpc, &pids, &count);
+    aos_rpc_process_get_all_pids(init_rpc, &pids, &count);
     for (size_t i = 0; i < count; i++) {
         debug_printf("%d\n", pids[i]);
     }
     
-    err = test_basic_rpc();
+   err = test_basic_rpc();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "failure in testing basic RPC\n");
     }

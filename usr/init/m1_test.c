@@ -13,7 +13,7 @@ errval_t test_alloc_free(size_t b) {
     struct capref retcap;
     
     assert(err_is_ok( ram_alloc(&retcap, b) ));
-    assert(err_is_ok( aos_ram_free(retcap, b) ));
+    assert(err_is_ok( aos_ram_free(retcap) ));
     
     RETURN_TEST_SUCCESS;
 }
@@ -25,9 +25,9 @@ errval_t test_alloc_free_alloc_free(size_t b1, size_t b2) {
     struct capref retcap2;
     
     assert(err_is_ok( ram_alloc(&retcap1, b1) ));
-    assert(err_is_ok( aos_ram_free(retcap1, b1) ));
+    assert(err_is_ok( aos_ram_free(retcap1) ));
     assert(err_is_ok( ram_alloc(&retcap2, b2) ));
-    assert(err_is_ok( aos_ram_free(retcap2, b2) ));
+    assert(err_is_ok( aos_ram_free(retcap2) ));
     
     RETURN_TEST_SUCCESS;
 }
@@ -38,8 +38,8 @@ errval_t test_alloc_free_free(size_t b) {
     struct capref retcap;
     
     assert(err_is_ok( ram_alloc(&retcap, b) ));
-    assert(err_is_ok( aos_ram_free(retcap, b) ));
-    assert(aos_ram_free(retcap, b) == MM_ERR_NOT_FOUND);
+    assert(err_is_ok( aos_ram_free(retcap) ));
+    assert(aos_ram_free(retcap) == MM_ERR_NOT_FOUND);
     
     RETURN_TEST_SUCCESS;
 }
@@ -53,7 +53,7 @@ errval_t test_alloc_n_free_n(int n, size_t b) {
         assert(err_is_ok( ram_alloc(&(retcap_array[i]), b) ));
     }
     for (int i=0; i<n; ++i) {
-        assert(err_is_ok( aos_ram_free(retcap_array[i], b) ));
+        assert(err_is_ok( aos_ram_free(retcap_array[i]) ));
     }
     
     RETURN_TEST_SUCCESS;
@@ -70,9 +70,9 @@ errval_t test_coalescing(size_t b1, size_t b2, size_t b3) {
     assert(err_is_ok( ram_alloc(&retcap_2, b2) ));
     assert(err_is_ok( ram_alloc(&retcap_3, b3) ));
     
-    assert(err_is_ok( aos_ram_free(retcap_3, b3) ));
-    assert(err_is_ok( aos_ram_free(retcap_1, b1) ));
-    assert(err_is_ok( aos_ram_free(retcap_2, b2) ));
+    assert(err_is_ok( aos_ram_free(retcap_3) ));
+    assert(err_is_ok( aos_ram_free(retcap_1) ));
+    assert(err_is_ok( aos_ram_free(retcap_2) ));
     
     RETURN_TEST_SUCCESS;
 }
@@ -93,7 +93,7 @@ errval_t test_ram_leak(int n, size_t b) {
     mm_available(&aos_mm, &available[0], &total[0]);
 
     for (int i=0; i<n; ++i) {
-        assert(err_is_ok( aos_ram_free(retcap_array1[i], b) ));
+        assert(err_is_ok( aos_ram_free(retcap_array1[i]) ));
     }
     
     mm_available(&aos_mm, &available[1], &total[1]);
@@ -105,7 +105,7 @@ errval_t test_ram_leak(int n, size_t b) {
     mm_available(&aos_mm, &available[2], &total[2]);
 
     for (int i=0; i<n; ++i) {
-        assert(err_is_ok( aos_ram_free(retcap_array2[i], b) ));
+        assert(err_is_ok( aos_ram_free(retcap_array2[i]) ));
     }
     
     mm_available(&aos_mm, &available[3], &total[3]);
@@ -141,7 +141,7 @@ errval_t test_inc_n_by_k(int n, int k) {
     
    
     for (int i=0; i<n; ++i) {
-        assert(err_is_ok( aos_ram_free(retcap_array1[i], k*(i+1)) ));
+        assert(err_is_ok( aos_ram_free(retcap_array1[i]) ));
     }
     
     mm_available(&aos_mm, &available[1], &total[1]);
@@ -153,7 +153,7 @@ errval_t test_inc_n_by_k(int n, int k) {
     mm_available(&aos_mm, &available[2], &total[2]);
     
     for (int i=n-1; 0<=i; --i) {
-        assert(err_is_ok( aos_ram_free(retcap_array2[i], k*(i+1)) ));
+        assert(err_is_ok( aos_ram_free(retcap_array2[i]) ));
     }
     
     mm_available(&aos_mm, &available[3], &total[3]);
@@ -188,7 +188,7 @@ errval_t test_random_seq(void) {
             errval_t err = ram_alloc(&(retcap[seq[i]-1]), seq[i]*100);
             assert(err_is_ok(err));
         } else {
-            errval_t err = aos_ram_free(retcap[(-seq[i])-1], (-seq[i])*100);
+            errval_t err = aos_ram_free(retcap[(-seq[i])-1]);
             assert(err_is_ok(err));
         }
     }

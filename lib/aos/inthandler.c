@@ -20,7 +20,7 @@ struct waitset *barrelfish_interrupt_waitset = NULL;
 /* allocate inrq */
 static errval_t arm_allocirq(struct capref ep, uint32_t irq)
 {
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return invoke_irqtable_set(cap_irq, irq, ep);
 }
 
 
