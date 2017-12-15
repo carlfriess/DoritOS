@@ -83,12 +83,12 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
 
 /**
  * \brief Gets a capability to device registers
- * \param rpc  the rpc channel
+ * \param chan  the rpc channel
  * \param paddr physical address of the device
  * \param bytes number of bytes of the device memory
  * \param frame returned devframe
  */
-errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc, lpaddr_t paddr, size_t bytes,
+errval_t aos_rpc_get_device_cap(struct aos_rpc *chan, lpaddr_t paddr, size_t bytes,
                                 struct capref *frame);
 /**
  * \brief Initialize given rpc channel.

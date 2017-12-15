@@ -296,11 +296,47 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
     return err;
 }
 
-errval_t aos_rpc_get_device_cap(struct aos_rpc *rpc,
+errval_t aos_rpc_get_device_cap(struct aos_rpc *chan,
                                 lpaddr_t paddr, size_t bytes,
                                 struct capref *frame)
 {
-    return LIB_ERR_NOT_IMPLEMENTED;
+    
+    errval_t err;
+    
+    // Send request to get device capability in [paddr, paddr + bytes]
+    err = lmp_chan_send3(chan->lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         NULL_CAP,
+                         LMP_RequestType_DeviceCap,
+                         paddr,
+                         bytes);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Initialize message
+    //struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive the devframe capability
+    lmp_client_recv(chan->lc, frame, &msg);
+    
+    struct frame_identity id;
+    invoke_frame_identify(*frame, &id);
+    
+    debug_printf("Received %llx %llu\n", id.base, id.bytes);
+    
+    //debug_printf("%s\n", err_getstring((errval_t) msg.words[1]));
+    
+    // Allocate recv slot
+    err = lmp_chan_alloc_recv_slot(chan->lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    return err;
+    
 }
 
 errval_t aos_rpc_init(struct aos_rpc *rpc, struct lmp_chan *lc)

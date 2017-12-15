@@ -83,6 +83,14 @@
  *
  * cap: NULL_CAP
  *
+ * ==== DeviceCap ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_DeviceCap
+ * arg1: lpaddr_t paddr
+ * arg2: size_t bytes
+ *
+ * cap: NULL_CAP
+ *
  */
 
 /*
@@ -162,6 +170,13 @@
  *
  * cap: NULL_CAP
  *
+ * ==== DeviceCap ====
+ *
+ * arg0: enum lmp_request_type RequestType = LMP_RequestType_DeviceCap
+ * arg1: errval_t Error
+ *
+ * cap: Frame capability to device
+ *
  */
 
 extern unsigned serial_console_port;
@@ -177,6 +192,9 @@ enum lmp_request_type {
     
     LMP_RequestType_ShortBuf,
     LMP_RequestType_FrameSend,
+    
+    LMP_RequestType_DeviceCap,
+    
     LMP_RequestType_Register,
     LMP_RequestType_MemoryAlloc,
     LMP_RequestType_MemoryFree,
@@ -205,6 +223,7 @@ errval_t lmp_server_pid_discovery(struct lmp_chan *lc);
 void lmp_server_terminal_putchar(struct lmp_chan *lc, char c);
 void lmp_server_terminal_getchar(struct lmp_chan *lc);
 
+errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes);
 
 /* MARK: - ========== Client ========== */
 
