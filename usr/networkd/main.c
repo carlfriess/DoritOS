@@ -15,11 +15,13 @@
 
 #include <maps/omap44xx_map.h>
 
+#include "slip.h"
 
-// Echo
+
+// Serial receive handler
 void serial_input(uint8_t *buf, size_t len) {
     
-    serial_write(buf, len);
+    slip_recv(buf, len);
     
 }
 
@@ -58,6 +60,12 @@ int main(int argc, char *argv[]) {
     if (err_is_fail(err)) {
         DEBUG_ERR(err, "initializing serial");
         return err;
+    }
+    
+    // Initialize the SLIP parser
+    if (slip_init()) {
+        debug_printf("Error in slip_init()\n");
+        return -1;
     }
     
     // Dispatch on the default waitset
