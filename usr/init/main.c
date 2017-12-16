@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (my_core_id == 1) {
+    /*if (my_core_id == 1) {
 
         // Allocate spawninfo
         struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
@@ -249,9 +249,27 @@ int main(int argc, char *argv[])
         // Free the process info
         free(really_long_si);
         
-    }
+    }*/
     
+    
+    // Start networkd
+    if (my_core_id == 0) {
+    
+        // Allocate spawninfo
+        struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+        
+        // Spawn bind_server
+        err = spawn_load_by_name("networkd", si);
+        if(err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+        }
+        
+        // Free the process info
+        free(si);
+        
+    }
 
+    
     // MARK: - Message handling
     
     debug_printf("Message handler loop\n");

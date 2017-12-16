@@ -51,6 +51,17 @@ static errval_t spawn_setup_cspace(struct spawninfo *si) {
     if (err_is_fail(err)) {
         return err;
     }
+    
+    //  Copy the IRQ capability
+    capref_alpha.cnode = si->taskcn_ref;
+    capref_alpha.slot = TASKCN_SLOT_IRQ;
+    capref_beta.cnode = cnode_task;
+    capref_beta.slot = TASKCN_SLOT_IRQ;
+    err = cap_copy(capref_alpha, capref_beta);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
 
     //  Create SLOT_DISPATCHER capability
     capref_alpha.cnode = si->taskcn_ref;
