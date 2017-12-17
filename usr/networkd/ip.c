@@ -135,8 +135,11 @@ void ip_send(uint8_t *buf, size_t len, bool end) {
 
 void ip_handle_packet(uint8_t *buf, size_t len) {
     
-    // Sanity check: minimum packet size
-    assert(len > 20);
+    // Discard too small packets
+    if (len < 20) {
+        debug_printf("INVALID PACKET: TOO SHORT\n");
+        return;
+    }
     
     // Parse and check the IP header
     struct ip_packet_header header;

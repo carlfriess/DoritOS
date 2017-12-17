@@ -83,8 +83,11 @@ static void icmp_handle_echo_req(uint32_t src_ip,
 
 void icmp_handle_packet(uint32_t src_ip, uint8_t *buf, size_t len) {
     
-    // Sanity check: minimum packet size
-    assert(len >= 8);
+    // Discard too small messages
+    if (len < 8) {
+        debug_printf("INVALID ICMP MESSAGE: TOO SHORT\n");
+        return;
+    }
     
     // Parse and check the ICMP header
     struct icmp_header header;
@@ -96,7 +99,10 @@ void icmp_handle_packet(uint32_t src_ip, uint8_t *buf, size_t len) {
         
     switch (header.type) {
         case ICMP_MSG_TYPE_ECHO_REQ:
-            assert(header.code == 0);
+            if (header.code != 0) {
+                debug_printf("INVALID ICMP MESSAGE: WRONG CODE\n");
+                return;
+            }
             icmp_handle_echo_req(src_ip,
                                  &header,
                                  buf + 8,
