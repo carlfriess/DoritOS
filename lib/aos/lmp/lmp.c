@@ -171,7 +171,15 @@ void lmp_server_dispatcher(void *arg) {
             // Handle the request
             urpc_handle_lmp_bind_request(cap, msg);
             break;
+        
+        case LMP_RequestType_DeviceCap:
             
+            debug_printf("Device Capability Message!\n");
+            
+            // Retype device capability and send that back to client
+            lmp_server_device_cap(lc, msg.words[1], msg.words[2]);
+            
+            break;
             
         default:
 #if PRINT_DEBUG
@@ -380,6 +388,47 @@ void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
     lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalPutChar, err, c);
 }
 
+errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes) {
+    
+    errval_t err;
+    
+    struct capref cap;
+    
+    err = slot_alloc(&cap);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
+    struct frame_identity id;
+    invoke_frame_identify(cap_devices, &id);
+    
+    // Check if request is in range
+    assert(id.base <= paddr && paddr + bytes <= id.base + id.bytes);
+    
+    // Calculating offset
+    gensize_t offset = ((gensize_t) paddr) - id.base;
+    
+    err = cap_retype(cap, cap_devices, offset, ObjType_DevFrame, (gensize_t) bytes, 1);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+        
+    // Send back retyped device capability (device frame)
+    lmp_chan_send2(lc,
+                   LMP_SEND_FLAGS_DEFAULT,
+                   cap,
+                   LMP_RequestType_DeviceCap,
+                   err);
+    
+    // Delete capability
+    cap_delete(cap);
+    
+    // Free slot
+    slot_free(cap);
+    
+    return err;
+    
+}
 
 /* MARK: - ========== Client ========== */
 
