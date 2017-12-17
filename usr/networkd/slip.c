@@ -149,7 +149,12 @@ void slip_send(uint8_t *buf, size_t len, bool end) {
 
 
 static void slip_parse_raw_ip_packet(struct ip_packet_raw *raw_packet) {
-        
+    
+    // Discard empty packets
+    if (raw_packet->len == 0) {
+        return;
+    }
+    
     ip_handle_packet(raw_packet->buf - raw_packet->len, raw_packet->len);
     
 };
