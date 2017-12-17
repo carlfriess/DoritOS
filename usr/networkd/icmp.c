@@ -93,9 +93,7 @@ void icmp_handle_packet(uint32_t src_ip, uint8_t *buf, size_t len) {
         debug_printf("INVALID ICMP MESSAGE: %d\n", e);
         return;
     }
-    
-    debug_printf("VALID ICMP MESSAGE\n");
-    
+        
     switch (header.type) {
         case ICMP_MSG_TYPE_ECHO_REQ:
             assert(header.code == 0);

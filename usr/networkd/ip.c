@@ -145,9 +145,7 @@ void ip_handle_packet(uint8_t *buf, size_t len) {
         debug_printf("INVALID PACKET: %d\n", e);
         return;
     }
-    
-    debug_printf("VALID PACKET\n");
-    
+        
     switch (header.protocol) {
         case IP_PROTOCOL_ICMP:
             icmp_handle_packet(header.src,
