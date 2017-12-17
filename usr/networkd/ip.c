@@ -21,6 +21,9 @@
 // IP address of this host
 static uint32_t host_ip;
 
+// Identification number for outgoing packets
+static uint32_t ident_counter = 0;
+
 // Set the IP address of this host
 void ip_set_ip_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
     
@@ -44,7 +47,7 @@ int ip_parse_packet_header(uint8_t *buf, struct ip_packet_header *header) {
     header->length = lwip_ntohs(*(uint16_t *)(buf + 2));
     header->ident = lwip_ntohs(*(uint16_t *)(buf + 4));
     header->flags = (buf[6] >> 5) & 0x07;
-    header->offset = lwip_ntohs((*(uint16_t *)(buf + 6)) & 0x1F);
+    header->offset = lwip_ntohs((*(uint16_t *)(buf + 6)) & 0xFF1F);
     header->ttl = buf[8];
     header->protocol = buf[9];
     header->checksum = lwip_ntohs(*(uint16_t *)(buf + 10));
@@ -80,7 +83,8 @@ void ip_encode_packet_header(struct ip_packet_header *header, uint8_t *buf) {
     *(uint16_t *)(buf + 2) = lwip_htons(header->length);
     *(uint16_t *)(buf + 4) = lwip_htons(header->ident);
     buf[6] = header->flags << 5;
-    *(uint16_t *)(buf + 6) |= lwip_htons(header->offset) & 0x1F;
+    buf[7] = 0;
+    *(uint16_t *)(buf + 6) |= lwip_htons(header->offset) & 0xFF1F;
     buf[8] = header->ttl;
     buf[9] = header->protocol;
     *(uint32_t *)(buf + 12) = lwip_htonl(header->src);
@@ -104,8 +108,8 @@ void ip_send_header(uint32_t dest_ip, uint8_t protocol, size_t total_len) {
     header.dscp = 0;
     header.ecn = 0;
     header.length = header.ihl * 4 + total_len;
-    header.ident = 0;
-    header.flags = 0;
+    header.ident = ident_counter++;
+    header.flags = 0x2;
     header.offset = 0;
     header.ttl = 32;
     header.protocol = protocol;
