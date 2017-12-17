@@ -16,6 +16,7 @@
 #include <maps/omap44xx_map.h>
 
 #include "slip.h"
+#include "ip.h"
 
 
 // Serial receive handler
@@ -67,6 +68,9 @@ int main(int argc, char *argv[]) {
         debug_printf("Error in slip_init()\n");
         return -1;
     }
+    
+    // Set the IP address for this host
+    ip_set_ip_address(10, 0, 2, 1);
     
     // Dispatch on the default waitset
     struct waitset *default_ws = get_default_waitset();

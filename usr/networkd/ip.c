@@ -8,6 +8,7 @@
 
 #include "ip.h"
 #include "icmp.h"
+#include "slip.h"
 
 #include <aos/aos.h>
 
@@ -16,6 +17,21 @@
 #include <netutil/htons.h>
 #include <netutil/checksum.h>
 
+
+// IP address of this host
+static uint32_t host_ip;
+
+// Set the IP address of this host
+void ip_set_ip_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
+    
+    uint8_t *p = (uint8_t *) &host_ip;
+    
+    p[0] = a;
+    p[1] = b;
+    p[2] = c;
+    p[3] = d;
+    
+}
 
 // Parse and validate an IP header
 int ip_parse_packet_header(uint8_t *buf, struct ip_packet_header *header) {
@@ -74,6 +90,36 @@ void ip_encode_packet_header(struct ip_packet_header *header, uint8_t *buf) {
     *(uint16_t *)(buf + 10) = 0;
     header->checksum = inet_checksum((void *) buf, header->ihl * 4);
     *(uint16_t *)(buf + 10) = lwip_htons(header->checksum);
+    
+}
+
+// Send a buffer over IP protocol
+void ip_send(uint32_t dest_ip, uint8_t protocol, uint8_t *buf, size_t len) {
+    
+    struct ip_packet_header header;
+    
+    // Set header fields
+    header.version = 4;
+    header.ihl = 20 / 4;
+    header.dscp = 0;
+    header.ecn = 0;
+    header.length = header.ihl + len;
+    header.ident = 0;
+    header.flags = 0;
+    header.offset = 0;
+    header.ttl = 32;
+    header.protocol = protocol;
+    header.src = host_ip;
+    header.dest = dest_ip;
+    
+    // Encode header and send it
+    uint8_t *buf_header = malloc(header.ihl * 4);
+    assert(buf_header);
+    ip_encode_packet_header(&header, buf_header);
+    slip_send(buf_header, header.ihl * 4, false);
+    
+    // Send the payload
+    slip_send(buf, len, true);
     
 }
 

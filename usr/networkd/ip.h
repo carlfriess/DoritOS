@@ -30,11 +30,17 @@ struct ip_packet_header {
     uint32_t options;   // Optional options field
 };
 
+// Set the IP address of this host
+void ip_set_ip_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d);
+
 // Parse and validate an IP header
 int ip_parse_packet_header(uint8_t *buf, struct ip_packet_header *header);
 
 // Encode an IP header
 void ip_encode_packet_header(struct ip_packet_header *header, uint8_t *buf);
+
+// Send a buffer over IP protocol
+void ip_send(uint32_t dest_ip, uint8_t protocol, uint8_t *buf, size_t len);
 
 void ip_handle_packet(uint8_t *buf, size_t len);
 
