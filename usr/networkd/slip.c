@@ -41,6 +41,10 @@ int slip_init(void) {
         return -1;
     }
     
+    // Sending SLIP_END to initialize communication
+    uint8_t esc_buf[] = { SLIP_END };
+    serial_write(esc_buf, 1);
+    
     return 0;
     
 }
