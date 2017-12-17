@@ -23,7 +23,6 @@
 struct ip_packet_raw {
     uint8_t *buf;
     size_t len;
-    size_t allocated;
 };
 
 int slip_init(void);

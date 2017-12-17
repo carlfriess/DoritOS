@@ -7,6 +7,7 @@
 //
 
 #include "slip.h"
+#include "ip.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -109,5 +110,7 @@ void slip_recv(uint8_t *buf, size_t len) {
 static void slip_parse_raw_ip_packet(struct ip_packet_raw *raw_packet) {
     
     debug_printf("RECEIVED PACKET (length: %zu)\n", raw_packet->len);
+    
+    ip_handle_packet(raw_packet->buf - raw_packet->len, raw_packet->len);
     
 };

@@ -14,6 +14,8 @@
     build application { target = "networkd",
                         cFiles = [
                             "main.c",
+                            "icmp.c",
+                            "ip.c",
                             "slip.c"
                         ],
                         addLibraries = [ "netutil" ],
