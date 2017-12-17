@@ -25,10 +25,10 @@ struct icmp_header {
 };
 
 // Parse and validate an ICMP header
-int icmp_parse_header(uint8_t *buf, struct icmp_header *header);
+int icmp_parse_header(uint8_t *buf, size_t len, struct icmp_header *header);
 
 // Encode an ICMP header
-void icmp_encode_header(struct icmp_header *header, uint8_t *buf);
+void icmp_encode_header(struct icmp_header *header, uint8_t *buf, size_t len);
 
 void icmp_handle_packet(uint32_t src_ip, uint8_t *buf, size_t len);
 

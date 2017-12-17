@@ -26,10 +26,10 @@ void ip_set_ip_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
     
     uint8_t *p = (uint8_t *) &host_ip;
     
-    p[0] = a;
-    p[1] = b;
-    p[2] = c;
-    p[3] = d;
+    p[3] = a;
+    p[2] = b;
+    p[1] = c;
+    p[0] = d;
     
 }
 
@@ -55,8 +55,8 @@ int ip_parse_packet_header(uint8_t *buf, struct ip_packet_header *header) {
     }
     
     // Compute checksum
-    *(uint16_t *)(buf + 10) = 0;
-    if (header->checksum == inet_checksum((void *) buf, header->ihl * 4)) {
+    uint16_t checksum = inet_checksum((void *) buf, header->ihl * 4);
+    if (checksum != 0xFFFF && checksum != 0x0) {
         return 1;
     }
     
@@ -89,7 +89,7 @@ void ip_encode_packet_header(struct ip_packet_header *header, uint8_t *buf) {
     // Compute and set checksum
     *(uint16_t *)(buf + 10) = 0;
     header->checksum = inet_checksum((void *) buf, header->ihl * 4);
-    *(uint16_t *)(buf + 10) = lwip_htons(header->checksum);
+    *(uint16_t *)(buf + 10) = header->checksum;
     
 }
 
@@ -100,10 +100,10 @@ void ip_send_header(uint32_t dest_ip, uint8_t protocol, size_t total_len) {
     
     // Set header fields
     header.version = 4;
-    header.ihl = 20 / 4;
+    header.ihl = 5;
     header.dscp = 0;
     header.ecn = 0;
-    header.length = header.ihl + total_len;
+    header.length = header.ihl * 4 + total_len;
     header.ident = 0;
     header.flags = 0;
     header.offset = 0;
