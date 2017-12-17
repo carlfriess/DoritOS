@@ -40,8 +40,7 @@ int ip_parse_packet_header(uint8_t *buf, struct ip_packet_header *header) {
     
     // Compute checksum
     *(uint16_t *)(buf + 10) = 0;
-    if (header->checksum == inet_checksum((void *) buf,
-                                          header->ihl > 5 ? 28 : 20)) {
+    if (header->checksum == inet_checksum((void *) buf, header->ihl * 4)) {
         return 1;
     }
     
@@ -72,8 +71,8 @@ void ip_handle_packet(uint8_t *buf, size_t len) {
     switch (header.protocol) {
         case 1: // ICMP
             icmp_handle_packet(&header,
-                               buf + (header.ihl > 5 ? 28 : 20),
-                               len - (header.ihl > 5 ? 28 : 20));
+                               buf + (header.ihl * 4),
+                               len - (header.ihl * 4));
             break;
             
         default:

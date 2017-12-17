@@ -16,7 +16,7 @@
 struct ip_packet_header {
     uint8_t version;    // Version
     uint8_t ihl;        // Internet Header Length
-    uint16_t dscp;       // Differentiated Services Code Point
+    uint16_t dscp;      // Differentiated Services Code Point
     uint8_t ecn;        // Explicit Congestion Notification
     uint16_t length;    // Length of entire IP Packet
     uint16_t ident;     // Identification number
