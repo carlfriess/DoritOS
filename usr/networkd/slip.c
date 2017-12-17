@@ -16,6 +16,8 @@
 
 #include <aos/aos.h>
 
+#include <netutil/user_serial.h>
+
 
 static void slip_parse_raw_ip_packet(struct ip_packet_raw *raw_packet);
 
@@ -102,6 +104,45 @@ void slip_recv(uint8_t *buf, size_t len) {
         *(current_packet.buf++) = *(buf++);
         current_packet.len++;
 
+    }
+    
+}
+
+// Send buffer over network
+void slip_send(uint8_t *buf, size_t len, bool end) {
+
+    uint8_t esc_buf[2] = {SLIP_ESC, 0x00};
+
+    for (int i = 0; i < len; i++) {
+        
+        switch (buf[i]) {
+                
+            case SLIP_END:
+                esc_buf[1] = SLIP_ESC_END;
+                serial_write(esc_buf, 2);
+                break;
+                
+            case SLIP_ESC:
+                esc_buf[1] = SLIP_ESC_ESC;
+                serial_write(esc_buf, 2);
+                break;
+                
+            case 0x00:
+                esc_buf[1] = SLIP_ESC_NUL;
+                serial_write(esc_buf, 2);
+                break;
+                
+            default:
+                serial_write(buf + i, 1);
+                break;
+            
+        }
+        
+    }
+    
+    if (end) {
+        esc_buf[0] = SLIP_END;
+        serial_write(esc_buf, 1);
     }
     
 }

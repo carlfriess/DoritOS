@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define SLIP_END        0xc0
 #define SLIP_ESC        0xdb
@@ -26,6 +27,11 @@ struct ip_packet_raw {
 };
 
 int slip_init(void);
+
+// Receive and parse bytes from the network
 void slip_recv(uint8_t *buf, size_t len);
+
+// Send buffer over network
+void slip_send(uint8_t *buf, size_t len, bool end);
 
 #endif /* slip_h */
