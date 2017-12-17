@@ -33,6 +33,9 @@ struct ip_packet_header {
 // Parse and validate an IP header
 int ip_parse_packet_header(uint8_t *buf, struct ip_packet_header *header);
 
+// Encode an IP header
+void ip_encode_packet_header(struct ip_packet_header *header, uint8_t *buf);
+
 void ip_handle_packet(uint8_t *buf, size_t len);
 
 

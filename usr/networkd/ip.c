@@ -53,6 +53,30 @@ int ip_parse_packet_header(uint8_t *buf, struct ip_packet_header *header) {
     
 }
 
+// Encode an IP header
+void ip_encode_packet_header(struct ip_packet_header *header, uint8_t *buf) {
+    
+    // Set data fields
+    buf[0] = header->version << 4;
+    buf[0] |= header->ihl & 0x0F;
+    buf[1] = header->dscp << 2;
+    buf[1] |= header->ecn & 0x03;
+    *(uint16_t *)(buf + 2) = lwip_htons(header->length);
+    *(uint16_t *)(buf + 4) = lwip_htons(header->ident);
+    buf[6] = header->flags << 5;
+    *(uint16_t *)(buf + 6) |= lwip_htons(header->offset) & 0x1F;
+    buf[8] = header->ttl;
+    buf[9] = header->protocol;
+    *(uint32_t *)(buf + 12) = lwip_htonl(header->src);
+    *(uint32_t *)(buf + 16) = lwip_htonl(header->dest);
+    
+    // Compute and set checksum
+    *(uint16_t *)(buf + 10) = 0;
+    header->checksum = inet_checksum((void *) buf, header->ihl * 4);
+    *(uint16_t *)(buf + 10) = lwip_htons(header->checksum);
+    
+}
+
 void ip_handle_packet(uint8_t *buf, size_t len) {
     
     // Sanity check: minimum packet size
