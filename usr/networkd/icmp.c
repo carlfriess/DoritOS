@@ -49,10 +49,10 @@ void icmp_encode_header(struct icmp_header *header, uint8_t *buf) {
     
 }
 
-void icmp_handle_packet(struct ip_packet_header *ip, uint8_t *buf, size_t len) {
+void icmp_handle_packet(uint32_t src_ip, uint8_t *buf, size_t len) {
     
     // Sanity check: minimum packet size
-    assert(len > 8);
+    assert(len >= 8);
     
     // Parse and check the ICMP header
     struct icmp_header header;
@@ -65,7 +65,7 @@ void icmp_handle_packet(struct ip_packet_header *ip, uint8_t *buf, size_t len) {
     debug_printf("VALID ICMP MESSAGE\n");
     
     switch (header.type) {
-        case 8:
+        case ICMP_MSG_TYPE_ECHO_REQ:
             assert(header.code == 0);
             debug_printf("Received echo request with %x\n", header.data);
             break;

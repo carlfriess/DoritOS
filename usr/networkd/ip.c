@@ -145,7 +145,7 @@ void ip_handle_packet(uint8_t *buf, size_t len) {
     
     switch (header.protocol) {
         case IP_PROTOCOL_ICMP:
-            icmp_handle_packet(&header,
+            icmp_handle_packet(header.src,
                                buf + (header.ihl * 4),
                                len - (header.ihl * 4));
             break;
