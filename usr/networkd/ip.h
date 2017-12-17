@@ -11,6 +11,10 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
+
+
+#define IP_PROTOCOL_ICMP    1
 
 
 struct ip_packet_header {
@@ -39,8 +43,11 @@ int ip_parse_packet_header(uint8_t *buf, struct ip_packet_header *header);
 // Encode an IP header
 void ip_encode_packet_header(struct ip_packet_header *header, uint8_t *buf);
 
-// Send a buffer over IP protocol
-void ip_send(uint32_t dest_ip, uint8_t protocol, uint8_t *buf, size_t len);
+// Send an IP protocol protocol header
+void ip_send_header(uint32_t dest_ip, uint8_t protocol, size_t total_len);
+
+// Send a buffer (following a header)
+void ip_send(uint8_t *buf, size_t len, bool end);
 
 void ip_handle_packet(uint8_t *buf, size_t len);
 

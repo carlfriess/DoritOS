@@ -93,8 +93,8 @@ void ip_encode_packet_header(struct ip_packet_header *header, uint8_t *buf) {
     
 }
 
-// Send a buffer over IP protocol
-void ip_send(uint32_t dest_ip, uint8_t protocol, uint8_t *buf, size_t len) {
+// Send an IP protocol protocol header
+void ip_send_header(uint32_t dest_ip, uint8_t protocol, size_t total_len) {
     
     struct ip_packet_header header;
     
@@ -103,7 +103,7 @@ void ip_send(uint32_t dest_ip, uint8_t protocol, uint8_t *buf, size_t len) {
     header.ihl = 20 / 4;
     header.dscp = 0;
     header.ecn = 0;
-    header.length = header.ihl + len;
+    header.length = header.ihl + total_len;
     header.ident = 0;
     header.flags = 0;
     header.offset = 0;
@@ -118,8 +118,13 @@ void ip_send(uint32_t dest_ip, uint8_t protocol, uint8_t *buf, size_t len) {
     ip_encode_packet_header(&header, buf_header);
     slip_send(buf_header, header.ihl * 4, false);
     
+}
+
+// Send a buffer (following a header)
+void ip_send(uint8_t *buf, size_t len, bool end) {
+    
     // Send the payload
-    slip_send(buf, len, true);
+    slip_send(buf, len, end);
     
 }
 
@@ -139,7 +144,7 @@ void ip_handle_packet(uint8_t *buf, size_t len) {
     debug_printf("VALID PACKET\n");
     
     switch (header.protocol) {
-        case 1: // ICMP
+        case IP_PROTOCOL_ICMP:
             icmp_handle_packet(&header,
                                buf + (header.ihl * 4),
                                len - (header.ihl * 4));
