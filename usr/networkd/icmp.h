@@ -24,6 +24,9 @@ struct icmp_header {
 // Parse and validate an ICMP header
 int icmp_parse_header(uint8_t *buf, struct icmp_header *header);
 
+// Encode an ICMP header
+void icmp_encode_header(struct icmp_header *header, uint8_t *buf);
+
 void icmp_handle_packet(struct ip_packet_header *ip, uint8_t *buf, size_t len);
 
 #endif /* icmp_h */

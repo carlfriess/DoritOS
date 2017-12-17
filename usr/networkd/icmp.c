@@ -34,6 +34,21 @@ int icmp_parse_header(uint8_t *buf, struct icmp_header *header) {
     
 }
 
+// Encode an ICMP header
+void icmp_encode_header(struct icmp_header *header, uint8_t *buf) {
+    
+    // Set data fields
+    buf[0] = header->type;
+    buf[1] = header->code;
+    *(uint32_t *)(buf + 4) = lwip_htonl(header->code);
+    
+    // Compute and set checksum
+    *(uint16_t *)(buf + 2) = 0;
+    header->checksum = inet_checksum((void *) buf, 8);
+    *(uint16_t *)(buf + 2) = header->checksum;
+    
+}
+
 void icmp_handle_packet(struct ip_packet_header *ip, uint8_t *buf, size_t len) {
     
     // Sanity check: minimum packet size
