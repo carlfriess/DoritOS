@@ -37,16 +37,16 @@ int icmp_parse_header(uint8_t *buf, size_t len, struct icmp_header *header) {
 }
 
 // Encode an ICMP header
-void icmp_encode_header(struct icmp_header *header, uint8_t *buf, size_t len) {
+void icmp_encode_header(struct icmp_header *header, uint8_t *buf) {
     
     // Set data fields
     buf[0] = header->type;
     buf[1] = header->code;
+    *(uint16_t *)(buf + 2) = ~header->checksum;
     *(uint32_t *)(buf + 4) = lwip_htonl(header->data);
     
     // Compute and set checksum
-    *(uint16_t *)(buf + 2) = 0;
-    header->checksum = inet_checksum((void *) buf, len);
+    header->checksum = inet_checksum((void *) buf, 8);
     *(uint16_t *)(buf + 2) = header->checksum;
     
 }
@@ -56,13 +56,6 @@ static void icmp_handle_echo_req(uint32_t src_ip,
                                  struct icmp_header *header,
                                  uint8_t *buf,
                                  size_t len) {
-    
-    // Allocate space for the message
-    uint8_t *reply_buf = malloc(8 + len);
-    assert(reply_buf);
-    
-    // Copy in payload
-    memcpy(reply_buf + 8, buf, len);
 
     struct icmp_header reply_header;
     
@@ -71,13 +64,21 @@ static void icmp_handle_echo_req(uint32_t src_ip,
     reply_header.code = 0;
     reply_header.data = header->data;
     
+    // Compute checksum for payload
+    reply_header.checksum = inet_checksum((void *) buf, len);
+    
     // Send IP header
     ip_send_header(src_ip, IP_PROTOCOL_ICMP, 8 + len);
     
-    // Encode header and send it with payload
-    icmp_encode_header(&reply_header, reply_buf, 8 + len);
-    ip_send(reply_buf, 8 + len, true);
+    // Encode header and send it
+    uint8_t *reply_buf = malloc(8);
+    assert(reply_buf);
+    icmp_encode_header(&reply_header, reply_buf);
+    ip_send(reply_buf, 8, false);
     free(reply_buf);
+    
+    // Send payload
+    ip_send(buf, len, true);
     
 }
 
