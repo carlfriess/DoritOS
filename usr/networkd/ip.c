@@ -117,6 +117,7 @@ void ip_send_header(uint32_t dest_ip, uint8_t protocol, size_t total_len) {
     assert(buf_header);
     ip_encode_packet_header(&header, buf_header);
     slip_send(buf_header, header.ihl * 4, false);
+    free(buf_header);
     
 }
 
