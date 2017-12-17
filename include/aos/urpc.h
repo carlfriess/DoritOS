@@ -84,7 +84,9 @@ errval_t urpc_recv_blocking(struct urpc_chan *chan, void **buf, size_t *size,
 // MARK: - URPC bind handlers
 
 // Handle a URPC bind request received via LMP
-void urpc_handle_lmp_bind_request(struct capref msg_cap, struct lmp_recv_msg msg);
+void urpc_handle_lmp_bind_request(struct lmp_chan *lc,
+                                  struct capref msg_cap,
+                                  struct lmp_recv_msg msg);
 
 // Handle a URPC bind request received via UMP
 void urpc_handle_ump_bind_request(struct ump_chan *chan, void *msg, size_t size,

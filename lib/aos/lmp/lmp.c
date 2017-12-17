@@ -170,7 +170,7 @@ void lmp_server_dispatcher(void *arg) {
                 debug_printf("%s\n", err_getstring(err));
             }
             // Handle the request
-            urpc_handle_lmp_bind_request(cap, msg);
+            urpc_handle_lmp_bind_request(lc, cap, msg);
             break;
         
         case LMP_RequestType_DeviceCap:
@@ -434,11 +434,9 @@ errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes
 /* MARK: - ========== Client ========== */
 
 // Blocking call for receiving messages
-void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_msg *msg) {
+void lmp_client_recv(struct lmp_chan *lc, struct capref *cap, struct lmp_recv_msg *msg) {
     int done = 0;
     errval_t err;
-
-    struct lmp_chan *lc = (struct lmp_chan *) arg;
 
     err = lmp_chan_register_recv(lc, get_default_waitset(), MKCLOSURE(lmp_client_wait, &done));
     if (err_is_fail(err)) {

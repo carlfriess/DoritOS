@@ -204,7 +204,50 @@ errval_t urpc_accept(struct urpc_chan *chan) {
         
         // MARK: LMP
         
+        // Allocate lmp channel
+        chan->lmp = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
+        assert(chan->lmp);
         
+        // Open channel to messages
+        err = lmp_chan_accept(chan->lmp, LMP_RECV_LENGTH, ump_frame_cap);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Allocate recv slot
+        err = lmp_chan_alloc_recv_slot(chan->lmp);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        debug_printf("Server send!");
+        
+        // Send lmp endpoint to client via init
+        err = lmp_chan_send2(lc,
+                             LMP_SEND_FLAGS_DEFAULT,
+                             chan->lmp->local_cap,
+                             LMP_RequestType_LmpBind,
+                             msg.words[1]);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        debug_printf("Server done!");
+        
+        // Initialize capref and message
+        struct capref cap;
+        struct lmp_recv_msg msg1 = LMP_RECV_MSG_INIT;
+        
+        // Wait on response from client
+        lmp_client_recv(chan->lmp, &cap, &msg1);
+        
+        // Check we received a valid response
+        assert(msg.words[0] == LMP_RequestType_LmpBind);
+        
+        debug_printf("Server ACK!");
         
     }
     else {
@@ -237,7 +280,7 @@ errval_t urpc_accept(struct urpc_chan *chan) {
         
     }
     
-    // Send the ack over UMP
+    // Send the ack over URPC
     char buf[] = "Hi there!";
     err = urpc_send(chan, (void *) buf, sizeof(buf),
                     URPC_MessageType_UrpcBindAck);
@@ -284,12 +327,40 @@ errval_t urpc_bind(domainid_t pid, struct urpc_chan *chan, bool use_lmp) {
             return err;
         }
         
-        // Send lmp endpoint to init
+        // Send lmp endpoint to server via init
         err = lmp_chan_send2(lc,
                              LMP_SEND_FLAGS_DEFAULT,
                              lc->local_cap,
                              LMP_RequestType_LmpBind,
                              pid);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        debug_printf("Client wait!");
+        
+        // Initialize capref and message
+        struct capref cap;
+        struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+        
+        // Wait on response from server
+        lmp_client_recv(lc, &cap, &msg);
+        
+        // Check we received a valid response
+        assert(msg.words[0] == LMP_RequestType_LmpBind);
+        assert(msg.words[1] == pid);
+        
+        // Set the remote endpoint
+        chan->lmp->remote_cap = cap;
+        
+        debug_printf("Client done!");
+        
+        // Send an ack to the server
+        err = lmp_chan_send1(chan->lmp,
+                             LMP_SEND_FLAGS_DEFAULT,
+                             NULL_CAP,
+                             LMP_RequestType_LmpBind);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
             return err;
@@ -463,18 +534,22 @@ static void urpc_forward_request_ump(struct capref ump_frame_cap, domainid_t pid
 // Forward a URPC bind request over LMP to the server process
 static void urpc_forward_request_lmp(struct lmp_chan *lc,
                                      struct capref ump_frame_cap,
-                                     enum lmp_request_type type) {
+                                     enum lmp_request_type type,
+                                     domainid_t src) {
     
     // Send a bind request with the frame capability to the server process
-    lmp_chan_send1(lc,
+    lmp_chan_send2(lc,
                    LMP_SEND_FLAGS_DEFAULT,
                    ump_frame_cap,
-                   type);
+                   type,
+                   src);
     
 }
 
 // Handle a URPC bind request received via LMP
-void urpc_handle_lmp_bind_request(struct capref msg_cap, struct lmp_recv_msg msg) {
+void urpc_handle_lmp_bind_request(struct lmp_chan *lc,
+                                  struct capref msg_cap,
+                                  struct lmp_recv_msg msg) {
     
     // Sanity check: cannot bind to init
     assert(msg.words[1] != 0 && "Cannot bind to init!");
@@ -491,7 +566,10 @@ void urpc_handle_lmp_bind_request(struct capref msg_cap, struct lmp_recv_msg msg
     if (disp_get_core_id() == pi->core_id) {
         
         // Forward the request to the process
-        urpc_forward_request_lmp(pi->lc, msg_cap, msg.words[0]);
+        urpc_forward_request_lmp(pi->lc,
+                                 msg_cap,
+                                 msg.words[0],
+                                 process_pid_for_lmp_chan(lc));
         
     }
     else {
@@ -548,6 +626,6 @@ void urpc_handle_ump_bind_request(struct ump_chan *chan, void *msg, size_t size,
     }
     
     // Forward the request to the correct process
-    urpc_forward_request_lmp(pi->lc, ump_frame_cap, LMP_RequestType_UmpBind);
+    urpc_forward_request_lmp(pi->lc, ump_frame_cap, LMP_RequestType_UmpBind, 0);
     
 }
