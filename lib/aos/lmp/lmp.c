@@ -160,8 +160,9 @@ void lmp_server_dispatcher(void *arg) {
             
             
         case LMP_RequestType_UmpBind:
+        case LMP_RequestType_LmpBind:
 #if PRINT_DEBUG
-            debug_printf("UMP Bind Message!\n");
+            debug_printf("URPC Bind Message!\n");
 #endif
             // Make a new slot available for the next incoming capability
             err = lmp_chan_alloc_recv_slot(lc);

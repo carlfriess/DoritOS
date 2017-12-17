@@ -12,6 +12,31 @@
 #include <aos/ump.h>
 #include <aos/process.h>
 
+#include <stdbool.h>
+
+
+#define URPC_MessageType_UrpcBindAck    UMP_MessageType_UrpcBindAck
+
+#define URPC_MessageType_User0  UMP_MessageType_User0
+#define URPC_MessageType_User1  UMP_MessageType_User1
+#define URPC_MessageType_User2  UMP_MessageType_User2
+#define URPC_MessageType_User3  UMP_MessageType_User3
+#define URPC_MessageType_User4  UMP_MessageType_User4
+#define URPC_MessageType_User5  UMP_MessageType_User5
+#define URPC_MessageType_User6  UMP_MessageType_User6
+#define URPC_MessageType_User7  UMP_MessageType_User7
+
+
+// UMP message types type
+typedef ump_msg_type_t urpc_msg_type_t;
+
+// URPC channel
+struct urpc_chan {
+    bool use_lmp;
+    struct ump_chan *ump;
+    struct lmp_chan *lmp;
+};
+
 
 // MARK: - Init URPC Server
 
@@ -31,14 +56,29 @@ void urpc_process_register(struct process_info *pi);
 
 // MARK: - Generic Server
 
-// Accept a bind request and set up the UMP channel
-errval_t urpc_accept(struct ump_chan *chan);
+// Accept a bind request and set up the URPC channel
+errval_t urpc_accept(struct urpc_chan *chan);
 
 
 // MARK: - Generic Client
 
 // Bind to a URPC server with a specific PID
-errval_t urpc_bind(domainid_t pid, struct ump_chan *chan);
+errval_t urpc_bind(domainid_t pid, struct urpc_chan *chan, bool use_lmp);
+
+
+// MARK: - Generic Send & Receive
+
+// Send on a URPC channel
+errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
+                   urpc_msg_type_t msg_type);
+
+// Receive on a URPC channel
+errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
+                   urpc_msg_type_t* msg_type);
+
+// Blockingly receive on a URPC channel
+errval_t urpc_recv_blocking(struct urpc_chan *chan, void **buf, size_t *size,
+                            urpc_msg_type_t* msg_type);
 
 
 // MARK: - URPC bind handlers

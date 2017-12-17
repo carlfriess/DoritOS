@@ -171,8 +171,8 @@ static struct lmp_chan *get_init_lmp_chan(void) {
     return get_init_rpc()->lc;
 }
 
-// Accept a bind request and set up the UMP channel
-errval_t urpc_accept(struct ump_chan *chan) {
+// Accept a bind request and set up the URPC channel
+errval_t urpc_accept(struct urpc_chan *chan) {
     
     errval_t err;
     
@@ -187,7 +187,8 @@ errval_t urpc_accept(struct ump_chan *chan) {
     lmp_client_recv(lc, &ump_frame_cap, &msg);
     
     // Check we received a correct message
-    assert(msg.words[0] == LMP_RequestType_UmpBind);
+    assert(msg.words[0] == LMP_RequestType_UmpBind ||
+           msg.words[0] == LMP_RequestType_LmpBind);
     
     // Make a new slot available for the next incoming capability
     err = lmp_chan_alloc_recv_slot(lc);
@@ -195,25 +196,51 @@ errval_t urpc_accept(struct ump_chan *chan) {
         return err;
     }
     
-    // Initialize the UMP channel
-    ump_chan_init(chan, UMP_SERVER_BUF_SELECT);
+    // Set the new chanel to correct transport protocol
+    chan->use_lmp = msg.words[0] == LMP_RequestType_LmpBind;
     
-    // Get the UMP frame identity
-    err = frame_identify(ump_frame_cap, &chan->fi);
-    if (err_is_fail(err)) {
-        return err;
+    // Switch between transport protocols
+    if (chan->use_lmp) {
+        
+        // MARK: LMP
+        
+        
+        
     }
+    else {
+        
+        // MARK: UMP
+        
+        // Allocate ump channel
+        chan->ump = (struct ump_chan *) malloc(sizeof(struct ump_chan));
+        assert(chan->ump);
     
-    // Map the received UMP frame
-    err = paging_map_frame(get_current_paging_state(), (void **) &chan->buf,
-                           chan->fi.bytes, ump_frame_cap, NULL, NULL);
-    if (err_is_fail(err)) {
-        return err;
+        // Initialize the UMP channel
+        ump_chan_init(chan->ump, UMP_SERVER_BUF_SELECT);
+        
+        // Get the UMP frame identity
+        err = frame_identify(ump_frame_cap, &chan->ump->fi);
+        if (err_is_fail(err)) {
+            return err;
+        }
+        
+        // Map the received UMP frame
+        err = paging_map_frame(get_current_paging_state(),
+                               (void **) &chan->ump->buf,
+                               chan->ump->fi.bytes,
+                               ump_frame_cap,
+                               NULL,
+                               NULL);
+        if (err_is_fail(err)) {
+            return err;
+        }
+        
     }
     
     // Send the ack over UMP
     char buf[] = "Hi there!";
-    err = ump_send(chan, (void *) buf, sizeof(buf), UMP_MessageType_UrpcBindAck);
+    err = urpc_send(chan, (void *) buf, sizeof(buf),
+                    URPC_MessageType_UrpcBindAck);
     
     return err;
     
@@ -224,57 +251,180 @@ errval_t urpc_accept(struct ump_chan *chan) {
 // MARK: - Generic Client
 
 // Bind to a URPC server with a specific PID
-errval_t urpc_bind(domainid_t pid, struct ump_chan *chan) {
+errval_t urpc_bind(domainid_t pid, struct urpc_chan *chan, bool use_lmp) {
     
     errval_t err;
+    
+    // Set the new chanel to correct transport protocol
+    chan->use_lmp = use_lmp;
     
     // Get the channel to this core's init
     struct lmp_chan *lc = get_init_lmp_chan();
     
-    // Allocate a frame for the new UMP channel
-    struct capref ump_frame_cap;
-    size_t ump_frame_size = UMP_BUF_SIZE;
-    err = frame_alloc(&ump_frame_cap, ump_frame_size, &ump_frame_size);
-    assert(ump_frame_size >= UMP_BUF_SIZE);
-    
-    // Send a bind request with the frame capability to this core's init
-    lmp_chan_send2(lc,
-                   LMP_SEND_FLAGS_DEFAULT,
-                   ump_frame_cap,
-                   LMP_RequestType_UmpBind,
-                   pid);
-    
-    // Initialize the UMP channel
-    ump_chan_init(chan, UMP_CLIENT_BUF_SELECT);
-    
-    // Map the allocated UMP frame
-    err = paging_map_frame(get_current_paging_state(), (void **) &chan->buf,
-                           ump_frame_size, ump_frame_cap, NULL, NULL);
-    if (err_is_fail(err)) {
-        return err;
+    // Switch between transport protocols
+    if (chan->use_lmp) {
+        
+        // MARK: LMP
+        
+        // Allocate lmp channel
+        chan->lmp = (struct lmp_chan *) malloc(sizeof(struct lmp_chan));
+        assert(chan->lmp);
+        
+        // Open channel to messages
+        err = lmp_chan_accept(chan->lmp, LMP_RECV_LENGTH, NULL_CAP);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Allocate recv slot
+        err = lmp_chan_alloc_recv_slot(chan->lmp);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Send lmp endpoint to init
+        err = lmp_chan_send2(lc,
+                             LMP_SEND_FLAGS_DEFAULT,
+                             lc->local_cap,
+                             LMP_RequestType_LmpBind,
+                             pid);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
     }
-    
-    // Get the frame identity
-    err = frame_identify(ump_frame_cap, &chan->fi);
-    if (err_is_fail(err)) {
-        return err;
+    else {
+        
+        // MARK: UMP
+        
+        // Allocate ump channel
+        chan->ump = (struct ump_chan *) malloc(sizeof(struct ump_chan));
+        assert(chan->ump);
+        
+        // Allocate a frame for the new UMP channel
+        struct capref ump_frame_cap;
+        size_t ump_frame_size = UMP_BUF_SIZE;
+        err = frame_alloc(&ump_frame_cap, ump_frame_size, &ump_frame_size);
+        assert(ump_frame_size >= UMP_BUF_SIZE);
+        
+        // Send a bind request with the frame capability to this core's init
+        lmp_chan_send2(lc,
+                       LMP_SEND_FLAGS_DEFAULT,
+                       ump_frame_cap,
+                       LMP_RequestType_UmpBind,
+                       pid);
+        
+        // Initialize the UMP channel
+        ump_chan_init(chan->ump, UMP_CLIENT_BUF_SELECT);
+        
+        // Map the allocated UMP frame
+        err = paging_map_frame(get_current_paging_state(),
+                               (void **) &chan->ump->buf, ump_frame_size,
+                               ump_frame_cap, NULL, NULL);
+        if (err_is_fail(err)) {
+            return err;
+        }
+        
+        // Get the frame identity
+        err = frame_identify(ump_frame_cap, &chan->ump->fi);
+        if (err_is_fail(err)) {
+            return err;
+        }
+        
     }
     
     // Wait for ack from server
     char *retmsg;
     size_t retsize;
-    ump_msg_type_t msg_type;
-    do {
-        err = ump_recv(chan, (void **) &retmsg, &retsize, &msg_type);
-    }
-    while (err == LIB_ERR_NO_UMP_MSG);
+    urpc_msg_type_t msg_type;
+    err = urpc_recv_blocking(chan, (void **) &retmsg, &retsize, &msg_type);
+    assert(err_is_ok(err));
     
     // Check we recieved the correct message
-    assert(msg_type == UMP_MessageType_UrpcBindAck);
+    assert(msg_type == URPC_MessageType_UrpcBindAck);
     
     debug_printf("BIND: Received \"%s\" from server.\n", retmsg);
     
     return SYS_ERR_OK;
+    
+}
+
+
+// MARK: - Generic Send & Receive
+
+// Send on a URPC channel
+errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
+                   urpc_msg_type_t msg_type) {
+    
+    // Switch between transport protocols
+    if (chan->use_lmp) {
+        
+        // MARK: LMP
+
+        return SYS_ERR_OK;
+        
+    }
+    else {
+        
+        // MARK: UMP
+        
+        ump_send(chan->ump, buf, size, (ump_msg_type_t) msg_type);
+        return SYS_ERR_OK;
+        
+    }
+    
+}
+
+// Receive on a URPC channel
+errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
+                   urpc_msg_type_t* msg_type) {
+    
+    // Switch between transport protocols
+    if (chan->use_lmp) {
+        
+        // MARK: LMP
+        
+        return SYS_ERR_OK;
+        
+    }
+    else {
+        
+        // MARK: UMP
+        
+        errval_t err = ump_recv(chan->ump, buf, size,
+                                (ump_msg_type_t *) msg_type);
+        if (err == LIB_ERR_NO_UMP_MSG) {
+            return LIB_ERR_NO_URPC_MSG;
+        }
+        return err;
+        
+    }
+    
+}
+
+// Blockingly receive on a URPC channel
+errval_t urpc_recv_blocking(struct urpc_chan *chan, void **buf, size_t *size,
+                            urpc_msg_type_t* msg_type) {
+    
+    // Switch between transport protocols
+    if (chan->use_lmp) {
+        
+        // MARK: LMP
+        
+        return SYS_ERR_OK;
+        
+    }
+    else {
+        
+        // MARK: UMP
+        
+        ump_recv_blocking(chan->ump, buf, size, (ump_msg_type_t *) msg_type);
+        return SYS_ERR_OK;
+        
+    }
     
 }
 
@@ -312,13 +462,14 @@ static void urpc_forward_request_ump(struct capref ump_frame_cap, domainid_t pid
 
 // Forward a URPC bind request over LMP to the server process
 static void urpc_forward_request_lmp(struct lmp_chan *lc,
-                                     struct capref ump_frame_cap) {
+                                     struct capref ump_frame_cap,
+                                     enum lmp_request_type type) {
     
     // Send a bind request with the frame capability to the server process
     lmp_chan_send1(lc,
                    LMP_SEND_FLAGS_DEFAULT,
                    ump_frame_cap,
-                   LMP_RequestType_UmpBind);
+                   type);
     
 }
 
@@ -340,10 +491,13 @@ void urpc_handle_lmp_bind_request(struct capref msg_cap, struct lmp_recv_msg msg
     if (disp_get_core_id() == pi->core_id) {
         
         // Forward the request to the process
-        urpc_forward_request_lmp(pi->lc, msg_cap);
+        urpc_forward_request_lmp(pi->lc, msg_cap, msg.words[0]);
         
     }
     else {
+        
+        // Cannot use LMP binding between cores!
+        assert(msg.words[0] == LMP_RequestType_UmpBind);
         
         // Forward the request to the other core
         urpc_forward_request_ump(msg_cap, pi->pid);
@@ -394,6 +548,6 @@ void urpc_handle_ump_bind_request(struct ump_chan *chan, void *msg, size_t size,
     }
     
     // Forward the request to the correct process
-    urpc_forward_request_lmp(pi->lc, ump_frame_cap);
+    urpc_forward_request_lmp(pi->lc, ump_frame_cap, LMP_RequestType_UmpBind);
     
 }
