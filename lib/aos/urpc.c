@@ -222,8 +222,6 @@ errval_t urpc_accept(struct urpc_chan *chan) {
             return err;
         }
         
-        debug_printf("Server send!");
-        
         // Send lmp endpoint to client via init
         err = lmp_chan_send2(lc,
                              LMP_SEND_FLAGS_DEFAULT,
@@ -235,8 +233,6 @@ errval_t urpc_accept(struct urpc_chan *chan) {
             return err;
         }
         
-        debug_printf("Server done!");
-        
         // Initialize capref and message
         struct capref cap;
         struct lmp_recv_msg msg1 = LMP_RECV_MSG_INIT;
@@ -246,8 +242,6 @@ errval_t urpc_accept(struct urpc_chan *chan) {
         
         // Check we received a valid response
         assert(msg.words[0] == LMP_RequestType_LmpBind);
-        
-        debug_printf("Server ACK!");
         
     }
     else {
@@ -330,15 +324,13 @@ errval_t urpc_bind(domainid_t pid, struct urpc_chan *chan, bool use_lmp) {
         // Send lmp endpoint to server via init
         err = lmp_chan_send2(lc,
                              LMP_SEND_FLAGS_DEFAULT,
-                             lc->local_cap,
+                             chan->lmp->local_cap,
                              LMP_RequestType_LmpBind,
                              pid);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
             return err;
         }
-        
-        debug_printf("Client wait!");
         
         // Initialize capref and message
         struct capref cap;
@@ -353,8 +345,6 @@ errval_t urpc_bind(domainid_t pid, struct urpc_chan *chan, bool use_lmp) {
         
         // Set the remote endpoint
         chan->lmp->remote_cap = cap;
-        
-        debug_printf("Client done!");
         
         // Send an ack to the server
         err = lmp_chan_send1(chan->lmp,
@@ -413,7 +403,7 @@ errval_t urpc_bind(domainid_t pid, struct urpc_chan *chan, bool use_lmp) {
     urpc_msg_type_t msg_type;
     err = urpc_recv_blocking(chan, (void **) &retmsg, &retsize, &msg_type);
     assert(err_is_ok(err));
-    
+        
     // Check we recieved the correct message
     assert(msg_type == URPC_MessageType_UrpcBindAck);
     
@@ -432,10 +422,8 @@ errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
     
     // Switch between transport protocols
     if (chan->use_lmp) {
-        
-        // MARK: LMP
 
-        return SYS_ERR_OK;
+        return lmp_send_buffer(chan->lmp, buf, size, msg_type);
         
     }
     else {
@@ -458,7 +446,7 @@ errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
         
         // MARK: LMP
         
-        return SYS_ERR_OK;
+        return lmp_recv_buffer(chan->lmp, buf, size, msg_type);
         
     }
     else {
@@ -482,10 +470,10 @@ errval_t urpc_recv_blocking(struct urpc_chan *chan, void **buf, size_t *size,
     
     // Switch between transport protocols
     if (chan->use_lmp) {
-        
+                
         // MARK: LMP
         
-        return SYS_ERR_OK;
+        return lmp_recv_buffer(chan->lmp, buf, size, msg_type);
         
     }
     else {

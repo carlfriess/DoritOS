@@ -187,6 +187,8 @@ enum lmp_request_type {
   
     LMP_RequestType_StringShort,
     LMP_RequestType_StringLong,
+    LMP_RequestType_BufferShort,
+    LMP_RequestType_BufferLong,
     LMP_RequestType_SpawnShort,
     LMP_RequestType_SpawnLong,
     
@@ -245,6 +247,22 @@ errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
                                   uintptr_t *words, char **string);
 
 
+/* MARK: - ========== Buffer ========== */
+
+// Send a buffer on a specific channel (automatically select protocol)
+errval_t lmp_send_buffer(struct lmp_chan *lc, const void *buf,
+                         size_t buf_len, uint8_t msg_type);
+
+// Blocking call to receive a buffer on a channel (automatically select protocol)
+errval_t lmp_recv_buffer(struct lmp_chan *lc, void **buf, size_t *len,
+                         uint8_t *msg_type);
+
+// Process a buffer received through a message (automatically select protocol)
+errval_t lmp_recv_buffer_from_msg(struct lmp_chan *lc, struct capref cap,
+                                  uintptr_t *words, void **buf, size_t *len,
+                                  uint8_t *msg_type);
+
+
 /* MARK: - ========== Spawn ========== */
 
 void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler);
@@ -263,10 +281,10 @@ errval_t lmp_recv_spawn_from_msg(struct lmp_chan *lc, struct capref cap,
 /* MARK: - ========== Send buffer ==========  */
 
 // Send a short buffer (using LMP arguments)
-errval_t lmp_send_short_buf(struct lmp_chan *lc, enum lmp_request_type type, void *buf, size_t size);
+errval_t lmp_send_short_buf(struct lmp_chan *lc, uintptr_t type, void *buf, size_t size);
 
 // Send an entire frame capability
-errval_t lmp_send_frame(struct lmp_chan *lc, enum lmp_request_type type, struct capref frame_cap, size_t frame_size);
+errval_t lmp_send_frame(struct lmp_chan *lc, uintptr_t type, struct capref frame_cap, size_t frame_size);
 
 
 /* MARK: - ========== Receive buffer ==========  */
