@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     
     // Accept a binding request from a client
     struct urpc_chan chan;
-    err = urpc_accept(&chan);
+    err = urpc_accept_blocking(&chan);
     assert(err_is_ok(err));
 
     // Variable declarations

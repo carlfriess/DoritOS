@@ -56,8 +56,11 @@ void urpc_process_register(struct process_info *pi);
 
 // MARK: - Generic Server
 
-// Accept a bind request and set up the URPC channel
+// Accept a bind request if one was received and set up the URPC channel
 errval_t urpc_accept(struct urpc_chan *chan);
+
+// Accept a bind request and set up the URPC channel
+errval_t urpc_accept_blocking(struct urpc_chan *chan);
 
 
 // MARK: - Generic Client
