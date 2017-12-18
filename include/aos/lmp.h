@@ -70,19 +70,6 @@
  *
  * cap: NULL_CAP
  *
- * ==== Terminal Get Char ====
- *
- * arg0: enum lmp_request_type RequestType = LMP_RequestType_TerminalGetChar
- *
- * cap: NULL_CAP
- *
- * ==== Terminal Put Char ====
- *
- * arg0: enum lmp_request_type RequestType = LMP_RequestType_TerminalPutChar
- * arg1: char Char
- *
- * cap: NULL_CAP
- *
  * ==== DeviceCap ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_DeviceCap
@@ -203,8 +190,8 @@ enum lmp_request_type {
     LMP_RequestType_Spawn,
     LMP_RequestType_NameLookup,
     LMP_RequestType_PidDiscover,
-    LMP_RequestType_TerminalGetChar,
-    LMP_RequestType_TerminalPutChar,
+//    LMP_RequestType_TerminalGetChar,
+//    LMP_RequestType_TerminalPutChar,
     LMP_RequestType_Echo,
     LMP_RequestType_UmpBind,
     LMP_RequestType_LmpBind
@@ -223,8 +210,6 @@ errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align
 void register_ram_free_handler(ram_free_handler_t ram_free_function);
 errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap);
 errval_t lmp_server_pid_discovery(struct lmp_chan *lc);
-void lmp_server_terminal_putchar(struct lmp_chan *lc, char c);
-void lmp_server_terminal_getchar(struct lmp_chan *lc);
 
 errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes);
 

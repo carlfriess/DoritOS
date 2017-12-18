@@ -6,6 +6,7 @@
 #include <aos/urpc.h>
 #include <aos/process.h>
 #include <aos/domain.h>
+#include <aos/aos_rpc.h>
 
 #define MAX_ALLOCATION 100000000
 
@@ -122,23 +123,7 @@ void lmp_server_dispatcher(void *arg) {
             lmp_server_pid_discovery(lc);
             break;
             
-            
-        case LMP_RequestType_TerminalGetChar:
-#if PRINT_DEBUG
-            debug_printf("Terminal Get Message!\n");
-#endif
-            lmp_server_terminal_getchar(lc);
-            break;
-            
-            
-        case LMP_RequestType_TerminalPutChar:
-#if PRINT_DEBUG
-            debug_printf("Terminal Message!\n");
-#endif
-            lmp_server_terminal_putchar(lc, msg.words[1]);
-            break;
-            
-            
+
         case LMP_RequestType_Echo:
 #if PRINT_DEBUG
             debug_printf("Echo Message!\n");
@@ -338,57 +323,6 @@ errval_t lmp_server_pid_discovery(struct lmp_chan *lc) {
     
 }
 
-// TERMINALSERV: Handle requests to get a char
-void lmp_server_terminal_getchar(struct lmp_chan *lc) {
-    errval_t err = SYS_ERR_OK;
-    char c = '\0';
-
-    // UMP call if not core 0
-    if (!disp_get_core_id()) {
-        while (c == '\0') {
-            sys_getchar(&c);
-        }
-    }
-    else {
-        ump_msg_type_t msg_type = UMP_MessageType_TerminalGetChar;
-        size_t size = sizeof(char);
-        void *ptr;
-
-        // Send request message
-        ump_send(&init_uc, &c, size, msg_type);
-
-        // Receive response
-        ump_recv_blocking(&init_uc, &ptr, &size, &msg_type);
-        assert(msg_type == UMP_MessageType_TerminalGetCharAck);
-        c = *((char *) ptr);
-    }
-
-    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
-}
-
-// TERMINALSERV: Handle requests to print a char
-void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
-    errval_t err = SYS_ERR_OK;
-
-    if (!disp_get_core_id()) {
-        sys_print(&c, sizeof(char));
-    }
-    else {
-        size_t size = sizeof(char);
-        void *ptr;
-
-        ump_msg_type_t msg_type = UMP_MessageType_TerminalPutChar;
-
-        ump_send(&init_uc, &c, size, msg_type);
-
-        ump_recv_blocking(&init_uc, &ptr, &size, &msg_type);
-        assert(msg_type == UMP_MessageType_TerminalPutCharAck);
-    }
-
-
-    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalPutChar, err, c);
-}
-
 errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes) {
     
     errval_t err;
@@ -435,26 +369,28 @@ errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes
 
 // Blocking call for receiving messages
 void lmp_client_recv(struct lmp_chan *lc, struct capref *cap, struct lmp_recv_msg *msg) {
-    
+
+
     // Use default waitset
     lmp_client_recv_waitset(lc, cap, msg, get_default_waitset());
-    
+
 }
 // Blocking call for receiving messages on a specific waitset
 void lmp_client_recv_waitset(struct lmp_chan *lc, struct capref *cap, struct lmp_recv_msg *msg, struct waitset *ws) {
+
     int done = 0;
     errval_t err;
-    
+
     err = lmp_chan_register_recv(lc, ws, MKCLOSURE(lmp_client_wait, &done));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return;
     }
-    
+
     while (!done) {
         event_dispatch(ws);
     }
-    
+
     err = lmp_chan_recv(lc, msg, cap);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
@@ -635,7 +571,7 @@ errval_t lmp_send_buffer(struct lmp_chan *lc, const void *buf,
         
         uintptr_t type = ((uintptr_t) msg_type) << 24;
         type |= LMP_RequestType_BufferShort;
-        
+
         return lmp_send_short_buf_fast(lc,
                                        type,
                                        (void *) buf,
@@ -643,7 +579,7 @@ errval_t lmp_send_buffer(struct lmp_chan *lc, const void *buf,
         
     }
     else {
-        
+
         // Allocating frame capability
         size_t ret_size;
         struct capref frame_cap;
@@ -1213,20 +1149,20 @@ errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, enum lmp_request_type type
 
 // Send a short buffer (using LMP arguments)
 errval_t lmp_send_short_buf_fast(struct lmp_chan *lc, uintptr_t type, void *buf, size_t size) {
-    
+
     errval_t err;
-    
+
     assert(size <= sizeof(uintptr_t) * SHORT_BUF_SIZE);
-    
+
     // Allocate new memory to construct the arguments
     char *buf_arg = calloc(sizeof(uintptr_t), SHORT_BUF_SIZE);
     if (buf_arg == NULL) {
         return LIB_ERR_MALLOC_FAIL;
     }
-    
+
     // Copy in the string
     memcpy(buf_arg, buf, size);
-    
+
     // Send the LMP message
     err = lmp_chan_send9(lc,
                          LMP_SEND_FLAGS_DEFAULT,
@@ -1245,7 +1181,7 @@ errval_t lmp_send_short_buf_fast(struct lmp_chan *lc, uintptr_t type, void *buf,
         free(buf_arg);
         return err;
     }
-    
+
     // Free the memory for constructing the arguments
     free(buf_arg);
     

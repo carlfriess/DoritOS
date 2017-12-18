@@ -23,10 +23,6 @@ extern lmp_server_spawn_handler lmp_server_spawn_handler_func;
 
 static void urpc_spawn_handler(struct ump_chan *chan, void *msg, size_t size,
                                ump_msg_type_t msg_type);
-static void urpc_get_char_handler(struct ump_chan *chan, void *msg, size_t size,
-                                  ump_msg_type_t msg_type);
-static void urpc_put_char_handler(struct ump_chan *chan, void *msg, size_t size,
-                                  ump_msg_type_t msg_type);
 
 // Handler for init URPC server:
 void urpc_init_server_handler(struct ump_chan *chan, void *msg, size_t size,
@@ -36,14 +32,6 @@ void urpc_init_server_handler(struct ump_chan *chan, void *msg, size_t size,
             
         case UMP_MessageType_Spawn:
             urpc_spawn_handler(chan, msg, size, msg_type);
-            break;
-            
-        case UMP_MessageType_TerminalGetChar:
-            urpc_get_char_handler(chan, msg, size, msg_type);
-            break;
-
-        case UMP_MessageType_TerminalPutChar:
-            urpc_put_char_handler(chan, msg, size, msg_type);
             break;
             
         case UMP_MessageType_RegisterProcess:
@@ -77,29 +65,6 @@ static void urpc_spawn_handler(struct ump_chan *chan, void *msg, size_t size,
              sizeof(struct urpc_spaw_response),
              UMP_MessageType_SpawnAck);
     
-}
-
-// Handle UMP_MessageType_TerminalGetChar
-static void urpc_get_char_handler(struct ump_chan *chan, void *msg, size_t size,
-                                  ump_msg_type_t msg_type) {
-    char c;
-    do {
-        sys_getchar(&c);
-    } while (c == '\0');
-    
-    ump_send(chan, &c, sizeof(char), UMP_MessageType_TerminalGetCharAck);
-    
-}
-
-// Handle UMP_MessageType_TerminalPutChar
-
-static void urpc_put_char_handler(struct ump_chan *chan, void *msg, size_t size,
-                                    ump_msg_type_t msg_type) {
-    // Print character
-    sys_print((char *) msg, sizeof(char));
-
-    // Send acknowledgement
-    ump_send(&init_uc, msg, sizeof(char), UMP_MessageType_TerminalPutCharAck);
 }
 
 // Handle UMP_MessageType_RegisterProcess

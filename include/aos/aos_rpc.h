@@ -17,6 +17,18 @@
 
 #include <aos/aos.h>
 
+#define URPC_MessageType_TerminalWrite              URPC_MessageType_User0
+#define URPC_MessageType_TerminalWriteUnlock        URPC_MessageType_User1
+#define URPC_MessageType_TerminalRead               URPC_MessageType_User2
+#define URPC_MessageType_TerminalReadUnlock         URPC_MessageType_User3
+
+struct terminal_msg {
+    void *id;
+    errval_t err;
+    bool lock;
+    char c;
+};
+
 struct aos_rpc {
     // TODO: add state for your implementation
     struct lmp_chan *lc;

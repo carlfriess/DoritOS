@@ -75,6 +75,7 @@ static void libc_assert(const char *expression, const char *file,
     sys_print(buf, len < sizeof(buf) ? len : sizeof(buf));
 }
 
+/*
 static size_t syscall_terminal_write(const char *buf, size_t len)
 {
     if (len) {
@@ -88,6 +89,7 @@ static size_t dummy_terminal_read(char *buf, size_t len)
     debug_printf("terminal read NYI! returning %d characters read\n", len);
     return len;
 }
+*/
 
 /* Set libc function pointers */
 void barrelfish_libc_glue_init(void)
@@ -96,13 +98,8 @@ void barrelfish_libc_glue_init(void)
     // what we need for that
     // TODO: change these to use the user-space serial driver if possible
 
-    if (init_domain) {
-        _libc_terminal_read_func = dummy_terminal_read;
-        _libc_terminal_write_func = syscall_terminal_write;
-    } else {
-        _libc_terminal_read_func = aos_rpc_terminal_read;
-        _libc_terminal_write_func = aos_rpc_terminal_write;
-    }
+    _libc_terminal_read_func = aos_rpc_terminal_read;
+    _libc_terminal_write_func = aos_rpc_terminal_write;
 
     _libc_exit_func = libc_exit;
     _libc_assert_func = libc_assert;
