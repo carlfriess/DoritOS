@@ -334,6 +334,8 @@ errors libbarrelfish LIB_ERR_ {
     failure NO_LMP_MSG          "No LMP message available",
     failure LMP_RECV_BUF_OVERFLOW "LMP message in endpoint is longer than user-provided buffer",
     failure NO_UMP_MSG          "No UMP message available",
+    failure NO_URPC_MSG         "No URPC message available",
+    failure NO_URPC_BIND_REQ    "No URPC bind request available",
     failure UMP_CHAN_FULL       "Cannot send UMP: channel is full",
     failure LMP_BUFLEN_INVALID  "Cannot create LMP endpoint, invalid buffer length",
     failure NO_ENDPOINT_SPACE   "Cannot allocate LMP endpoint, out of space in dispatcher frame",

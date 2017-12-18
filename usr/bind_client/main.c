@@ -6,8 +6,8 @@
 #include <aos/urpc.h>
 #include <aos/aos_rpc.h>
 
-#define UMP_MessageType_Ping UMP_MessageType_User0
-#define UMP_MessageType_Pong UMP_MessageType_User1
+#define URPC_MessageType_Ping   URPC_MessageType_User0
+#define URPC_MessageType_Pong   URPC_MessageType_User1
 
 int main(int argc, char *argv[]) {
     
@@ -51,24 +51,24 @@ int main(int argc, char *argv[]) {
 
     
     // Bind to the server
-    struct ump_chan chan;
-    err = urpc_bind(pid, &chan);
+    struct urpc_chan chan;
+    err = urpc_bind(pid, &chan, false);
     assert(err_is_ok(err));
 
     // Variable declarations
     uint32_t counter = 0;
     size_t size;
     void *ptr;
-    ump_msg_type_t msg_type;
+    urpc_msg_type_t msg_type;
 
     while (true) {
         
         // Send counter value
-        ump_send(&chan, (void *) &counter, sizeof(uint32_t), UMP_MessageType_Ping);
+        urpc_send(&chan, (void *) &counter, sizeof(uint32_t), URPC_MessageType_Ping);
 
         // Receive counter value
-        ump_recv_blocking(&chan, &ptr, &size, &msg_type);
-        assert(msg_type == UMP_MessageType_Pong);
+        urpc_recv_blocking(&chan, &ptr, &size, &msg_type);
+        assert(msg_type == URPC_MessageType_Pong);
 
         // Deref, increment and assign counter
         counter = (*((uint32_t *) ptr)) + 1;
