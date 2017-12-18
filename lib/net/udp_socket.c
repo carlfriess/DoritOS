@@ -126,3 +126,38 @@ errval_t recvfrom(struct udp_socket *socket, void *buf, size_t len,
     
 }
 
+// Send a UDP packet on the given socket to a specific destination
+errval_t sendto(struct udp_socket *socket, void *buf, size_t len,
+                uint32_t to_addr, uint16_t to_port) {
+    
+    errval_t err;
+    
+    // Calculate message size
+    size_t msg_size = sizeof(struct udp_urpc_packet) + len;
+    
+    // Allocate memory for the message
+    struct udp_urpc_packet *packet = malloc(msg_size);
+    if (!packet) {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+    
+    // Set destination
+    packet->addr = to_addr;
+    packet->port = to_port;
+    
+    // Copy message
+    memcpy(packet->payload, buf, len);
+    
+    // Send the message to networkd
+    err = urpc_send(&socket->chan, packet, msg_size, URPC_MessageType_Send);
+    if (err_is_fail(err)) {
+        return err;
+    }
+    
+    // Free message
+    free(packet);
+    
+    return SYS_ERR_OK;
+    
+}
+
