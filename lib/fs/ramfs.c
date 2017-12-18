@@ -25,7 +25,7 @@
  */
 struct ramfs_dirent
 {
-    char *name;                     ///< name of the file or directoyr
+    char *name;                     ///< name of the file or directory
     size_t size;                    ///< the size of the direntry in bytes or files
     size_t refcount;                ///< reference count for open handles
     struct ramfs_dirent *parent;    ///< parent directory
@@ -662,7 +662,7 @@ errval_t ramfs_rmdir(void *st, const char *path)
 errval_t ramfs_mount(const char *uri, ramfs_mount_t *retst)
 {
 
-    /* Setup channel and connect ot service */
+    /* Setup channel and connect to service */
     /* TODO: setup channel to init for multiboot files */
 
     struct ramfs_mount *mount = calloc(1, sizeof(struct ramfs_mount));
