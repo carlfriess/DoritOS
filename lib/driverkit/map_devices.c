@@ -43,7 +43,7 @@ errval_t map_device_register(lpaddr_t address, size_t size, lvaddr_t *return_add
 
     struct frame_identity id;
     invoke_frame_identify(device_cap, &id);
-    debug_printf("got cap: %x %x\n", id.base, id.bytes);
+    debug_printf("got cap: %llx %llu\n", id.base, id.bytes);
 
     void* frame_base;
     err = paging_map_frame_attr(get_current_paging_state(), &frame_base,
