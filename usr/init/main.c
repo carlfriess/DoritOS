@@ -44,9 +44,6 @@ struct event_queue_pair {
 };
 
 static void ump_event_handler(void *arg) {
-    // Reregister event node
-    struct event_queue_pair *pair = arg;
-    event_queue_add(&pair->queue, &pair->node, MKCLOSURE(ump_event_handler, (void *) pair));
 
     // Check if a message was received form different core
     errval_t err;
@@ -66,6 +63,11 @@ static void ump_event_handler(void *arg) {
     else if (err != LIB_ERR_NO_UMP_MSG) {
         DEBUG_ERR(err, "in urpc_recv");
     }
+    
+    // Reregister event node
+    struct event_queue_pair *pair = arg;
+    event_queue_add(&pair->queue, &pair->node, MKCLOSURE(ump_event_handler, (void *) pair));
+    
 }
 
 int main(int argc, char *argv[])
