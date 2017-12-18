@@ -82,6 +82,11 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
                                       domainid_t **pids, size_t *pid_count);
 
 /**
+ * \brief Returns the PID for the process with the given name.
+ */
+errval_t aos_rpc_process_get_pid_by_name(const char *name, domainid_t *pid);
+
+/**
  * \brief Gets a capability to device registers
  * \param chan  the rpc channel
  * \param paddr physical address of the device

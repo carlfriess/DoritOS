@@ -13,41 +13,12 @@ int main(int argc, char *argv[]) {
     
     errval_t err;
 
-    struct aos_rpc *rpc_chan = aos_rpc_get_init_channel();
-
     domainid_t pid = 0;
 
     // Find bind_server's pid
-    {
-
-        // Request the pids of all running processes
-        domainid_t *pids;
-        size_t num_pids;
-        err = aos_rpc_process_get_all_pids(rpc_chan, &pids, &num_pids);
-        assert(err_is_ok(err));
-
-
-        // Iterate pids and compare names
-        for (int i = 0; i < num_pids; i++) {
-
-            // Get the process name
-            char *name;
-            err = aos_rpc_process_get_name(rpc_chan, pids[i], &name);
-            assert(err_is_ok(err));
-            
-            // Compare the name
-            if (!strcmp("bind_server", name)) {
-                pid = pids[i];
-                printf("Found bind_server, PID: %d\n", pid);
-                free(name);
-                break;
-            }
-            free(name);
-        }
-
-        // Make sure bind_server was found
-        assert(pid != 0 && "bind_server NOT FOUND");
-    }
+    err = aos_rpc_process_get_pid_by_name("bind_server", &pid);
+    assert(err_is_ok(err));
+    printf("Found bind_server, PID: %d\n", pid);
 
     
     // Bind to the server

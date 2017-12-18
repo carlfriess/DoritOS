@@ -203,6 +203,7 @@ errors libbarrelfish LIB_ERR_ {
     failure SHOULD_NOT_GET_HERE "Should not get here",
     failure NOT_CNODE           "Function invoked on a capref, that does not represent a CNode",
     failure STRING_TOO_LONG     "String argument too long",
+    failure PID_NOT_FOUND       "Process PID not found",
 
     // cspace
     failure CNODE_TYPE          "Type requested for cnode creation is not valid cnode type",
