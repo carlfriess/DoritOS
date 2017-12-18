@@ -17,7 +17,8 @@
         "fs.c",
         "fopen.c",
         "ramfs.c",
-        "dirent.c"
+        "dirent.c",
+        "fs_rpc.c"
     ]
   }
 ]
