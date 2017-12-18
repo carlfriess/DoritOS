@@ -15,7 +15,8 @@
     target = "fs_serv",
     cFiles = [
         "fs_fat_serv.c",
-        "fs_rpc_serv.c"
+        "fs_rpc_serv.c",
+        "fat_helper.c"
     ]
   }
 ]
