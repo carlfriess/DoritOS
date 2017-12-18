@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
         debug_printf("%d\n", pids[i]);
     }
     
-   err = test_basic_rpc();
+    err = test_basic_rpc();
     if (err_is_fail(err)) {
         USER_PANIC_ERR(err, "failure in testing basic RPC\n");
     }
