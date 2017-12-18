@@ -625,10 +625,10 @@ errval_t lmp_send_buffer(struct lmp_chan *lc, const void *buf,
         uintptr_t type = ((uintptr_t) msg_type) << 24;
         type |= LMP_RequestType_BufferShort;
         
-        return lmp_send_short_buf(lc,
-                                  type,
-                                  (void *) buf,
-                                  buf_len);
+        return lmp_send_short_buf_fast(lc,
+                                       type,
+                                       (void *) buf,
+                                       buf_len);
         
     }
     else {
@@ -657,7 +657,7 @@ errval_t lmp_send_buffer(struct lmp_chan *lc, const void *buf,
         // Send the frame to the recipient
         uintptr_t type = ((uintptr_t) msg_type) << 24;
         type |= LMP_RequestType_BufferLong;
-        err = lmp_send_frame(lc, type, frame_cap, buf_len);
+        err = lmp_send_frame_fast(lc, type, frame_cap, buf_len);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
             return err;
@@ -715,18 +715,18 @@ errval_t lmp_recv_buffer_from_msg(struct lmp_chan *lc, struct capref cap,
     if ((words[0] & 0xFFFFFF) == LMP_RequestType_BufferShort) {
         
         // Receive short buffer from message and copy it in newly allocated return argument string
-        return lmp_recv_short_buf_from_msg(lc,
-                                           LMP_RequestType_BufferShort,
-                                           words,
-                                           buf,
-                                           len);
+        return lmp_recv_short_buf_from_msg_fast(lc,
+                                                LMP_RequestType_BufferShort,
+                                                words,
+                                                buf,
+                                                len);
         
     }
     else {
         
         // Process the message and get the capability and size
         struct capref frame_cap;
-        err = lmp_recv_frame_from_msg(lc, LMP_RequestType_BufferLong, cap, words, &frame_cap, len);
+        err = lmp_recv_frame_from_msg_fast(lc, LMP_RequestType_BufferLong, cap, words, &frame_cap, len);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
             return err;
@@ -1188,6 +1188,150 @@ errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, enum lmp_request_type type
                          type,
                          SYS_ERR_OK,
                          *size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
+    return err;
+    
+}
+
+
+
+/* MARK: - ========== Send buffer (FAST) ==========  */
+
+// Send a short buffer (using LMP arguments)
+errval_t lmp_send_short_buf_fast(struct lmp_chan *lc, uintptr_t type, void *buf, size_t size) {
+    
+    errval_t err;
+    
+    assert(size <= sizeof(uintptr_t) * SHORT_BUF_SIZE);
+    
+    // Allocate new memory to construct the arguments
+    char *buf_arg = calloc(sizeof(uintptr_t), SHORT_BUF_SIZE);
+    if (buf_arg == NULL) {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+    
+    // Copy in the string
+    memcpy(buf_arg, buf, size);
+    
+    // Send the LMP message
+    err = lmp_chan_send9(lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         NULL_CAP,
+                         type,
+                         size,
+                         ((uintptr_t *)buf_arg)[0],
+                         ((uintptr_t *)buf_arg)[1],
+                         ((uintptr_t *)buf_arg)[2],
+                         ((uintptr_t *)buf_arg)[3],
+                         ((uintptr_t *)buf_arg)[4],
+                         ((uintptr_t *)buf_arg)[5],
+                         ((uintptr_t *)buf_arg)[6]);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        free(buf_arg);
+        return err;
+    }
+    
+    // Free the memory for constructing the arguments
+    free(buf_arg);
+    
+    return SYS_ERR_OK;
+    
+}
+
+// Send an entire frame capability
+errval_t lmp_send_frame_fast(struct lmp_chan *lc, uintptr_t type, struct capref frame_cap, size_t frame_size) {
+    
+    errval_t err;
+    
+    // Sending frame capability and it's size
+    err = lmp_chan_send2(lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         frame_cap,
+                         type,
+                         frame_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Return the status code
+    return SYS_ERR_OK;
+}
+
+
+/* MARK: - ========== Receive buffer (FAST) ==========  */
+
+// Receive a short buffer on a channel (using LMP arguments)
+errval_t lmp_recv_short_buf_fast(struct lmp_chan *lc, enum lmp_request_type type, void **buf, size_t *size) {
+    
+    // Initialize capref and message
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait for short buffer receive
+    lmp_client_recv(lc, &cap, &msg);
+    
+    // Receive short buffer from message and copy it in newly allocated buffer
+    return lmp_recv_short_buf_from_msg_fast(lc, type, msg.words, buf, size);
+}
+
+// Process a short buffer received through a message (using LMP arguments)
+errval_t lmp_recv_short_buf_from_msg_fast(struct lmp_chan *lc, enum lmp_request_type type, uintptr_t *words,
+                                     void **buf, size_t *size) {
+    
+    // Assert this is a valid message
+    assert((words[0] & 0xFFFFFF) == type);
+    
+    // Get the length of the buffer
+    *size = words[1];
+    
+    // Allocate new space for the received string
+    *buf = malloc(*size + 1);
+    if (*buf == NULL) {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+    
+    // Copy words from message to buffer (size includes '\0')
+    memcpy(*buf, words + 2, *size);
+    
+    return SYS_ERR_OK;
+    
+}
+
+// Receive a frame on a channel
+errval_t lmp_recv_frame_fast(struct lmp_chan *lc, enum lmp_request_type type, struct capref *frame_cap, size_t *size) {
+    
+    // Initialize capref and message
+    struct capref cap;
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Wait for frame receive
+    lmp_client_recv(lc, &cap, &msg);
+    
+    return lmp_recv_frame_from_msg_fast(lc, type, cap, msg.words, frame_cap, size);
+}
+
+// Process a frame received through a message
+errval_t lmp_recv_frame_from_msg_fast(struct lmp_chan *lc, enum lmp_request_type type, struct capref msg_cap,
+                                 uintptr_t *words, struct capref *frame_cap, size_t *size) {
+    
+    errval_t err;
+    
+    // Assert this is a valid message
+    assert((words[0] & 0xFFFFFF) == type);
+    
+    // Get the size of the received frame
+    *size = words[1];
+    
+    // Pass on the capref
+    memcpy(frame_cap, &msg_cap, sizeof(struct capref));
+    
+    // Make a new slot available for the next incoming capability
+    err = lmp_chan_alloc_recv_slot(lc);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }

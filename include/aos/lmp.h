@@ -305,4 +305,32 @@ errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, enum lmp_request_type type
                                  size_t *size);
 
 
+
+/* MARK: - ========== Send buffer (FAST) ==========  */
+
+// Send a short buffer (using LMP arguments)
+errval_t lmp_send_short_buf_fast(struct lmp_chan *lc, uintptr_t type, void *buf, size_t size);
+
+// Send an entire frame capability
+errval_t lmp_send_frame_fast(struct lmp_chan *lc, uintptr_t type, struct capref frame_cap, size_t frame_size);
+
+
+/* MARK: - ========== Receive buffer (FAST) ==========  */
+
+// Receive a short buffer on a channel (using LMP arguments)
+errval_t lmp_recv_short_buf_fast(struct lmp_chan *lc, enum lmp_request_type type, void **buf, size_t *size);
+
+// Process a short buffer received through a message (using LMP arguments)
+errval_t lmp_recv_short_buf_from_msg_fast(struct lmp_chan *lc, enum lmp_request_type type, uintptr_t *words,
+                                     void **buf, size_t *size);
+
+// Receive a frame on a channel
+errval_t lmp_recv_frame_fast(struct lmp_chan *lc, enum lmp_request_type type, struct capref *frame_cap, size_t *size);
+
+// Process a frame received through a message
+errval_t lmp_recv_frame_from_msg_fast(struct lmp_chan *lc, enum lmp_request_type type, struct capref msg_cap,
+                                 uintptr_t *words, struct capref *frame_cap,
+                                 size_t *size);
+
+
 #endif
