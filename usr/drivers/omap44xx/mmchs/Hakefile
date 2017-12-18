@@ -27,7 +27,7 @@
                             "omap/omap44xx_l4per_cm2"
                         ],
 
-                        addLibraries = [ "driverkit" ],
+                        addLibraries = [ "driverkit", "fs", "fs_serv" ],
 
                         architectures = ["armv7"]
     }
