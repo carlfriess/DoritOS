@@ -17,6 +17,7 @@
 
 #include "slip.h"
 #include "ip.h"
+#include "udp.h"
 
 
 // Serial receive handler
@@ -69,11 +70,23 @@ int main(int argc, char *argv[]) {
         return -1;
     }
     
+    // Initialite the UDP modue
+    udp_init();
+    
+    
     // Set the IP address for this host
     ip_set_ip_address(10, 0, 2, 1);
     
-    // Dispatch on the default waitset
+    
+    // MARK: - Message handling
+    
+    // Get default waitset
     struct waitset *default_ws = get_default_waitset();
+    
+    // Register Event Queue for UDP
+    udp_register_event_queue(default_ws);
+    
+    // Dispatch events
     while (true) {
         event_dispatch(default_ws);
     }

@@ -13,8 +13,11 @@
 #include <stdint.h>
 
 #include <aos/aos.h>
+#include <aos/waitset.h>
 
 #include <ip.h>
+
+#include <net/common.h>
 
 
 struct udp_header {
@@ -34,10 +37,33 @@ struct __attribute__ ((__packed__)) udp_checksum_ip_pseudo_header {
 };
 STATIC_ASSERT_SIZEOF(struct udp_checksum_ip_pseudo_header, 14);
 
+enum udp_socket_state {
+    UDP_SOCKET_STATE_CLOSED,
+    UDP_SOCKET_STATE_OPEN
+};
+
+struct udp_socket {
+    struct udp_socket_common pub;
+    struct urpc_chan chan;
+    enum udp_socket_state state;
+};
+
+
+// Register handler for waitset events
+//  When waitset is NULL, only reregisters
+void udp_register_event_queue(struct waitset *waitset);
+
+// Cancel waitset events
+void udp_cancel_event_queue(void);
+
+// Initialize the UDP module
+void udp_init(void);
+
 // Parse and validate a UDP header
 int udp_parse_header(struct ip_packet_header *ip, uint8_t *buf, size_t len,
                      struct udp_header *header);
 
+// Handle an incoming UDP packet
 void udp_handle_packet(struct ip_packet_header *ip, uint8_t *buf, size_t len);
 
 #endif /* udp_h */

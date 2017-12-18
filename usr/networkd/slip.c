@@ -8,6 +8,7 @@
 
 #include "slip.h"
 #include "ip.h"
+#include "udp.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -28,9 +29,10 @@ static struct ip_packet_raw current_packet = {
 };
 
 static enum {
+    PARSER_STATE_IDLE,
     PARSER_STATE_NORMAL,
     PARSER_STATE_ESC
-} parser_state = PARSER_STATE_NORMAL;
+} parser_state = PARSER_STATE_IDLE;
 
 int slip_init(void) {
     
@@ -52,6 +54,13 @@ int slip_init(void) {
 // Receive and parse bytes from the network
 void slip_recv(uint8_t *buf, size_t len) {
     
+    // Bring the parser out of idle
+    if (parser_state == PARSER_STATE_IDLE) {
+        parser_state = PARSER_STATE_NORMAL;
+        // Cancel UDP events
+        udp_cancel_event_queue();
+    }
+    
     // Iterate through all received bytes
     while (len--) {
         //debug_printf("%x, %zu\n", *buf, current_packet.len);
@@ -66,9 +75,13 @@ void slip_recv(uint8_t *buf, size_t len) {
                 slip_parse_raw_ip_packet(&current_packet);
                 
                 // Reset the input parser
-                parser_state = PARSER_STATE_NORMAL;
+                parser_state = PARSER_STATE_IDLE;
                 current_packet.buf -= current_packet.len;
                 current_packet.len = 0;
+                
+                // Allow UDP events again
+                udp_register_event_queue(NULL);
+                
                 continue;
             
             // Handle escape sequences
