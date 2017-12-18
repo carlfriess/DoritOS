@@ -5,7 +5,10 @@
 
 #include <stdio.h>
 #include <string.h>
+
 #include <aos/aos.h>
+
+#include <fs_serv/fat_helper.h>
 
 #include <fs_serv/fs_fat_serv.h>
 
@@ -47,6 +50,7 @@ static uint32_t RootDirSectors;
 static uint32_t FATSz;
 
 #define FS_PATH_SEP '/'
+
 
 errval_t init_BPB(void) {
     
@@ -319,7 +323,6 @@ static int filetab_check_dirent(struct fat_dirent *dirent) {
 */
 
 
-// FIXME: Add flags
 errval_t fat_open(void *st, char *path, struct fat_dirent **ret_dirent) {
     
     debug_printf("Opening file: -%s-\n", path);
@@ -347,7 +350,6 @@ errval_t fat_open(void *st, char *path, struct fat_dirent **ret_dirent) {
     
 }
 
-// FIXME: Add flags
 errval_t fat_resolve_path(struct fat_dirent *root, char *path, struct fat_dirent **ret_dirent) {
     
     errval_t err = SYS_ERR_OK;
@@ -436,6 +438,9 @@ errval_t fat_find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_
     assert(curr_dirent != NULL);
     assert(ret_dirent != NULL);
     
+    // Converts name into fat directory name format (with max 8 + 3 size)
+    char *fat_name = convert_to_fat_name(name);
+    
     // Bytes per cluster
     uint32_t BytesPerClus = BPB_BytsPerSec * BPB_SecPerClus;
     
@@ -453,8 +458,11 @@ errval_t fat_find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_
         // Read data from cluster[temp_nr] in data section
         err = read_cluster(temp_nr , (void *) data);
         if (err_is_fail(err)) {
+            // Free converted FAT directory entry name
+            free(fat_name);
             // Free data buffer
             free(data);
+            
             debug_printf("%s\n", err_getstring(err));
             return err;
         }
@@ -463,7 +471,7 @@ errval_t fat_find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_
             
             uint8_t *dirent_data = &data[pos_index * 32];
             
-            if (memcmp(name, &dirent_data[0], 11) == 0) {
+            if (memcmp(fat_name, &dirent_data[0], 11) == 0) {
                 
                 debug_printf("SAME NAME\n");
                 
@@ -509,6 +517,9 @@ errval_t fat_find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_
         }
         
     }
+    
+    // Free converted FAT directory entry name
+    free(fat_name);
     
     // Free data buffer
     free(data);
