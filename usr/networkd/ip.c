@@ -8,6 +8,7 @@
 
 #include "ip.h"
 #include "icmp.h"
+#include "udp.h"
 #include "slip.h"
 
 #include <aos/aos.h>
@@ -154,6 +155,11 @@ void ip_handle_packet(uint8_t *buf, size_t len) {
             icmp_handle_packet(header.src,
                                buf + (header.ihl * 4),
                                len - (header.ihl * 4));
+            break;
+        case IP_PROTOCOL_UDP:
+            udp_handle_packet(&header,
+                              buf + (header.ihl * 4),
+                              len - (header.ihl * 4));
             break;
             
         default:

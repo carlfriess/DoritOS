@@ -15,6 +15,7 @@
 
 
 #define IP_PROTOCOL_ICMP    1
+#define IP_PROTOCOL_UDP     17
 
 
 struct ip_packet_header {

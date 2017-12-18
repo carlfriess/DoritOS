@@ -16,7 +16,8 @@
                             "main.c",
                             "icmp.c",
                             "ip.c",
-                            "slip.c"
+                            "slip.c",
+                            "udp.c"
                         ],
                         addLibraries = [ "netutil" ],
                         architectures = ["armv7"]
