@@ -20,6 +20,7 @@
 struct aos_rpc {
     // TODO: add state for your implementation
     struct lmp_chan *lc;
+    struct waitset mem_ws;  // Dedicated waitset for memory requests
 };
 
 size_t aos_rpc_terminal_write(const char* buf, size_t len);
