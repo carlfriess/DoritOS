@@ -446,7 +446,22 @@ errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
         
         // MARK: LMP
         
-        return lmp_recv_buffer(chan->lmp, buf, size, msg_type);
+        // Initialize capref and message
+        struct capref cap;
+        struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+        
+        // Receive if possible
+        errval_t err = lmp_chan_recv(chan->lmp, &msg, &cap);
+        if (err == LIB_ERR_NO_LMP_MSG) {
+            return LIB_ERR_NO_URPC_MSG;
+        }
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Process the received message
+        return lmp_recv_buffer_from_msg(chan->lmp, cap, msg.words, buf, size, msg_type);
         
     }
     else {
