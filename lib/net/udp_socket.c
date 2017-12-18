@@ -113,7 +113,7 @@ errval_t recvfrom(struct udp_socket *socket, void *buf, size_t len,
         *from_addr = packet->addr;
         *from_port = packet->port;
         *ret_len = size - sizeof(struct udp_urpc_packet);
-        memcpy(buf, packet->payload, *ret_len);
+        memcpy(buf, packet->payload, MIN(len, *ret_len));
         free(packet);
         return SYS_ERR_OK;
         

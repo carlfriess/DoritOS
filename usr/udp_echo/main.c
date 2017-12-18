@@ -28,8 +28,8 @@ int main(int argc, char *argv[]) {
     debug_printf("Socket open!\n");
     
     while (true) {
-                
-        char buf[32];
+        
+        char buf[256];
         uint32_t from_addr;
         uint16_t from_port;
         size_t ret_size;
