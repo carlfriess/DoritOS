@@ -110,7 +110,7 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
     do {
     
         // Receive the response
-        lmp_client_recv(chan->lc, retcap, &msg);
+        lmp_client_recv_waitset(chan->lc, retcap, &msg, &chan->mem_ws);
         
         // Check if we got the message we wanted
         if (msg.words[0] != LMP_RequestType_MemoryAlloc) {
@@ -387,6 +387,7 @@ errval_t aos_rpc_init(struct aos_rpc *rpc, struct lmp_chan *lc)
 {
     // TODO: Initialize given rpc channel
     rpc->lc = lc;
+    waitset_init(&rpc->mem_ws);
     return SYS_ERR_OK;
 }
 

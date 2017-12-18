@@ -435,19 +435,26 @@ errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes
 
 // Blocking call for receiving messages
 void lmp_client_recv(struct lmp_chan *lc, struct capref *cap, struct lmp_recv_msg *msg) {
+    
+    // Use default waitset
+    lmp_client_recv_waitset(lc, cap, msg, get_default_waitset());
+    
+}
+// Blocking call for receiving messages on a specific waitset
+void lmp_client_recv_waitset(struct lmp_chan *lc, struct capref *cap, struct lmp_recv_msg *msg, struct waitset *ws) {
     int done = 0;
     errval_t err;
-
-    err = lmp_chan_register_recv(lc, get_default_waitset(), MKCLOSURE(lmp_client_wait, &done));
+    
+    err = lmp_chan_register_recv(lc, ws, MKCLOSURE(lmp_client_wait, &done));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return;
     }
-
+    
     while (!done) {
-        event_dispatch(get_default_waitset());
+        event_dispatch(ws);
     }
-
+    
     err = lmp_chan_recv(lc, msg, cap);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
@@ -664,7 +671,7 @@ errval_t lmp_send_buffer(struct lmp_chan *lc, const void *buf,
         }
         
         // Cleaning up after sending
-        err = paging_unmap(get_current_paging_state(), buf);
+        err = paging_unmap(get_current_paging_state(), tx_buf);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
             return err;
