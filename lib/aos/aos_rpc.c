@@ -296,6 +296,50 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
     return err;
 }
 
+errval_t aos_rpc_process_get_pid_by_name(const char *name, domainid_t *pid) {
+    
+    errval_t err;
+    
+    struct aos_rpc *rpc_chan = aos_rpc_get_init_channel();
+    
+    // Request the pids of all running processes
+    domainid_t *pids;
+    size_t num_pids;
+    err = aos_rpc_process_get_all_pids(rpc_chan, &pids, &num_pids);
+    if(err_is_fail(err)) {
+        return err;
+    }
+    
+    
+    // Iterate pids and compare names
+    for (int i = 0; i < num_pids; i++) {
+        
+        // Get the process name
+        char *process_name;
+        err = aos_rpc_process_get_name(rpc_chan, pids[i], &process_name);
+        if(err_is_fail(err)) {
+            debug_printf("aos_rpc_process_get_pid_by_name(): %s\n", err_getstring(err));
+            continue;
+        }
+        
+        // Compare the name
+        if (!strcmp(name, process_name)) {
+            *pid = pids[i];
+            free(process_name);
+            break;
+        }
+        free(process_name);
+    }
+    
+    // Make sure bind_server was found
+    if (pid == 0) {
+        return LIB_ERR_PID_NOT_FOUND;
+    }
+    
+    return SYS_ERR_OK;
+    
+}
+
 errval_t aos_rpc_get_device_cap(struct aos_rpc *chan,
                                 lpaddr_t paddr, size_t bytes,
                                 struct capref *frame)

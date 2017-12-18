@@ -51,6 +51,16 @@ struct process_info *process_info_for_pid(domainid_t pid) {
     return NULL;
 }
 
+// Returns the PID for a given LMP channel
+domainid_t process_pid_for_lmp_chan(struct lmp_chan *lc) {
+    for (struct process_info *node = process_list; node != NULL; node = node->next) {
+        if (node->lc == lc) {
+            return node->pid;
+        }
+    }
+    return 0;
+}
+
 // Returns the name of the process with the PID
 char *process_name_for_pid(domainid_t pid)  {
     if (pid == 0) { return "init"; }
