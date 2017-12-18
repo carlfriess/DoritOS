@@ -20,7 +20,7 @@
 
 
 // IP address of this host
-static uint32_t host_ip;
+uint32_t host_ip;
 
 // Identification number for outgoing packets
 static uint32_t ident_counter = 0;

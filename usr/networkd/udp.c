@@ -30,7 +30,13 @@ static void udp_handle_urpc(struct udp_socket *socket, void *buf, size_t size,
                             urpc_msg_type_t msg_type);
 
 
+// IP address of this host
+extern uint32_t host_ip;
+
+// List of registered sockets
 static collections_listnode *socket_list;
+
+// Next port to use for port allocation
 static uint32_t port_counter = 1024;
 
 // Predicate function for finding an open socket with a specific port
@@ -148,6 +154,32 @@ int udp_parse_header(struct ip_packet_header *ip, uint8_t *buf, size_t len,
     
 }
 
+// Encode a UDP header
+static int udp_encode_header(struct udp_header *header,
+                             struct udp_urpc_packet *packet, uint8_t *out) {
+    
+    uint16_t *out16 = (uint16_t *) out;
+    
+    // Set fields
+    out16[0] = lwip_htons(header->src_port);
+    out16[1] = lwip_htons(header->dest_port);
+    out16[2] = lwip_htons(header->length);
+    out16[3] = ~header->checksum;
+    
+    // Compute checksum
+    struct udp_checksum_ip_pseudo_header ph;
+    ph.src_addr = lwip_htonl(host_ip);
+    ph.dest_addr = lwip_htonl(packet->addr);
+    ph.zeros = 0;
+    ph.protocol = IP_PROTOCOL_UDP;
+    ph.udp_length = out16[2];
+    ph.checksum = ~inet_checksum((void *) out, 8);
+    out16[3] = inet_checksum((void *) &ph, sizeof(struct udp_checksum_ip_pseudo_header));
+    
+    return 0;
+    
+}
+
 // Handle an incoming UDP packet
 void udp_handle_packet(struct ip_packet_header *ip, uint8_t *buf, size_t len) {
     
@@ -243,6 +275,37 @@ static int udp_socket_open(struct udp_socket *socket,
     
 }
 
+// Send a UDP packet
+static void udp_socket_send(struct udp_socket *socket,
+                           struct udp_urpc_packet *packet, size_t len) {
+    
+    struct udp_header reply_header;
+    
+    // Build header
+    reply_header.src_port = socket->pub.port;
+    reply_header.dest_port = packet->port;
+    reply_header.length = len - sizeof(struct udp_urpc_packet) + 8;
+    
+    // Compute checksum for payload
+    reply_header.checksum = inet_checksum((void *) packet->payload, len - sizeof(struct udp_urpc_packet));
+    
+    // Send IP header
+    ip_send_header(packet->addr, IP_PROTOCOL_UDP, reply_header.length);
+    
+    // Encode header and send it
+    uint8_t *reply_buf = malloc(8);
+    assert(reply_buf);
+    udp_encode_header(&reply_header, packet, reply_buf);
+    ip_send(reply_buf, 8, false);
+    free(reply_buf);
+    
+    // Send payload
+    ip_send((uint8_t *) packet->payload,
+            len - sizeof(struct udp_urpc_packet),
+            true);
+    
+}
+
 // Handle a URPC message from a client process
 static void udp_handle_urpc(struct udp_socket *socket, void *buf, size_t size,
                             urpc_msg_type_t msg_type) {
@@ -276,8 +339,14 @@ static void udp_handle_urpc(struct udp_socket *socket, void *buf, size_t size,
             }
             break;
             
+        case URPC_MessageType_Send:
+            udp_socket_send(socket,
+                            (struct udp_urpc_packet *) buf,
+                            size);
+            break;
+            
         default:
-            debug_printf("Received unknown URPC message type: %d", msg_type);
+            debug_printf("Received unknown URPC message type: %d\n", msg_type);
             break;
     }
     
