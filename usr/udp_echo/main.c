@@ -45,7 +45,13 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         
-        printf("Recieved on socket: %s\n", buf);
+        err = sendto(&s, buf, ret_size, from_addr, from_port);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return 1;
+        }
+        
+        printf("Echoed: %s\n", buf);
         
     }
     
