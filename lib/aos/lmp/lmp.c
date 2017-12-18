@@ -21,7 +21,7 @@ extern struct ump_chan init_uc;
 void lmp_server_dispatcher(void *arg) {
 
 #if PRINT_DEBUG
-    debug_printf("LMP Message Received!\n");
+    debug_printf("LMP Message Received from PID %d!\n", process_pid_for_lmp_chan((struct lmp_chan *) arg));
 #endif
 
     errval_t err;
@@ -459,7 +459,11 @@ void lmp_client_recv_waitset(struct lmp_chan *lc, struct capref *cap, struct lmp
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
-    
+
+    #if PRINT_DEBUG
+        debug_printf("Received LMP message with type %zu!\n", msg->words[0] & 0xFFFFFF);
+    #endif
+
 }
 void lmp_client_wait(void *arg) {
     *(int *)arg = 1;

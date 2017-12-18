@@ -377,6 +377,13 @@ errval_t urpc_bind(domainid_t pid, struct urpc_chan *chan, bool use_lmp) {
         // Check we received a valid response
         assert(msg.words[0] == LMP_RequestType_LmpBind);
         assert(msg.words[1] == pid);
+
+        // Allocate recv slot
+        err = lmp_chan_alloc_recv_slot(lc);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
         
         // Set the remote endpoint
         chan->lmp->remote_cap = cap;
