@@ -41,6 +41,7 @@ void libc_exit(int);
 
 void libc_exit(int status)
 {
+    aos_rpc_process_deregister();
     // Use spawnd if spawned through spawnd
     if(disp_get_domain_id() == 0) {
         errval_t err = cap_revoke(cap_dispatcher);
@@ -200,22 +201,23 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    
+
     // Wait on response
     lmp_client_recv(lc, &cap, &msg);
-    
+
     // Initialize RPC state and register it in application's core state
     struct aos_rpc *aos_rpc_state = malloc(sizeof(struct aos_rpc));
     if (aos_rpc_state == NULL) {
         return LIB_ERR_MALLOC_FAIL;
     }
-    aos_rpc_init(aos_rpc_state, lc);
-    set_init_rpc(aos_rpc_state);
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
 
     ram_alloc_set(NULL);
+
+    aos_rpc_init(aos_rpc_state, lc);
+    set_init_rpc(aos_rpc_state);
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here

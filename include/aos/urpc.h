@@ -15,7 +15,7 @@
 #include <stdbool.h>
 
 
-#define URPC_MessageType_UrpcBindAck    UMP_MessageType_UrpcBindAck
+#define URPC_MessageType_UrpcBindAck            UMP_MessageType_UrpcBindAck
 
 #define URPC_MessageType_User0  UMP_MessageType_User0
 #define URPC_MessageType_User1  UMP_MessageType_User1
@@ -93,6 +93,10 @@ void urpc_handle_lmp_bind_request(struct lmp_chan *lc,
 
 // Handle a URPC bind request received via UMP
 void urpc_handle_ump_bind_request(struct ump_chan *chan, void *msg, size_t size,
+                                  ump_msg_type_t msg_type);
+
+// Handle a Process Deregistration forward request
+void urpc_handle_deregister_forward(struct ump_chan *chan, void *msg, size_t size,
                                   ump_msg_type_t msg_type);
 
 #endif /* urpc_h */

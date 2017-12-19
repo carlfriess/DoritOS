@@ -33,6 +33,7 @@
 #define UMP_MessageType_RegisterProcessAck  8
 #define UMP_MessageType_UrpcBindRequest     9
 #define UMP_MessageType_UrpcBindAck         10
+#define UMP_MessageType_DeregisterForward   11
 
 #define UMP_MessageType_User0 32
 #define UMP_MessageType_User1 33

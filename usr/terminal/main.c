@@ -34,13 +34,8 @@ static void io_buffer_init(struct io_buffer **buf) {
 }
 
 static void put_char(char c) {
-//    if (c == '\n') {
-//        put_char('\r');
-//    }
-
     while (!(*flag & 0x20));
     *mem = c;
-
 }
 
 static char get_char(void) {
@@ -81,7 +76,6 @@ static void serial_interrupt_handler(void *arg) {
 
     // Set char and inc
     current->buf[current->pos++] = c;
-    put_char(c);
 
     // Alloc new list if full
     if (current->pos == IO_BUFFER_SIZE) {
@@ -101,7 +95,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Get and map device cap;
+    // Get and map Serial device cap;
     lvaddr_t vaddr;
     err = map_device_register(OMAP44XX_MAP_L4_PER_UART3, OMAP44XX_MAP_L4_PER_UART3_SIZE, &vaddr);
     if (err_is_fail(err)) {
@@ -141,9 +135,10 @@ int main(int argc, char *argv[]) {
                 switch (msg_type) {
                     case URPC_MessageType_TerminalWrite:
                         if (session_id_write == NULL) {
-                            session_id_write = node;
                             out.err = SYS_ERR_OK;
-                            if (!in->lock) {
+                            if (in->lock) {
+                                session_id_write = node;
+                            } else {
                                 put_char(in->c);
                             }
                         } else if (session_id_write == node) {
@@ -158,7 +153,6 @@ int main(int argc, char *argv[]) {
                         urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalWrite);
                         break;
                     case URPC_MessageType_TerminalWriteUnlock:
-                        
                         if (session_id_write == NULL) {
                             out.err = SYS_ERR_OK;
                         } else if (session_id_write == node) {
@@ -167,15 +161,15 @@ int main(int argc, char *argv[]) {
                         } else {
                             out.err = TERM_ERR_TERMINAL_IN_USE;
                         }
-                        
+
                         urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalWriteUnlock);
                         break;
                     case URPC_MessageType_TerminalRead:
                         if (session_id_read == NULL) {
-                            session_id_read = node;
                             if (!in->lock) {
                                 out.err = get_next_char(&out.c);
                             } else {
+                                session_id_read = node;
                                 out.err = SYS_ERR_OK;
                             }
                         } else if (session_id_read == node) {
@@ -209,6 +203,4 @@ int main(int argc, char *argv[]) {
 
         event_dispatch_non_block(get_default_waitset());
     }
-
-    put_char('a');
 }
