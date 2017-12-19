@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
     
-    // Initialite the UDP modue
+    // Initialite the UDP module
     udp_init();
     
     
