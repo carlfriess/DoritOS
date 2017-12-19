@@ -111,3 +111,213 @@ Thanks to the provided `twolevel_slot_alloc` and `single_slot_alloc` slot alloca
 
 We were also provided with a slot pre-allocator. However, we weren't sure what was intended for and didn't use it. Instead we simply implemented the `slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size_t minbytes)` method using only the `slab_default_refill()`, which only executes the previously discussed `slab_refill_pages()`.
 
+
+## User-level Message Passing (UMP)
+
+Since LMP does not work between cores, we implemented User-level Message Passing to establish communication. The protocol leverages the cache coherency protocol between cores, by writing to cache line sized slots in shared memory. In our case we are using cache lines in pairs allowing us to send 63 byte sized messages.
+
+### Establishing communication between the two cores
+
+Our initial goal was to establish message passing between the two init processes running on each core. To achieve this we allocate a shared frame (consisting of two pages) while booting the second core. The capability to this frame is then placed in a well known slot in the new init's cspace.
+
+When booting on the second core (APP) init will map this frame and initialise a UMP channel with it. This channel is then used to receive the additional information about capabilities it needs to forge from the init running on the bootstrap processor (BSP).
+
+### Communication using ring buffers
+
+Every UMP channel uses two pages of shared memory, one for each direction of communication. Each page contains a 64 slots of 64 bytes. We were able to implement the protocol without any other share variables.
+
+```c
+struct ump_chan {
+    struct frame_identity fi;
+    struct ump_buf *buf;
+    uint8_t buf_select;         // Buffer for this process
+    uint8_t tx_counter;
+    uint8_t rx_counter;
+};
+```
+<center>*State of a UMP channel*</center>
+
+
+```c
+struct ump_slot {
+    char data[63];
+    ump_msg_type_t msg_type     : 6;
+    uint8_t last                : 1;
+    uint8_t valid               : 1;
+};
+```
+<center>*Struct describing a slot in the UMP ring buffer*</center>
+
+Each participant in the UMP protocol keeps a counter pointing to the next slot to be used for sending (`tx_counter`) and a counter pointing to the next slot to receive on (`rx_counter`). These counters are not shared.
+
+Furthermore, each slot contains a `valid` bit which indicates if a slot contains valid data. This data is sufficient for the protocol to work.
+
+```c
+// Receive a buffer of UMP_SLOT_DATA_BYTES bytes on the UMP channel
+errval_t ump_recv_one(struct ump_chan *chan, void *buf,
+                       ump_msg_type_t* msg_type, uint8_t *last) {
+    
+    // Get the correct UMP buffer
+    struct ump_buf *rx_buf = chan->buf + !chan->buf_select;
+    
+    // Check if there is a new message
+    if (!rx_buf->slots[chan->rx_counter].valid) {
+        return LIB_ERR_NO_UMP_MSG;
+    }
+
+    // Memory barrier
+    dmb();
+    
+    // Copy data from the slot
+    memcpy(buf, rx_buf->slots[chan->rx_counter].data, UMP_SLOT_DATA_BYTES);
+    *msg_type = rx_buf->slots[chan->rx_counter].msg_type;
+    *last = rx_buf->slots[chan->rx_counter].last;
+
+    // Memory barrier
+    dmb();
+    
+    // Mark the message as invalid
+    rx_buf->slots[chan->rx_counter].valid = 0;
+    
+    // Set the index of the next slot to read
+    chan->rx_counter = (chan->rx_counter + 1) % UMP_NUM_SLOTS;
+    
+    return SYS_ERR_OK;
+    
+}
+```
+<center>*Receiving a message on a UMP channel*</center>
+
+When attempting to receiving a message, the `valid` bit of the next slot is first checked, indicating if a message has been received. If the bit is set, the message can be read. However, first a memory barrier prevents the message from being read before the `valid` bit is checked. Another memory barrier then ensured that the message is fully read before the valid bit is cleared, indicating to the sender, that the slot can be reused. Finally the `rx_counter` is incremented.
+
+```c
+// Send a buffer of at most UMP_SLOT_DATA_BYTES bytes on the URPC channel
+errval_t ump_send_one(struct ump_chan *chan, void *buf, size_t size,
+                       ump_msg_type_t msg_type, uint8_t last) {
+    
+    // Check for invalid sizes
+    if (size > UMP_SLOT_DATA_BYTES) {
+        return LIB_ERR_UMP_BUFSIZE_INVALID;
+    }
+    
+    // Get the correct UMP buffer
+    struct ump_buf *tx_buf = chan->buf + chan->buf_select;
+    
+    // Make sure there is space in the ring buffer and wait otherwise
+    while (tx_buf->slots[chan->tx_counter].valid) ;
+    
+    // Memory barrier
+    dmb();
+    
+    // Copy data to the slot
+    memcpy(tx_buf->slots[chan->tx_counter].data, buf, size);
+    tx_buf->slots[chan->tx_counter].msg_type = msg_type;
+    tx_buf->slots[chan->tx_counter].last = last;
+    
+    // Memory barrier
+    dmb();
+    
+    // Mark the message as valid
+    tx_buf->slots[chan->tx_counter].valid = 1;
+    
+    // Set the index of the next slot to use for sending
+    chan->tx_counter = (chan->tx_counter + 1) % UMP_NUM_SLOTS;
+    
+    return SYS_ERR_OK;
+    
+}
+```
+<center>*Sending a message on a UMP channel*</center>
+
+To send a message, the sender checks the `valid` bit of the next slot in the ring buffer and waits until it is cleared. When the slot becomes invalid the message is written. This is separated  by a memory barrier to prevent the message from being written to a valid slot. Once the message is fully written, which is guaranteed by another memory barrier, the `valid` bit is finally set and the `tx_counter` incremented.
+
+Clearing the `last` notifies the recipient that subsequent messages should be concatenated until the last bit is set. Currently this is implemented using a call to `realloc()` for every subsequent message, which is probably rather inefficient. Ideally, we would use a more sophisticated mechanism to reduce memory management costs. A possibility would be to use the `msg_type` field to encode the number of remaining messages and only send the message type in the final message.
+
+The `msg_type` field is for use by "application layer" to differentiate between messages without the need to encode the message type in the payload, as is done with LMP. Like this we can maximise the payload size of each message and thereby the efficiency of UMP when sending large amounts of data.
+
+### Forwarding RPC calls between instances of init
+
+Now that we have an open channel between both instances of init we can allow for example RPC requests to spawn a process on another core.
+
+First however, we need init to listen for both LMP and UMP messages. We achieved this by registering an additional `event_queue` on the default waitset. We then add a callback to the event queue, which then checks for UMP messages.
+
+Now we can forward requests, which is how we handle requests such as spawning on a foreign core, process registration and URPC binding.
+
+### Spawning on a foreign core
+
+When init receives a spawn request from a process over LMP, it parses the message and compares the requested core ID with its own. If they do not match, the it forwards the request to the init on the other core in a UMP message and waits for a UMP response.
+
+On the other core, init receives the request, executes the spawn and returns the result over UMP. The requesting init can now pass that result back to the process that originally made the request over LMP.
+
+This mechanism for RPC calls to foreign cores builds on the existing LMP infrastructure used to implement the `aos_rpc` library and requires both init processes to be involved. We chose this approach for reasons of simplicity. It could be significantly optimised by allowing processes to bind directly to either init. However, currently our process management does not explicitly track the init processes, meaning that both instances of init carry the implicit PID of 0. This is also the reason why our URPC API does not support binding to any instance of init.
+
+The ideal solution would be to move all of init's functionality (spawning, memory management, etc.) to separate processes and then use our URPC API to bind to each of these, removing the need for duplication of some of these services across cores.
+
+### Contrast to LMP
+
+Unlike LMP, this UMP does not currently support zero-copy sending. However, this could be implemented by sending frame identities and forging the corresponding frame capabilities. On the other hand, this would always require the involvement of init, which would make it impractical for use with URPC (discussed later).
+
+While UMP is considerably faster than LMP when it is used between cores, it is almost unusably slow when used on the same core, due to the absence of involvement with the scheduler. This is what lead us to implement the URPC API to unify both protocols seamlessly.
+
+
+## User-level Remote Procedure Calls (URPC)
+
+In light of the performance considerations of LMP and UMP discussed above and the need for message passing between processes beyond init, we decided to create a unified API which could allow arbitrary forms of RPC calls between arbitrary processes, regardless of the "transport" protocol (LMP or UMP).
+
+With this goal in mind we designed the following API:
+
+```c
+// Bind to a URPC server with a specific PID
+errval_t urpc_bind(domainid_t pid, struct urpc_chan *chan, bool use_lmp);
+
+// Accept a bind request if one was received and set up the URPC channel
+errval_t urpc_accept(struct urpc_chan *chan);
+
+// Accept a bind request and set up the URPC channel
+errval_t urpc_accept_blocking(struct urpc_chan *chan);
+
+// Send on a URPC channel
+errval_t urpc_send(struct urpc_chan *chan, void *buf, size_t size,
+                   urpc_msg_type_t msg_type);
+
+// Receive on a URPC channel
+errval_t urpc_recv(struct urpc_chan *chan, void **buf, size_t *size,
+                   urpc_msg_type_t* msg_type);
+
+// Blockingly receive on a URPC channel
+errval_t urpc_recv_blocking(struct urpc_chan *chan, void **buf, size_t *size,
+                            urpc_msg_type_t* msg_type);
+```
+<center>*URPC API*</center>
+
+Using `urpc_bind()` a process (the *client*) can open a new URPC channel by specifying the recipient process's PID and if LMP or UMP should be used. This is the only call, where this distinction needs to be made by a client of API. Automatic selection of the transport protocol could be implemented, but that would require the an additional request to init or a somewhat more complicated implementation of the binding mechanism. In our current usages this was never necessary and if it was one could always default to UMP (accepting considerable loss in performance when the processes are running the same core).
+
+`urpc_accept()` and `urpc_accept_blocking()` allows a process (the *server*) to accept an incoming binding request. The transport protocol is specified in the request and set accordingly.
+
+Once a URPC channel is established between two processes they can freely invoke `urpc_send()` to send and `urpc_recv()` or `urpc_recv_blocking()` to receive messages of arbitrary length. The message_type can be used to differentiate between messages.
+
+### Binding over UMP
+
+When attempting to bind with a process over UMP, the client allocates a new UMP frame and sends the frame capability to init over LMP together with the server's PID. Next, the client waits on an ACK message from the server using `urpc_recv_blocking()`, concluding the binding process.
+
+After receiving the LMP message, init looks up the process information and checks which core the server is running on. If it is the same core, init simply forwards the message to the server. Otherwise it retrieves the frame identity and forwards this information and the PID to the other instance of init, which then forges the frame capability and forwards it to the server process.
+
+Once the server receives the frame capability it maps the frame, initialises the UMP channel and sends the acknowledgement using `urpc_send()`.
+
+### Binding over LMP
+
+The process of binding over LMP is slightly more involved than over UMP, but follows the same concept and leverages the identical code in init.
+
+First, the client creates a new LMP endpoint using `lmp_chan_accept()` and sends this endpoint to init in place of the frame capability which is sent when using UMP.
+
+Again init verifies looks up the PID received in the request and drops the request if it is destined for another core, as LMP only works on the same core. Otherwise init forwards the request and attaches the source PID to the forwarded request.
+
+Upon receiving the request, the server also creates an LMP endpoint using `lmp_chan_accept()`. Using the PID of the client, it sends the endpoint back, allowing the client to finish the initialisation of it's LMP channel.
+
+After the client's LMP channel is initialised it sends an acknowledgment to the server over the LMP channel. The server then finishes the binding process by sending the same acknowledgment as with UMP using `urpc_send()`, ensuring that the URPC is fully set up.
+
+### Conclusion
+
+Overall, the URPC API has proven to be extremely useful and was used in all of our individual projects. Most notably, it provides a direct abstraction for sockets in the network stack. It is also significantly simpler to use than just bare UMP or LMP channels.
+
+On the other hand, the API does not support sending capabilities in any way. This could be tricky to add, since it isn't supported in UMP either and some involvement of the init process would be necessary. Due to how process management is currently structured, the API also does not support binding with any instance init. However, if these features were implemented, the API would provide the ideal foundation to implement functionality such as memory management, which currently uses the `aos_rpc` calls.
