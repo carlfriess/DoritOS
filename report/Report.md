@@ -1,4 +1,6 @@
 
+<center>![](DoritOS Logo.png)</center>
+
 # Advanced Operating Systems
 
 # Report
