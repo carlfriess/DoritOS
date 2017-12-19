@@ -39,6 +39,11 @@ static collections_listnode *socket_list;
 // Next port to use for port allocation
 static uint32_t port_counter = 1024;
 
+// Simple == predicate
+static int32_t predicate_equals(void *data, void *arg) {
+    return data == arg;
+}
+
 // Predicate function for finding an open socket with a specific port
 static int32_t predicate_open_socket_with_port(struct udp_socket *socket,
                                                uint16_t *port) {
@@ -204,7 +209,7 @@ void udp_handle_packet(struct ip_packet_header *ip, uint8_t *buf, size_t len) {
     
     // Check that a socket was found
     if (!socket) {
-        debug_printf("UDP: Dropping packet");
+        debug_printf("UDP: Dropping packet\n");
         return; // Drop packet
     }
     
@@ -214,7 +219,7 @@ void udp_handle_packet(struct ip_packet_header *ip, uint8_t *buf, size_t len) {
     // Allocate memory to construct the message
     struct udp_urpc_packet *packet = malloc(msg_size);
     if (!packet) {
-        debug_printf("UDP: Dropping packet");
+        debug_printf("UDP: Dropping packet\n");
         return; // Drop packet
     }
     
@@ -343,6 +348,12 @@ static void udp_handle_urpc(struct udp_socket *socket, void *buf, size_t size,
             udp_socket_send(socket,
                             (struct udp_urpc_packet *) buf,
                             size);
+            break;
+            
+        case URPC_MessageType_SocketClose:
+            collections_list_traverse_end(socket_list);
+            collections_list_remove_if(socket_list, predicate_equals, socket);
+            collections_list_traverse_start(socket_list);
             break;
             
         default:

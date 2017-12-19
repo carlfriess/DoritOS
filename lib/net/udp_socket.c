@@ -161,3 +161,11 @@ errval_t sendto(struct udp_socket *socket, void *buf, size_t len,
     
 }
 
+// Close a UDP socket
+errval_t close(struct udp_socket *socket) {
+    
+    // Send message to networkd
+    return urpc_send(&socket->chan, NULL, 0, URPC_MessageType_SocketClose);
+    
+}
+
