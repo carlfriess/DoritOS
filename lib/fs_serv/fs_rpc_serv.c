@@ -75,28 +75,37 @@ errval_t run_rpc_serv(void) {
         size_t start;
         size_t bytes;
         
+        // Path for open and create
+        char *path;
+        
+        // File system message
+        struct fs_message send_msg = {
+            .arg1 = 0,
+            .arg2 = 0,
+            .arg3 = 0,
+            .arg4 = 0
+        };
+        
         switch (recv_msg_type) {
             
             case UMP_MessageType_Open:
                 
                 debug_printf("UMP Message Open Request!\n");
                 
-                char *path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
+                path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
                 //int flags = recv_msg->arg1;
                 
+                // Open existing file and return dirent
                 err = fat_open((void *) &mount, path, &dirent);
                 if (err_is_fail(err)) {
                     debug_printf("%s\n", err_getstring(err));
                 }
                 
+                // Free path string
                 free(path);
                 
-                struct fs_message send_msg = {
-                    .arg1 = err,
-                    .arg2 = 0,
-                    .arg3 = 0,
-                    .arg4 = 0
-                };
+                // Set err as argument 1 of send message
+                send_msg.arg1 = err;
                 
                 // Size of send buffer
                 send_size = sizeof(struct fs_message) + sizeof(struct fat_dirent);
@@ -112,6 +121,45 @@ errval_t run_rpc_serv(void) {
                 
                 // Send response message to client
                 ump_send(&chan, send_buffer, send_size, UMP_MessageType_Open);
+                
+                // Free send buffer
+                free(send_buffer);
+                
+                break;
+                
+            case UMP_MessageType_Create:
+                
+                debug_printf("UMP Message Creates Request!\n");
+                
+                path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
+                //int flags = recv_msg->arg1;
+                
+                // Create existing file and return dirent
+                err = fat_create((void *) &mount, path, &dirent);
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                }
+                
+                // Free path string
+                free(path);
+                
+                // Set err as argument 1 of send message
+                send_msg.arg1 = err;
+                
+                // Size of send buffer
+                send_size = sizeof(struct fs_message) + sizeof(struct fat_dirent);
+                
+                // Allocate send buffer
+                send_buffer = calloc(1, send_size);
+                
+                // Copy fs_message into send buffer
+                memcpy(send_buffer, &send_msg, sizeof(struct fs_message));
+                
+                // Copy path (including '\0' into send buffers
+                memcpy(send_buffer + sizeof(struct fs_message), &dirent, sizeof(struct fat_dirent));
+                
+                // Send response message to client
+                ump_send(&chan, send_buffer, send_size, UMP_MessageType_Create);
                 
                 // Free send buffer
                 free(send_buffer);

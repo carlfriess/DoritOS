@@ -350,6 +350,137 @@ errval_t fat_open(void *st, char *path, struct fat_dirent **ret_dirent) {
     
 }
 
+
+
+errval_t fat_create(void *st, char *path, struct fat_dirent **ret_dirent) {
+    
+    debug_printf("Creating file: -%s-\n", path);
+
+    errval_t err;
+    
+    assert(ret_dirent != NULL);
+
+    struct fat32_mount *mount = st;
+    
+    // Allocate memory for potential new file dirent
+    struct fat_dirent *file_dirent = calloc(1, sizeof(struct fat_dirent));
+
+    // Careful since
+    err = fat_resolve_path(mount->root, path, &file_dirent);
+    if (err_is_ok(err)) {
+        // Free file dirent
+        free(file_dirent);
+        debug_printf("1\n");
+        debug_printf("%s\n", err_getstring(FS_ERR_EXISTS));
+        return FS_ERR_EXISTS;
+    }
+    
+    // Free file dirent
+    free(file_dirent);
+
+    /////
+    struct fat_dirent *parent = calloc(1, sizeof(struct fat_dirent));
+    memcpy(parent, mount->root, sizeof(struct fat_dirent));
+    char *childname;
+    
+    // Find parent directory
+    char *lastsep = strrchr(path, FS_PATH_SEP);
+    
+    if (lastsep != NULL) {
+        
+        childname = lastsep + 1;
+        
+        size_t pathlen = lastsep - path;
+        char pathbuf[pathlen + 1];
+        memcpy(pathbuf, path, pathlen);
+        pathbuf[pathlen] = '\0';
+        
+        // Resolve parent directory
+        err = fat_resolve_path(mount->root, pathbuf, &parent);
+        if (err_is_fail(err)) {
+            debug_printf("2\n");
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        } else if (parent != NULL && !parent->is_dir) {
+            debug_printf("3\n");
+            debug_printf("%s\n", err_getstring(FS_ERR_NOTDIR));
+            return FS_ERR_NOTDIR; // parent is not a directory
+        }
+        
+        assert(mount->root != NULL);
+        
+        
+    } else {
+        
+        childname = path;
+        
+    }
+
+    // Insert into directory
+    
+    // Search for a free FAT entry and claim it
+    size_t file_cluster_nr = find_free_fat_entry_and_set(0, 0x0FFFFFFF);
+    
+    debug_printf("file_cluster_nr: %zu\n", file_cluster_nr);
+    
+    // Convert name to fat name
+    char *fat_name = convert_to_fat_name(childname);
+    
+    // Construct DIR_Entry
+    struct DIR_Entry *dir_data = calloc(1, sizeof(struct DIR_Entry));
+    
+    debug_printf("fat_name: -%s-\n", fat_name);
+    
+    memcpy(dir_data->Name, fat_name, 12);
+    //dir_data->NTRes = 0;
+    dir_data->CrtTimeTenth = 0;
+    dir_data->WrtTime = 0;
+    dir_data->WrtDate = 0;
+    dir_data->FstClus = file_cluster_nr;
+    dir_data->FileSize = 0;
+    
+    // Free fat name
+    free(fat_name);
+    
+    // First cluster number of parent
+    size_t parent_cluster_nr;
+    
+    // Depending on parent set parents cluster number
+    if (parent != NULL) {
+        
+        // Set parent cluster number as parent directory cluster number
+        parent_cluster_nr = parent->first_cluster_nr;
+        
+    } else {
+    
+        assert(mount->root != NULL);
+        
+        // Set parent cluster number as root directory cluster number
+        parent_cluster_nr = mount->root->first_cluster_nr;
+
+    }
+    
+    // Position in parent where entry is inserted
+    size_t parent_pos = 0;
+    
+    // Add directory entry to parent directory
+    err = add_dir_entry(parent_cluster_nr, dir_data, &parent_pos);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Free DIR_Entry
+    free(dir_data);
+    
+    // Set return dirent
+    *ret_dirent = create_dirent(childname, file_cluster_nr, 0, false, parent_cluster_nr, parent_pos);
+
+    return err;
+    
+}
+
+
 errval_t fat_resolve_path(struct fat_dirent *root, char *path, struct fat_dirent **ret_dirent) {
     
     errval_t err = SYS_ERR_OK;
@@ -367,7 +498,7 @@ errval_t fat_resolve_path(struct fat_dirent *root, char *path, struct fat_dirent
     memcpy(curr_dirent, root, sizeof(struct fat_dirent));
     
     // Next dirent (actual struct is being allocated by fat_find_dirent every iteration)
-    struct fat_dirent *next_dirent;
+    struct fat_dirent *next_dirent = NULL;
     
     while (path[pos] != '\0') {
         
@@ -392,9 +523,12 @@ errval_t fat_resolve_path(struct fat_dirent *root, char *path, struct fat_dirent
         // Find directory entry with same name as in pathbuf
         err = fat_find_dirent(curr_dirent, pathbuf, &next_dirent);
         if (err_is_fail(err)) {
-            // Free both current and next dirent
+            // Free both current dirent
             free(curr_dirent);
-            free(next_dirent);
+            // Free when next dirent if previously allocated
+            if (next_dirent != NULL) {
+                free(next_dirent);
+            }
             debug_printf("%s\n", err_getstring(err));
             return err;
         }
@@ -529,71 +663,9 @@ errval_t fat_find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_
 }
 
 
-// Inclusive . and ..
-static size_t getDirEntriesCount(size_t cluster_nr) {
-    
-    errval_t err;
-    
-    // Counter of taken entries in directory
-    size_t count = 0;
-    
-    // Bytes per cluster
-    uint32_t BytesPerClus = BPB_BytsPerSec * BPB_SecPerClus;
-    
-    // Temporal cluster number
-    size_t temp_nr = cluster_nr;
-    
-    // Indicates if End Of File is reached
-    bool isEOF = false;
-    
-    // Data buffer for the data of one cluster
-    uint8_t data[BytesPerClus];
-    
-    for (int cluster_index = 0; !isEOF; cluster_index++) {
-        
-        // Read data from cluster[temp_nr] in data section
-        err = read_cluster(temp_nr , (void *) data);
-        if (err_is_fail(err)) {
-            debug_printf("%s\n", err_getstring(err));
-            return err;
-        }
-        
-        for (int pos_index = 0; pos_index < BytesPerClus / 32; pos_index++) {
-            
-            uint8_t dirent_data = data[pos_index * 32];
-            
-            if (dirent_data == 0x00) {
-                // Free entry and no more entries after this one
-                break;
-            } else if (dirent_data == 0xE5) {
-                // Free entry but can be smore entries after this one
-                
-            } else {
-                // Taken entry
-                count++;
-            }
-            
-        }
-        
-        // Update temp_nr to be next cluster_nr and check if it is EOF
-        if (0x0FFFFFF8 <= (temp_nr = getFATEntry(temp_nr))) {
-            isEOF = true;
-        }
-        
-    }
-
-    debug_printf("Successfully looked through directory file with starting cluster %zu\n", cluster_nr);
-    
-    debug_printf("Directory has %zu entries\n", count);
-    
-    return err;
-    
-}
-
-
 //void openDir()
-
-/* UNUSED
+/*
+__attribute__((unused))
 static struct DIR_Entry getDIREntry(size_t cluster_nr, size_t pos) {
     
     errval_t err;
@@ -630,6 +702,8 @@ static struct DIR_Entry getDIREntry(size_t cluster_nr, size_t pos) {
     
 }
 
+
+__attribute__((unused))
 static void setDIREntry(size_t cluster_nr, size_t pos, struct DIR_Entry entry) {
     
     errval_t err;
@@ -672,8 +746,8 @@ static void setDIREntry(size_t cluster_nr, size_t pos, struct DIR_Entry entry) {
 
 /// FAT_DIRENT
 
-static struct fat_dirent *create_dirent(char *name, size_t first_cluster_nr, size_t size, bool is_dir,
-                                          size_t parent_cluster_nr, size_t parent_pos) {
+struct fat_dirent *create_dirent(char *name, size_t first_cluster_nr, size_t size, bool is_dir,
+                                 size_t parent_cluster_nr, size_t parent_pos) {
     
     struct fat_dirent *ret_dirent = calloc(1, sizeof(struct fat_dirent));
     
@@ -745,13 +819,20 @@ static void close_dirent(struct fat_dirent *dirent) {
 
 errval_t init_root_dir(void *st) {
     
+    size_t err;
+    
     struct fat32_mount *mount = st;
     
     mount->root = create_dirent("/", BPB_RootClus, 0, true, 0, 0);
     
     //open_dirent(mount->root);
     
-    size_t count = getDirEntriesCount(mount->root->first_cluster_nr);
+    size_t count = 0;
+    
+    err = get_dir_entries_count(mount->root->first_cluster_nr, &count);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
     
     debug_printf("Amount of entries in the root directory: %z\n", count);
     
@@ -767,35 +848,299 @@ errval_t remove_dirent(struct fat_dirent *dirent) {
     
     errval_t err;
     
-    debug_printf("Not yet implemented FAT zeroing\n");
+    //debug_printf("Not yet implemented FAT zeroing\n");
     
     assert(dirent != NULL);
     
     // Remove the directory entry in parent
-    err = remove_entry(dirent->parent_cluster_nr, dirent->parent_cluster_nr);
+    err = remove_dir_entry(dirent->parent_cluster_nr, dirent->parent_cluster_nr);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
     
-    /*
-    size_t cluster_index;
-    
-    // Set cluster chain entries in FAT to zero
-    for (cluster_index = 0; !isEOF && cluster_index <= end_index; cluster_index++) {
-        
-        
-        
+    // Zeros out all FAT entries of dirent's cluster chain
+    err = remove_fat_entries(dirent->first_cluster_nr);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
     }
-    */
     
-    return LIB_ERR_NOT_IMPLEMENTED;
+    return err;
     
 }
 
 
 
-errval_t remove_entry(size_t cluster_nr, size_t pos) {
+// Inclusive . and ..
+errval_t get_dir_entries_count(size_t cluster_nr, size_t *ret_count) {
+    
+    errval_t err;
+    
+    assert(ret_count != NULL);
+    
+    // Counter of taken entries in directory
+    size_t count = 0;
+    
+    // Bytes per cluster
+    uint32_t BytesPerClus = BPB_BytsPerSec * BPB_SecPerClus;
+    
+    // Entries per cluster
+    size_t EntriesPerClus = BytesPerClus / 32;
+    
+    // Temporal cluster number
+    size_t temp_nr = cluster_nr;
+    
+    // Indicates if End Of File is reached
+    bool isEOF = false;
+    
+    // Data buffer for the data of one cluster
+    uint8_t data[BytesPerClus];
+    
+    while (!isEOF) {
+        
+        // Read data from cluster[temp_nr] in data section
+        err = read_cluster(temp_nr , (void *) data);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        for (int pos_index = 0; pos_index < EntriesPerClus; pos_index++) {
+            
+            uint8_t dirent_data = data[pos_index * 32];
+            
+            if (dirent_data == 0x00) {
+                // Free entry and no more entries after this one
+                break;
+            } else if (dirent_data == 0xE5) {
+                // Free entry but can be smore entries after this one
+                
+            } else {
+                // Taken entry
+                count++;
+            }
+            
+        }
+        
+        // Update temp_nr to be next cluster_nr and check if it is EOF
+        if (0x0FFFFFF8 <= (temp_nr = getFATEntry(temp_nr))) {
+            isEOF = true;
+        }
+        
+    }
+    
+    //debug_printf("Successfully looked through directory file with starting cluster %zu\n", cluster_nr);
+    
+    debug_printf("Directory has %zu entries\n", count);
+    
+    // Set return count
+    *ret_count = count;
+    
+    return err;
+    
+}
+
+
+errval_t find_free_dir_entry(size_t cluster_nr, size_t *ret_pos) {
+    
+    errval_t err;
+    
+    assert(ret_pos != NULL);
+    
+    // Bytes per cluster
+    uint32_t BytesPerClus = BPB_BytsPerSec * BPB_SecPerClus;
+    
+    // Entries per cluster
+    size_t EntriesPerClus = BytesPerClus / 32;
+    
+    // Temporal cluster number
+    size_t temp_nr = cluster_nr;
+    
+    // Indicates if End Of File is reached
+    bool isEOF = false;
+    
+    // Data buffer for the data of one cluster
+    uint8_t data[BytesPerClus];
+    
+    // Cluster index
+    int cluster_index;
+    
+    // Index position of directory entry relative to current cluster
+    int pos_index;
+    
+    for (cluster_index = 0; !isEOF; cluster_index++) {
+        
+        // Read data from cluster[temp_nr] in data section
+        err = read_cluster(temp_nr , (void *) data);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        for (pos_index = 0; pos_index < EntriesPerClus; pos_index++) {
+            
+            uint8_t dirent_data = data[pos_index * 32];
+            
+            if (dirent_data == 0x00) {
+                // Free entry and no more entries after this one
+                
+                // Return position
+                *ret_pos = (cluster_index * EntriesPerClus) + pos_index;
+                
+                return err;
+                
+            } else if (dirent_data == 0xE5) {
+                // Free entry but can be smore entries after this one
+                
+                // Return position
+                *ret_pos = (cluster_index * EntriesPerClus) + pos_index;
+                
+                return err;
+                
+            }
+            
+        }
+        
+        // Update temp_nr to be next cluster_nr and check if it is EOF
+        if (0x0FFFFFF8 <= (temp_nr = getFATEntry(temp_nr))) {
+            isEOF = true;
+        }
+        
+    }
+    
+    // Return position that would be free after appending the cluster chain
+    *ret_pos = (cluster_index * EntriesPerClus) + pos_index;
+    
+    return FS_ERR_INDEX_BOUNDS;
+    
+}
+
+
+errval_t add_dir_entry(size_t cluster_nr, struct DIR_Entry *dir_data, size_t *ret_pos) {
+    
+    errval_t err;
+    
+    assert(ret_pos != NULL);
+    
+    // Initialize position
+    size_t pos = 0;
+
+    // Find a free directory entry and give back its position
+    err = find_free_dir_entry(cluster_nr, &pos);
+    
+    // Handle case that no free entry left in directory scluster chain by appending it
+    if (err_is_fail(err)) {
+        
+        switch (err) {
+            case FS_ERR_INDEX_BOUNDS:
+                
+                // Append cluster chain by one cluster
+                err = append_cluster_chain(cluster_nr, 1);
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                    return err;
+                }
+                
+                break;
+                
+            default:
+                
+                debug_printf("%s\n", err_getstring(err));
+                return err;
+                
+        }
+        
+    }
+    
+    // Set directory entry to data at certain position
+    err = set_dir_entry(cluster_nr, pos, dir_data);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Set return position
+    *ret_pos = pos;
+    
+    return err;
+    
+}
+
+
+errval_t set_dir_entry(size_t cluster_nr, size_t pos, struct DIR_Entry *dir_data) {
+    
+    errval_t err;
+    
+#if PRINT_DEBUG_EXCEPTION
+    uint8_t cluster_data[32 * 32];
+    read_cluster_chain(cluster_nr, cluster_data, 0, 32 * 32);
+    debug_printf("Directory entry data at pos %d: \n", pos);
+    for (int j = 0; j < 16; j++) {
+        for (int i = 0; i < 32; i += 8) {
+            debug_printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
+                         cluster_data[j*32 + i], cluster_data[j*32 + i+1],
+                         cluster_data[j*32 + i+2], cluster_data[j*32 + i+3],
+                         cluster_data[j*32 + i+4], cluster_data[j*32 + i+5],
+                         cluster_data[j*32 + i+6], cluster_data[j*32 + i+7]);
+        }
+    }
+#endif
+
+    
+    uint8_t data[32];
+    
+    // Read directory data from [pos * 32, pos * 32 + 31]
+    err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    memcpy(&data[0], dir_data->Name, 11);
+    
+    data[11] = dir_data->Attr;
+    //data[12] = 0;                      // Recommended just to assume it is 0
+    data[13] = dir_data->CrtTimeTenth;
+
+    memcpy(&data[20], ((uint8_t *) &dir_data->FstClus) + 2, 2);
+    memcpy(&data[22], &dir_data->WrtTime, 2);
+    memcpy(&data[24], &dir_data->WrtDate, 2);
+    memcpy(&data[26], &dir_data->FstClus, 2);
+    memcpy(&data[28], &dir_data->FileSize, 2);
+    
+    debug_printf("Directory entry data at pos %d: \n", pos);
+    for (int i = 0; i < 32; i += 8) {
+        debug_printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
+                     data[i], data[i+1], data[i+2], data[i+3],
+                     data[i+4], data[i+5], data[i+6], data[i+7]);
+    }
+    
+    // Write modified directory data buffer back
+    err = write_cluster_chain(cluster_nr, data, pos * 32, 32);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+#if PRINT_DEBUG_EXCEPTION
+    read_cluster_chain(cluster_nr, cluster_data, 0, 32 * 32);
+    debug_printf("Directory entry data at pos %d: \n", pos);
+    for (int j = 0; j < 16; j++) {
+        for (int i = 0; i < 32; i += 8) {
+            debug_printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
+                         cluster_data[j*32 + i], cluster_data[j*32 + i+1], cluster_data[j*32 + i+2], cluster_data[j*32 + i+3],
+                         cluster_data[j*32 + i+4], cluster_data[j*32 + i+5], cluster_data[j*32 + i+6], cluster_data[j*32 + i+7]);
+        }
+    }
+#endif
+
+    return err;
+    
+}
+
+
+errval_t remove_dir_entry(size_t cluster_nr, size_t pos) {
     
     errval_t err;
     
@@ -814,6 +1159,141 @@ errval_t remove_entry(size_t cluster_nr, size_t pos) {
     err = write_cluster_chain(cluster_nr, empty_rest_buffer, pos * 32 + 20, 12);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    return err;
+    
+}
+
+errval_t get_dir_entry_size(size_t cluster_nr, size_t pos, size_t *ret_size) {
+    
+    errval_t err;
+    
+    assert(ret_size != NULL);
+    
+    // Data buffer for directory entry (32 bytes)
+    uint32_t data[8];
+    
+    // Read directory data from [pos * 32, pos * 32 + 31]
+    err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Return directory entry file size in [28, 31]
+    *ret_size = data[7];
+    
+    return err;
+    
+}
+
+errval_t set_dir_entry_size(size_t cluster_nr, size_t pos, size_t file_size) {
+    
+    errval_t err;
+    
+    // Data buffer for directory entry (32 bytes)
+    uint32_t data[8];
+    
+    // Read directory data from [pos * 32, pos * 32 + 31]
+    err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Set file size in data buffer at [28, 31]
+    data[7] = file_size;
+    
+    // Write directory data with modified file size back
+    err = write_cluster_chain(cluster_nr, data, pos * 32, 32);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    return err;
+    
+}
+
+errval_t add_dir_entry_size(size_t cluster_nr, size_t pos, int delta, size_t *ret_size) {
+    
+    errval_t err;
+    
+    assert(ret_size != NULL);
+    
+    // Data buffer for directory entry (32 bytes)
+    uint32_t data[8];
+    
+    // Read directory data from [pos * 32, pos * 32 + 31]
+    err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Get file size fron data buffer at [28, 31]
+    size_t file_size = data[7];
+    
+    // Check that file size will not underflow
+    assert(delta >= 0 || ((int) file_size) - delta >= 0);
+    
+    // Add delta to file size of data buffer at [28, 31]
+    data[7] = file_size + delta;
+    
+    // Write directory data with modified file size back
+    err = write_cluster_chain(cluster_nr, data, pos * 32, 32);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Return new file size
+    *ret_size = file_size + delta;
+    
+    return err;
+
+}
+
+
+errval_t remove_fat_entries(size_t cluster_nr) {
+    
+    errval_t err = FAT_ERR_CLUSTER_BOUNDS;
+    
+    // Current cluster number
+    size_t curr_nr = cluster_nr;
+    
+    // Next cluster number
+    size_t next_nr;
+    
+    // End of file
+    bool isEOF = false;
+    
+    // Set cluster chain entries in FAT to zero
+    while(!isEOF) {
+        
+        // Set next cluster number to be next cluster number of current cluster number and check if it is EOC
+        if (0x0FFFFFF8 <= (next_nr = getFATEntry(curr_nr))) {
+            isEOF = true;
+        }
+        
+        // Check that current cluster number is not one of the first two special FAT entries
+        if (curr_nr < 2) {
+            debug_printf("Current cluster number is in first two special FAT entries\n");
+            break;
+        }
+        
+        // Set current cluster number FAT entry to zero
+        err = setFATEntry(curr_nr, 0);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Update current cluster number to next cluster number
+        curr_nr = next_nr;
+        
     }
     
     return err;
@@ -828,18 +1308,39 @@ errval_t read_dirent(struct fat_dirent *dirent, void *buffer, size_t start, size
     errval_t err;
     
     assert(dirent != NULL);
+    assert(bytes_read != NULL);
+
+    // Current file size
+    size_t file_size;
     
-    assert(start + bytes <= dirent->size);
+    // Get the current file size from parent directory entry
+    err = get_dir_entry_size(dirent->parent_cluster_nr, dirent->parent_pos, &file_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
     
+    // Check if requested region start is in file bounds
+    if (start >= file_size) {
+        *bytes_read = 0;
+        return err;
+    }
+    
+    // Check if entire requested region in file bounds and if not shorten it
+    if (start + bytes > file_size) {
+        bytes -= (start + bytes) - file_size;
+    }
+    
+    assert(start + bytes <= file_size);
+    
+    // Read cluster chain with appropriate region
     err = read_cluster_chain(dirent->first_cluster_nr, buffer, start, bytes);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
     
-    assert(bytes_read != NULL);
-    
-    // FIXME: Proper implementation
+    // Return actual bytes read
     *bytes_read = bytes;
     
     return err;
@@ -851,18 +1352,76 @@ errval_t write_dirent(struct fat_dirent *dirent, void *buffer, size_t start, siz
     errval_t err;
     
     assert(dirent != NULL);
+    assert(bytes_written != NULL);
     
-    assert(start + bytes <= dirent->size);
+    // Current file size
+    size_t file_size;
     
-    err = write_cluster_chain(dirent->first_cluster_nr, buffer, start, bytes);
+    // Get the current file size from parent directory entry
+    err = get_dir_entry_size(dirent->parent_cluster_nr, dirent->parent_pos, &file_size);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
     
-    assert(bytes_written != NULL);
+    // Current data buffer
+    uint8_t *data = buffer;
     
-    // FIXME: Proper implementation
+    // Check if requested region start is in file bounds and add padding if required
+    if (start > file_size) {
+ 
+        // Size of zeroed out data to be written
+        size_t zero_size = start - file_size;
+        
+        // Allocate data buffer to encapsulate zeros padding in the front
+        data = calloc(1, zero_size + bytes);
+        
+        // Copy over buffer data
+        memcpy(data + zero_size, buffer, bytes);
+        
+        // Update start to include padding
+        start = file_size;
+        
+        // Update bytes to include padding
+        bytes += zero_size;
+        
+    }
+    
+    // Bytes per cluster
+    size_t BytesPerClus = BPB_BytsPerSec * BPB_SecPerClus;
+    
+    // Old count of clusters (round up)
+    size_t old_cluster_count = (file_size + (BytesPerClus - 1)) / BytesPerClus;
+    
+    // New count of clusters (round up)
+    size_t new_cluster_count = (start + bytes + (BytesPerClus - 1)) / BytesPerClus;
+    
+    // Check if appending of new clusters is required
+    if (old_cluster_count < new_cluster_count) {
+        
+        // Append cluster chain by difference
+        append_cluster_chain(dirent->first_cluster_nr, new_cluster_count - old_cluster_count);
+    
+    }
+    
+    // Write data to cluster chain region
+    err = write_cluster_chain(dirent->first_cluster_nr, data, start, bytes);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Update file size
+    file_size = MAX(file_size, start + bytes);
+
+    // Set new file size in parent directory entry
+    err = set_dir_entry_size(dirent->parent_cluster_nr, dirent->parent_pos, file_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Return actual bytes written (can be more due to padding)
     *bytes_written = bytes;
     
     return err;
@@ -1058,7 +1617,7 @@ errval_t write_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size
     size_t carryover;
     
     // Data buffer for the data of one cluster
-    uint8_t data[BytesPerClus];
+    uint8_t *data = calloc(1, BytesPerClus);
     
     bool isEOF = false;
 
@@ -1097,12 +1656,16 @@ errval_t write_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size
                 
             }
             
+            debug_printf("offset: %zu carryover: %zu copy_size: %zu\n", offset, carryover, copy_size);
+            
             // Copy data from temp_buf into data (with offset)
             memcpy(data + offset, temp_buf, copy_size);
             
             // Write data to cluster[temp_nr] in data section
             err = write_cluster(temp_nr, (void *) data);
             if (err_is_fail(err)) {
+                // Free data
+                free(data);
                 debug_printf("%s\n", err_getstring(err));
                 return err;
             }
@@ -1126,9 +1689,12 @@ errval_t write_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size
         
     } else {
         
-        debug_printf("Successfully write file with starting cluster %zu in range [%zu,%zu]", cluster_nr, start, start + bytes);
+        debug_printf("Successfully write file with starting cluster %zu in range [%zu,%zu]\n", cluster_nr, start, start + bytes);
         
     }
+    
+    // Free data
+    free(data);
     
     // TODO: UNLOCK!!!
 
@@ -1137,8 +1703,159 @@ errval_t write_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size
 }
 
 
+uint32_t find_free_fat_entry_and_set(size_t start_search_entry, uint32_t value) {
+    
+    errval_t err;
+    
+    // Set it search entry to start with at least to 2
+    if (start_search_entry < 2) {
+        start_search_entry = 2;
+    }
+    
+    // Number of FAT entries that fit into one sector
+    size_t FATEntPerSec = BPB_BytsPerSec/sizeof(uint32_t);
 
+    // Buffer for FAT sector
+    uint32_t buffer[FATEntPerSec];
+    
+    // FAT sector that contains nth entry
+    size_t ThisFATSecNum = BPB_ResvdSecCnt + (start_search_entry / FATEntPerSec);
+    
+    // Read new FAT sector into buffer
+    err = mmchs_read_block(ThisFATSecNum, buffer);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return -1;
+    }
+    
+    // FAT entry in that sector
+    size_t ThisFATEnt = start_search_entry % FATEntPerSec;
 
+    for (int n = start_search_entry; n < FATEntPerSec * FATSz; n++) {
+        
+        if (n % FATEntPerSec == 0) {
+            
+            // Update FAT sector that contains nth entry
+            ThisFATSecNum = BPB_ResvdSecCnt + (n / FATEntPerSec);
+            
+            // Read new FAT sector into buffer
+            err = mmchs_read_block(ThisFATSecNum, buffer);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+                return -1;
+            }
+            
+        }
+        
+        // Update FAT entry in that sector
+        ThisFATEnt = n % FATEntPerSec;
+
+        if ((n >= 2) && (buffer[ThisFATEnt] == 0)) {
+            
+            // Change FAT entry to value without MSB
+            buffer[ThisFATEnt] = buffer[ThisFATEnt] & 0xF0000000;
+            buffer[ThisFATEnt] = buffer[ThisFATEnt] | value;
+
+            // Write new FAT sector with changed free entry back
+            err = mmchs_write_block(ThisFATSecNum, buffer);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+                return -1;
+            }
+            
+            return n;
+            
+        }
+        
+    }
+    
+    // Couldn't find a free FAT entry
+    return -1;
+    
+}
+
+__attribute__((unused))
+errval_t append_cluster_chain(size_t cluster_nr, size_t cluster_count) {
+    
+    errval_t err;
+    
+    assert(cluster_count > 0);
+    
+    // Current cluster number
+    size_t curr_nr = cluster_nr;
+    
+    // Next cluster number
+    size_t next_nr;
+    
+    // End of file
+    bool isEOF = false;
+    
+    // Set cluster chain entries in FAT to zero
+    while(!isEOF) {
+        
+        // Set next cluster number to be next cluster number of current cluster number and check if it is EOC
+        if (0x0FFFFFF8 <= (next_nr = getFATEntry(curr_nr))) {
+            isEOF = true;
+        }
+        
+        // Check that current cluster number is not one of the first two special FAT entries
+        if (next_nr < 2) {
+            debug_printf("Current cluster number is in first two special FAT entries\n");
+            break;
+        }
+        
+        // Set current cluster number FAT entry to zero
+        err = setFATEntry(curr_nr, 0);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Update current cluster number to next cluster number
+        curr_nr = next_nr;
+        
+    }
+    
+    // Entry to start searching for the next free FAT entry
+    size_t free_entry = 0;
+    
+    // Append cluster_count clusters to the end of the cluster chain
+    for (int i = 0; i < cluster_count; i++) {
+        
+        // Find a free FAT entry and set it to value 0x0FFFFFFF
+        next_nr = find_free_fat_entry_and_set(free_entry, 0x0FFFFFFF);
+        if (next_nr == -1) {
+            debug_printf("FAT full! Couldn't find a free entry...\n");
+            return FAT_ERR_FAT_LOOKUP;
+        }
+        
+        // Update entry to start searching for the next free FAT entry
+        free_entry = next_nr + 1;
+        
+        /*
+        // Mark this FAT entry as taken
+        err = setFATEntry(next_nr, 0x0FFFFFFF);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        */
+        
+        // Let current FAT entry point to next (previously free) FAT entry
+        err = setFATEntry(curr_nr, next_nr);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+        // Update current cluster number to next cluster number
+        curr_nr = next_nr;
+        
+    }
+    
+    return err;
+    
+}
 
 
 
