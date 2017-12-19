@@ -7,6 +7,7 @@
 //
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <aos/aos.h>
 
@@ -17,15 +18,33 @@ int main(int argc, char *argv[]) {
     
     errval_t err;
     
+    uint16_t port = 0;
+    
+    if (argc > 1) {
+        port = atoi(argv[1]);
+    }
+    
     struct udp_socket s;
     
-    err = socket(&s, 80);
+    err = socket(&s, port);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return 1;
     }
     
-    debug_printf("Socket open!\n");
+    err = close(&s);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return 1;
+    }
+    
+    err = socket(&s, port);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return 1;
+    }
+    
+    debug_printf("Socket open on port %d!\n", s.pub.port);
     
     while (true) {
         
