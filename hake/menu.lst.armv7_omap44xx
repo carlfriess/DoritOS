@@ -30,6 +30,10 @@ module /armv7/sbin/filereader
 module /armv7/sbin/terminal
 module /armv7/sbin/shell
 
+# milestone 7 network
+module /armv7/sbin/networkd
+module /armv7/sbin/udp_echo
+
 # For pandaboard, use following values.
 mmap map 0x40000000 0x40000000 13 # Devices
 mmap map 0x80000000 0x20000000  1

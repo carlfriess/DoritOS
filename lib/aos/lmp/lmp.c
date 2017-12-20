@@ -468,6 +468,7 @@ void lmp_client_recv(struct lmp_chan *lc, struct capref *cap, struct lmp_recv_ms
     lmp_client_recv_waitset(lc, cap, msg, get_default_waitset());
 
 }
+
 // Blocking call for receiving messages on a specific waitset
 void lmp_client_recv_waitset(struct lmp_chan *lc, struct capref *cap, struct lmp_recv_msg *msg, struct waitset *ws) {
 
@@ -479,11 +480,11 @@ void lmp_client_recv_waitset(struct lmp_chan *lc, struct capref *cap, struct lmp
         debug_printf("%s\n", err_getstring(err));
         return;
     }
-
+    
     while (!done) {
         event_dispatch(ws);
     }
-
+    
     err = lmp_chan_recv(lc, msg, cap);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));

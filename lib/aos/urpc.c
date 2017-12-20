@@ -424,6 +424,8 @@ errval_t urpc_bind(domainid_t pid, struct urpc_chan *chan, bool use_lmp) {
     
     debug_printf("BIND: Received \"%s\" from server.\n", retmsg);
     
+    free(retmsg);
+    
     return SYS_ERR_OK;
     
 }
