@@ -74,6 +74,9 @@ errval_t run_rpc_serv(void) {
         size_t start;
         size_t bytes;
         
+        // Directory index for readdir
+        size_t dir_index;
+        
         // Path for open and create
         char *path;
         
@@ -91,6 +94,7 @@ errval_t run_rpc_serv(void) {
                 
                 debug_printf("UMP Message Open Request!\n");
                 
+                // Copy path string from recieve buffer
                 path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
                 //int flags = recv_msg->arg1;
                 
@@ -115,8 +119,8 @@ errval_t run_rpc_serv(void) {
                 // Copy fs_message into send buffer
                 memcpy(send_buffer, &send_msg, sizeof(struct fs_message));
                 
-                // Copy path (including '\0' into send buffers
-                memcpy(send_buffer + sizeof(struct fs_message), &dirent, sizeof(struct fat_dirent));
+                // Copy dirent into send buffers
+                memcpy(send_buffer + sizeof(struct fs_message), dirent, sizeof(struct fat_dirent));
                 
                 // Send response message to client
                 ump_send(&chan, send_buffer, send_size, UMP_MessageType_Open);
@@ -155,7 +159,7 @@ errval_t run_rpc_serv(void) {
                 memcpy(send_buffer, &send_msg, sizeof(struct fs_message));
                 
                 // Copy path (including '\0' into send buffers
-                memcpy(send_buffer + sizeof(struct fs_message), &dirent, sizeof(struct fat_dirent));
+                memcpy(send_buffer + sizeof(struct fs_message), dirent, sizeof(struct fat_dirent));
                 
                 // Send response message to client
                 ump_send(&chan, send_buffer, send_size, UMP_MessageType_Create);
@@ -177,10 +181,11 @@ errval_t run_rpc_serv(void) {
 
                 debug_printf("UMP Message Read Request!\n");
                 
+                // Set start and bytes
                 start = recv_msg->arg1;
                 bytes = recv_msg->arg2;
 
-                memcpy(&dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
+                memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
                 
                 size_t bytes_read = 0;
 
@@ -217,7 +222,7 @@ errval_t run_rpc_serv(void) {
                 start = recv_msg->arg1;
                 bytes = recv_msg->arg2;
                 
-                memcpy(&dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
+                memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
                 
                 size_t bytes_written = 0;
                 
@@ -259,7 +264,7 @@ errval_t run_rpc_serv(void) {
                 
                 debug_printf("UMP Message Remove Request!\n");
                 
-                memcpy(&dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
+                memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
                 
                 // Remove dirent from directory and set FAT entries to zero
                 err = remove_dirent(dirent);
