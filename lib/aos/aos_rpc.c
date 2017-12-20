@@ -18,6 +18,8 @@
 #include <aos/ump.h>
 #include <aos/threads.h>
 
+#define PRINT_DEBUG 0
+
 size_t aos_rpc_terminal_write(const char* buf, size_t len) {
     errval_t err = SYS_ERR_OK;
     size_t n = 0;
@@ -217,7 +219,9 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
         // Check if we got the message we wanted
         if (msg.words[0] != LMP_RequestType_MemoryAlloc) {
 
+#if PRINT_DEBUG
             debug_printf("Got ack of type: %d\n", msg.words[0]);
+#endif
             
             // Allocate a new slot if necessary
             if (!capref_is_null(*retcap)) {

@@ -421,8 +421,9 @@ errval_t urpc_bind(domainid_t pid, struct urpc_chan *chan, bool use_lmp) {
         
     // Check we recieved the correct message
     assert(msg_type == URPC_MessageType_UrpcBindAck);
+    assert(!strcmp(retmsg, "Hi there!"));
     
-    debug_printf("BIND: Received \"%s\" from server.\n", retmsg);
+    //debug_printf("BIND: Received \"%s\" from server.\n", retmsg);
     
     free(retmsg);
     

@@ -616,7 +616,7 @@ static errval_t spawn_cleanup(struct spawninfo *si) {
 // TODO(M2): Implement this function such that it starts a new process
 // TODO(M4): Build and pass a messaging channel to your child process
 errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
-    printf("spawn start_child: starting: %s\n", binary_name);
+    //printf("spawn start_child: starting: %s\n", binary_name);
 
     errval_t err = SYS_ERR_OK;
 
@@ -659,7 +659,7 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     add_parent_mapping(si, elf_buf);
 
     char *elf = elf_buf;
-    debug_printf("Mapped ELF into memory: 0x%x %c%c%c\n", elf[0], elf[1], elf[2], elf[3]);
+    //debug_printf("Mapped ELF into memory: 0x%x %c%c%c\n", elf[0], elf[1], elf[2], elf[3]);
     assert(elf[0] == 0x7f && elf[1] == 'E' && elf[2] == 'L' && elf[3] == 'F');
 
     // Set up cspace

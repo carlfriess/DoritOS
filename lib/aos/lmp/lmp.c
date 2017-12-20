@@ -258,7 +258,9 @@ errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align
     do {
         err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, ram, LMP_RequestType_MemoryAlloc, SYS_ERR_OK);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s. Retrying..\n", err_getstring(err));
+#endif
         }
     } while (err_is_fail(err));
     
