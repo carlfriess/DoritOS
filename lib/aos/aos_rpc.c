@@ -429,6 +429,8 @@ errval_t aos_rpc_process_get_pid_by_name(const char *name, domainid_t *pid) {
     
     errval_t err;
     
+    *pid = 0;
+    
     struct aos_rpc *rpc_chan = aos_rpc_get_init_channel();
     
     // Request the pids of all running processes
@@ -461,7 +463,7 @@ errval_t aos_rpc_process_get_pid_by_name(const char *name, domainid_t *pid) {
     }
     
     // Make sure bind_server was found
-    if (pid == 0) {
+    if (*pid == 0) {
         return LIB_ERR_PID_NOT_FOUND;
     }
     

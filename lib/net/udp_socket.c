@@ -26,7 +26,6 @@ static errval_t bind_networkd(struct urpc_chan *chan) {
     domainid_t pid = 0;
     err = aos_rpc_process_get_pid_by_name("networkd", &pid);
     if (err_is_fail(err)) {
-        free(chan);
         chan = NULL;
         return err;
     }
@@ -35,7 +34,6 @@ static errval_t bind_networkd(struct urpc_chan *chan) {
     //  Use LMP when on core 0!
     err = urpc_bind(pid, chan, !disp_get_core_id());
     if (err_is_fail(err)) {
-        free(chan);
         chan = NULL;
         return err;
     }
