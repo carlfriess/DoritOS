@@ -60,7 +60,6 @@ errval_t run_rpc_serv(void) {
     size_t send_size;
     uint8_t *send_buffer;
     
-    
     struct fat_dirent *dirent = calloc(1, sizeof(struct fat_dirent));
     
     while (true) {
@@ -277,8 +276,6 @@ errval_t run_rpc_serv(void) {
                 // Set error
                 ((struct fs_message *) send_buffer)->arg1 = err;
                 
-                // TODO: Maybe return how big the removed file was
-            
                 // Send response message to client
                 ump_send(&chan, send_buffer, send_size, UMP_MessageType_Remove);
                 

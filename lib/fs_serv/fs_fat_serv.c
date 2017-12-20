@@ -12,44 +12,18 @@
 
 #include <fs_serv/fs_fat_serv.h>
 
+#define PRINT_DEBUG 0
+
 extern errval_t mmchs_read_block(size_t block_nr, void *buffer);
 extern errval_t mmchs_write_block(size_t block_nr, void *buffer);
 
+static void get_dot_dir_data(size_t cluster_nr, struct DIR_Entry *dir_data);
+static void get_dot_dot_dir_data(size_t cluster_nr, struct DIR_Entry *dir_data);
 
-/// INITIALIZATION
 
-static uint16_t BPB_BytsPerSec;
-static uint8_t BPB_SecPerClus;
-static uint16_t BPB_ResvdSecCnt;
-static uint8_t BPB_NumFATs;
-static uint16_t BPB_RootEntCnt;
-static uint16_t BPB_TotSec16;
-static uint8_t BPB_Media;
-static uint16_t BPB_FATSz16;
-static uint16_t BPB_SecPerTrk;
-static uint16_t BPB_NumHeads;
-static uint32_t BPB_HiddSec;
-static uint32_t BPB_TotSec32;
-static uint32_t BPB_FATSz32;
-static uint16_t BPB_ExtFlags;
-static uint16_t BPB_FSVer;
-static uint32_t BPB_RootClus;
-static uint16_t BPB_FSInfo;
-static uint16_t BPB_BkBootSec;
-static uint8_t BPB_Reserved[12];
-static uint8_t BS_DrvNum;
-static uint8_t BS_Reserved1;
-static uint8_t BS_BootSig;
-static uint32_t BS_VolID;
-static char BS_VolLab[12];
-static char BS_FilSysType[9];
+static void data_to_dir_data(struct DIR_Entry *dest, void *src);
+static void dir_data_to_data(void *dest, struct DIR_Entry *src);
 
-// Calculated
-static uint32_t FirstDataSector;
-static uint32_t RootDirSectors;
-static uint32_t FATSz;
-
-#define FS_PATH_SEP '/'
 
 
 errval_t init_BPB(void) {
@@ -663,8 +637,6 @@ struct fat_dirent *create_dirent(char *name, size_t first_cluster_nr, size_t siz
     
     struct fat_dirent *ret_dirent = calloc(1, sizeof(struct fat_dirent));
     
-    ret_dirent->refcount = 0;
-    
     ret_dirent->size = size;
     
     memcpy(&ret_dirent->name, name, 12);
@@ -992,17 +964,8 @@ errval_t set_dir_entry(size_t cluster_nr, size_t pos, struct DIR_Entry *dir_data
         return err;
     }
     
-    memcpy(&data[0], dir_data->Name, 11);
-    
-    data[11] = dir_data->Attr;
-    //data[12] = 0;                      // Recommended just to assume it is 0
-    data[13] = dir_data->CrtTimeTenth;
-
-    memcpy(&data[20], ((uint8_t *) &dir_data->FstClus) + 2, 2);
-    memcpy(&data[22], &dir_data->WrtTime, 2);
-    memcpy(&data[24], &dir_data->WrtDate, 2);
-    memcpy(&data[26], &dir_data->FstClus, 2);
-    memcpy(&data[28], &dir_data->FileSize, 2);
+    // Convert directory data and save it in data buffer
+    dir_data_to_data(data, dir_data);
     
     debug_printf("Directory entry data at pos %d: \n", pos);
     for (int i = 0; i < 32; i += 8) {
@@ -1041,11 +1004,12 @@ errval_t remove_dir_entry(size_t cluster_nr, size_t pos) {
     
     // Set directory entry region [0, 10] to indicate free entry
     uint8_t empty_name_buffer[11];
-    empty_name_buffer[0] = 0xEF;
+    empty_name_buffer[0] = 0xE5;
     
     err = write_cluster_chain(cluster_nr, empty_name_buffer, pos * 32, 11);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
+        return err;
     }
     
     // Set directory entry region [20, 31] zero
@@ -1476,7 +1440,7 @@ errval_t read_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size_
         
     } else {
         
-        debug_printf("Successfully read file with starting cluster %zu in range [%zu,%zu]\n", cluster_nr, start, start + bytes);
+        debug_printf("Successfully read file with starting cluster %zu in range [%zu,%zu]\n", cluster_nr, start, start + bytes - 1);
         
     }
     
@@ -1584,7 +1548,7 @@ errval_t write_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size
         
     } else {
         
-        debug_printf("Successfully write file with starting cluster %zu in range [%zu,%zu]\n", cluster_nr, start, start + bytes);
+        debug_printf("Successfully write file with starting cluster %zu in range [%zu,%zu]\n", cluster_nr, start, start + bytes - 1);
         
     }
     
@@ -1669,7 +1633,7 @@ uint32_t find_free_fat_entry_and_set(size_t start_search_entry, uint32_t value) 
     
 }
 
-__attribute__((unused))
+
 errval_t append_cluster_chain(size_t cluster_nr, size_t cluster_count) {
     
     errval_t err;

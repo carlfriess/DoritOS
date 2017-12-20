@@ -132,7 +132,7 @@ errval_t mkdir(const char *path)
  * @param path  the path to be removed
  *
  * @returns SYS_ERR_OK on successful removal
- *          FS_ERR_NOTEMPTY if the directory is not emtpy
+ *          FS_ERR_NOTEMPTY if the directory is not empty
  *          FS_ERR_NOTDIR if the path is not a directory
  *          FS_ERR_NOTFOUND if there is no such path
  */
