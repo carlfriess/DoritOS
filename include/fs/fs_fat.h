@@ -8,7 +8,6 @@
 
 struct fat_dirent {
     
-    size_t refcount;
     size_t size;
     
     char name[12];                     // string null terminated
