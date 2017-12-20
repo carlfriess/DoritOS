@@ -33,7 +33,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     
-    debug_printf("Socket open on port %d!\n", s.pub.port);
+    printf("Socket open on port %d!\n", s.pub.port);
     
     while (true) {
         
@@ -74,6 +74,8 @@ int main(int argc, char *argv[]) {
         debug_printf("%s\n", err_getstring(err));
         return 1;
     }
+    
+    printf("Socket closed!\n");
     
     return 0;
     
