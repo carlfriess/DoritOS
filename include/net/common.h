@@ -29,6 +29,7 @@ struct udp_socket_common {
 struct udp_urpc_packet {
     uint32_t addr;
     uint16_t port;
+    uint16_t size;
     uint8_t payload[];
 } __attribute__ ((__packed__));
 

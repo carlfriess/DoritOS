@@ -78,8 +78,8 @@ errval_t socket(struct udp_socket *socket, uint16_t port) {
     }
     
     if (msg_type == URPC_MessageType_SocketOpen) {
-        assert(size == sizeof(struct udp_socket_common));
-        memcpy(&socket->pub, buf, size);
+        assert(size >= sizeof(struct udp_socket_common));
+        memcpy(&socket->pub, buf, sizeof(struct udp_socket_common));
         free(buf);
         return SYS_ERR_OK;
     }
@@ -112,7 +112,7 @@ errval_t recvfrom(struct udp_socket *socket, void *buf, size_t len,
         // Extract data
         *from_addr = packet->addr;
         *from_port = packet->port;
-        *ret_len = size - sizeof(struct udp_urpc_packet);
+        *ret_len = packet->size;
         memcpy(buf, packet->payload, MIN(len, *ret_len));
         free(packet);
         return SYS_ERR_OK;
@@ -144,6 +144,7 @@ errval_t sendto(struct udp_socket *socket, void *buf, size_t len,
     // Set destination
     packet->addr = to_addr;
     packet->port = to_port;
+    packet->size = len;
     
     // Copy message
     memcpy(packet->payload, buf, len);

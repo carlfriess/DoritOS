@@ -226,6 +226,7 @@ void udp_handle_packet(struct ip_packet_header *ip, uint8_t *buf, size_t len) {
     // Set source information
     packet->addr = ip->src;
     packet->port = header.src_port;
+    packet->size = len - 8;
 
     // Copy payload
     memcpy(packet->payload, buf + 8, len - 8);
@@ -289,10 +290,11 @@ static void udp_socket_send(struct udp_socket *socket,
     // Build header
     reply_header.src_port = socket->pub.port;
     reply_header.dest_port = packet->port;
-    reply_header.length = len - sizeof(struct udp_urpc_packet) + 8;
+    reply_header.length = packet->size + 8;
     
     // Compute checksum for payload
-    reply_header.checksum = inet_checksum((void *) packet->payload, len - sizeof(struct udp_urpc_packet));
+    reply_header.checksum = inet_checksum((void *) packet->payload,
+                                          packet->size);
     
     // Send IP header
     ip_send_header(packet->addr, IP_PROTOCOL_UDP, reply_header.length);
@@ -305,9 +307,7 @@ static void udp_socket_send(struct udp_socket *socket,
     free(reply_buf);
     
     // Send payload
-    ip_send((uint8_t *) packet->payload,
-            len - sizeof(struct udp_urpc_packet),
-            true);
+    ip_send((uint8_t *) packet->payload, packet->size, true);
     
 }
 
@@ -319,7 +319,7 @@ static void udp_handle_urpc(struct udp_socket *socket, void *buf, size_t size,
     
     switch (msg_type) {
         case URPC_MessageType_SocketOpen:
-            assert(sizeof(struct udp_socket_common) == size);
+            assert(sizeof(struct udp_socket_common) <= size);
             int e;
             if (!(e = udp_socket_open(socket,
                                       (struct udp_socket_common *) buf))) {
