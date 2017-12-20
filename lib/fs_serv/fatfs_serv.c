@@ -601,20 +601,20 @@ errval_t init_root_dir(void *st) {
     
     size_t err;
     
-    struct fatfs_serv_mount *mount = st;
+    struct fatfs_serv_mount *mt = st;
     
-    mount->root = create_dirent("/", BPB_RootClus, 0, true, 0, 0);
+    mt->root = create_dirent("/", BPB_RootClus, 0, true, 0, 0);
     
     //open_dirent(mount->root);
     
     size_t count = 0;
     
-    err = get_dir_entries_count(mount->root->first_cluster_nr, &count);
+    err = get_dir_entries_count(mt->root->first_cluster_nr, &count);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
     
-    debug_printf("Amount of entries in the root directory: %z\n", count);
+    debug_printf("Amount of entries in the root directory: %zu\n", count);
     
     return SYS_ERR_OK;
     
