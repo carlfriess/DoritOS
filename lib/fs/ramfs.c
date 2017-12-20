@@ -14,8 +14,7 @@
 #include <fs/fs.h>
 #include <fs/ramfs.h>
 
-#include "fs_internal.h"
-
+ 
 #define BULK_MEM_SIZE       (1U << 16)      // 64kB
 #define BULK_BLOCK_SIZE     BULK_MEM_SIZE   // (it's RPC)
 
@@ -46,7 +45,7 @@ struct ramfs_dirent
  */
 struct ramfs_handle
 {
-    struct fs_handle common;
+    //struct fs_handle common;
     char *path;
     bool isdir;
     struct ramfs_dirent *dirent;
