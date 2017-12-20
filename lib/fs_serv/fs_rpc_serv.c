@@ -289,17 +289,166 @@ errval_t run_rpc_serv(void) {
                 
                 break;
                 
+            case UMP_MessageType_OpenDir:
+                
+                debug_printf("UMP Message Open Directory Request!\n");
+                
+                // Copy path string from recieve buffer
+                path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
+                
+                // Open directory
+                err = fat_opendir((void *) &mount, path, &dirent);
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                    return err;
+                }
+                
+                // Free path string
+                free(path);
+                
+                // Set err as argument 1 of send message
+                send_msg.arg1 = err;
+                
+                // Size of send buffer
+                send_size = sizeof(struct fs_message) + sizeof(struct fat_dirent);
+                
+                // Allocate send buffer
+                send_buffer = calloc(1, send_size);
+                
+                // Copy fs_message into send buffer
+                memcpy(send_buffer, &send_msg, sizeof(struct fs_message));
+                
+                // Copy dirent into send buffers
+                memcpy(send_buffer + sizeof(struct fs_message), dirent, sizeof(struct fat_dirent));
+                
+                // Send response message to client
+                ump_send(&chan, send_buffer, send_size, UMP_MessageType_OpenDir);
+                
+                // Free send buffer
+                free(send_buffer);
+
+                break;
+                
+            case UMP_MessageType_ReadDir:
+                
+                debug_printf("UMP Message Read Directory Request!\n");
+
+                // Set directory index
+                dir_index = recv_msg->arg1;
+                
+                memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
+                
+                // Size of send buffer
+                send_size = sizeof(struct fs_message) + sizeof(struct fat_dirent);
+                
+                // Allocate send buffer
+                send_buffer = calloc(1, send_size);
+                
+                // Allocate return dirent
+                struct fat_dirent *ret_dirent = calloc(1, sizeof(struct fat_dirent));
+                
+                // Find dirent data
+                err = read_dir(dirent->first_cluster_nr, dir_index, &ret_dirent);
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                }
+            
+                // Set error
+                ((struct fs_message *) send_buffer)->arg1 = err;
+                
+                // Copy
+                if (err_is_ok(err)) {
+                    memcpy(send_buffer + sizeof(struct fs_message), ret_dirent, sizeof(struct fat_dirent));
+                }
+                
+                // Send response message to client
+                ump_send(&chan, send_buffer, send_size, UMP_MessageType_ReadDir);
+                
+                // Free return dirent
+                free(ret_dirent);
+                
+                // Free send buffer
+                free(send_buffer);
+                
+                break;
+                
+        case UMP_MessageType_MakeDir:
+
+                debug_printf("UMP Message Make Directory Request!\n");
+                
+                // Copy path string from recieve buffer
+                path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
+
+                // Make directory
+                err = fat_make_dir((void *) &mount, path);
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                }
+
+                // Size of send buffer
+                send_size = sizeof(struct fs_message);
+                
+                // Allocate send buffer
+                send_buffer = calloc(1, send_size);
+                
+                // Set error
+                ((struct fs_message *) send_buffer)->arg1 = err;
+                
+                // Send response message to client
+                ump_send(&chan, send_buffer, send_size, UMP_MessageType_MakeDir);
+                
+                // Free send buffer
+                free(send_buffer);
+                
+                break;
+                
+            case UMP_MessageType_RemoveDir:
+                
+                debug_printf("UMP Message Remove Directory Request!\n");
+
+                // Copy path string from recieve buffer
+                path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
+                
+                // Make directory
+                err = fat_remove_dir((void *) &mount, path);
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                }
+                
+                // Size of send buffer
+                send_size = sizeof(struct fs_message);
+                
+                // Allocate send buffer
+                send_buffer = calloc(1, send_size);
+                
+                // Set error
+                ((struct fs_message *) send_buffer)->arg1 = err;
+                
+                // Send response message to client
+                ump_send(&chan, send_buffer, send_size, UMP_MessageType_RemoveDir);
+                
+                // Free send buffer
+                free(send_buffer);
+                
+                break;
+                
             default:
                 
                 debug_printf("UMP Message Unknown Request!\n");
 
                 debug_printf("Received Message Type: %d", recv_msg_type);
                 
+                continue;
+                
                 break;
         }
         
+        memset(dirent, 0, sizeof(struct fat_dirent));
         
-        // TODO: Free receive buffer?
+        
+        // Free receive buffer
+        free(recv_buffer);
+
         
     }
     
