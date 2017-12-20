@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include <aos/aos_rpc.h>
 #include <aos/urpc.h>
@@ -199,6 +200,14 @@ int main(int argc, char *argv[]) {
         num_args = (len == 0) ? 0 : parse_args(args, len, buf, argstring);
 
         if (num_args > 0) {
+            
+            bool wait = true;
+            
+            if (!strcmp(args[num_args - 1], "&")) {
+                wait = false;
+                num_args--;
+            }
+            
             if (!strcmp(args[0], "help")) {
                 cmd_help();
             } else if (!strcmp(args[0], "exit")) {
@@ -223,7 +232,7 @@ int main(int argc, char *argv[]) {
                 errval_t err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), args[0], 1, &pid);
                 if (err_is_fail(err)) {
                     printf("%s: command not found\n", args[0]);
-                } else {
+                } else if (wait) {
                     aos_rpc_process_deregister_notify(pid);
                 }
 
