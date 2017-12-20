@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
     size_t len;
 
     while(true) {
-        printf("DoritOS: USER$ ");
+        printf("\033[34mDoritOS\033[0m: \033[32mUSER\033[0m$ ");
         fflush(stdout);
 
         memset(args, 0, MAX_CMDLINE_ARGS);
