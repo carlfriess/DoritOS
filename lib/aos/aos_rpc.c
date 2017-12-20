@@ -218,14 +218,7 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
         if (msg.words[0] != LMP_RequestType_MemoryAlloc) {
 
             debug_printf("Got ack of type: %d\n", msg.words[0]);
-
-            // Request resend
-            err = lmp_chan_send9(chan->lc, LMP_SEND_FLAGS_DEFAULT, *retcap, LMP_RequestType_Echo, msg.words[0], msg.words[1], msg.words[2], msg.words[3], msg.words[4], msg.words[5], msg.words[6], msg.words[7]);
-            if (err_is_fail(err)) {
-                debug_printf("%s\n", err_getstring(err));
-                return err;
-            }
-
+            
             // Allocate a new slot if necessary
             if (!capref_is_null(*retcap)) {
                 err = lmp_chan_alloc_recv_slot(chan->lc);
@@ -234,7 +227,14 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
                     return err;
                 }
             }
-
+        
+            // Request resend
+            err = lmp_chan_send9(chan->lc, LMP_SEND_FLAGS_DEFAULT, *retcap, LMP_RequestType_Echo, msg.words[0], msg.words[1], msg.words[2], msg.words[3], msg.words[4], msg.words[5], msg.words[6], msg.words[7]);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+                return err;
+            }
+            
         }
 
     } while (msg.words[0] != LMP_RequestType_MemoryAlloc);
@@ -496,19 +496,19 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *chan,
     // Receive the devframe capability
     lmp_client_recv(chan->lc, frame, &msg);
     
-    struct frame_identity id;
-    invoke_frame_identify(*frame, &id);
-    
-    debug_printf("Received %llx %llu\n", id.base, id.bytes);
-    
-    //debug_printf("%s\n", err_getstring((errval_t) msg.words[1]));
-    
     // Allocate recv slot
     err = lmp_chan_alloc_recv_slot(chan->lc);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
+    
+    struct frame_identity id;
+    invoke_frame_identify(*frame, &id);
+    
+    //debug_printf("Received %llx %llu\n", id.base, id.bytes);
+    
+    //debug_printf("%s\n", err_getstring((errval_t) msg.words[1]));
     
     return err;
     

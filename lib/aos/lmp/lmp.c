@@ -131,6 +131,13 @@ void lmp_server_dispatcher(void *arg) {
 #if PRINT_DEBUG
             debug_printf("Echo Message!\n");
 #endif
+            // Allocate a new slot if necessary
+            if (!capref_is_null(cap)) {
+                err = lmp_chan_alloc_recv_slot(lc);
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                }
+            }
             do {
                 err = lmp_chan_send8(lc,
                                LMP_SEND_FLAGS_DEFAULT,
@@ -248,10 +255,12 @@ errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align
     }
 
     // Responding by sending the ram capability back
-    err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, ram, LMP_RequestType_MemoryAlloc, SYS_ERR_OK);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-    }
+    do {
+        err = lmp_chan_send2(lc, LMP_SEND_FLAGS_DEFAULT, ram, LMP_RequestType_MemoryAlloc, SYS_ERR_OK);
+        if (err_is_fail(err)) {
+            debug_printf("%s. Retrying..\n", err_getstring(err));
+        }
+    } while (err_is_fail(err));
     
     // Deleting the ram capability
     cap_delete(ram);
