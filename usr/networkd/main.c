@@ -78,10 +78,6 @@ int main(int argc, char *argv[]) {
     ip_set_ip_address(10, 0, 2, 1);
     
     
-    domainid_t pid;
-    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "udp_echo", 0, &pid);
-    
-    
     // MARK: - Message handling
     
     // Get default waitset
