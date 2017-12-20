@@ -33,6 +33,7 @@
 #define UMP_MessageType_RegisterProcessAck  8
 #define UMP_MessageType_UrpcBindRequest     9
 #define UMP_MessageType_UrpcBindAck         10
+#define UMP_MessageType_DeregisterForward   11
 
 #define UMP_MessageType_User0  32
 #define UMP_MessageType_User1  33
@@ -84,11 +85,11 @@ struct ump_buf {
 void ump_chan_init(struct ump_chan *chan, uint8_t buf_select);
 
 // Send a buffer of at most UMP_SLOT_DATA_BYTES bytes on the UMP channel
-errval_t ump_send_one(struct ump_chan *chan, void *buf, size_t size,
+errval_t ump_send_one(struct ump_chan *chan, const void *buf, size_t size,
                        ump_msg_type_t msg_type, uint8_t last);
 
 // Send a buffer on the UMP channel
-errval_t ump_send(struct ump_chan *chan, void *buf, size_t size,
+errval_t ump_send(struct ump_chan *chan, const void *buf, size_t size,
                    ump_msg_type_t msg_type);
 
 // Receive a buffer of UMP_SLOT_DATA_BYTES bytes on the UMP channel

@@ -17,9 +17,25 @@
 
 #include <aos/aos.h>
 
+#define URPC_MessageType_TerminalWrite              URPC_MessageType_User0
+#define URPC_MessageType_TerminalWriteUnlock        URPC_MessageType_User1
+#define URPC_MessageType_TerminalRead               URPC_MessageType_User2
+#define URPC_MessageType_TerminalReadUnlock         URPC_MessageType_User3
+
+#define LMP_MessageType_ProcessDeregister          URPC_MessageType_User0
+#define LMP_MessageType_ProcessDeregisterNotify    URPC_MessageType_User0
+
+struct terminal_msg {
+    errval_t err;
+    bool lock;
+    char c;
+};
+
 struct aos_rpc {
     // TODO: add state for your implementation
     struct lmp_chan *lc;
+    struct waitset mem_ws;  // Dedicated waitset for memory requests
+    struct urpc_chan *uc;
 };
 
 size_t aos_rpc_terminal_write(const char* buf, size_t len);
@@ -82,6 +98,11 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
                                       domainid_t **pids, size_t *pid_count);
 
 /**
+ * \brief Returns the PID for the process with the given name.
+ */
+errval_t aos_rpc_process_get_pid_by_name(const char *name, domainid_t *pid);
+
+/**
  * \brief Gets a capability to device registers
  * \param chan  the rpc channel
  * \param paddr physical address of the device
@@ -90,6 +111,18 @@ errval_t aos_rpc_process_get_all_pids(struct aos_rpc *chan,
  */
 errval_t aos_rpc_get_device_cap(struct aos_rpc *chan, lpaddr_t paddr, size_t bytes,
                                 struct capref *frame);
+
+/**
+ * \brief Deregister process with init. Will not return;
+ */
+errval_t aos_rpc_process_deregister(void);
+
+/**
+ * \brief Blocks until given process deregisters
+ * \param pid PID of process to wait on
+ */
+errval_t aos_rpc_process_deregister_notify(domainid_t pid);
+
 /**
  * \brief Initialize given rpc channel.
  * TODO: you may want to change the inteface of your init function, depending

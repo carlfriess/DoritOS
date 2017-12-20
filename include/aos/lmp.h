@@ -70,19 +70,6 @@
  *
  * cap: NULL_CAP
  *
- * ==== Terminal Get Char ====
- *
- * arg0: enum lmp_request_type RequestType = LMP_RequestType_TerminalGetChar
- *
- * cap: NULL_CAP
- *
- * ==== Terminal Put Char ====
- *
- * arg0: enum lmp_request_type RequestType = LMP_RequestType_TerminalPutChar
- * arg1: char Char
- *
- * cap: NULL_CAP
- *
  * ==== DeviceCap ====
  *
  * arg0: enum lmp_request_type RequestType = LMP_RequestType_DeviceCap
@@ -187,6 +174,8 @@ enum lmp_request_type {
   
     LMP_RequestType_StringShort,
     LMP_RequestType_StringLong,
+    LMP_RequestType_BufferShort,
+    LMP_RequestType_BufferLong,
     LMP_RequestType_SpawnShort,
     LMP_RequestType_SpawnLong,
     
@@ -201,10 +190,12 @@ enum lmp_request_type {
     LMP_RequestType_Spawn,
     LMP_RequestType_NameLookup,
     LMP_RequestType_PidDiscover,
-    LMP_RequestType_TerminalGetChar,
-    LMP_RequestType_TerminalPutChar,
     LMP_RequestType_Echo,
-    LMP_RequestType_UmpBind
+    LMP_RequestType_UmpBind,
+    LMP_RequestType_LmpBind,
+
+    LMP_RequestType_ProcessDeregister,
+    LMP_RequestType_ProcessDeregisterNotify
 };
 
 typedef errval_t (*lmp_server_spawn_handler)(char *name, coreid_t coreid, domainid_t *pid);
@@ -220,14 +211,15 @@ errval_t lmp_server_memory_alloc(struct lmp_chan *lc, size_t bytes, size_t align
 void register_ram_free_handler(ram_free_handler_t ram_free_function);
 errval_t lmp_server_memory_free(struct lmp_chan *lc, struct capref cap);
 errval_t lmp_server_pid_discovery(struct lmp_chan *lc);
-void lmp_server_terminal_putchar(struct lmp_chan *lc, char c);
-void lmp_server_terminal_getchar(struct lmp_chan *lc);
+errval_t lmp_server_process_deregister(struct lmp_chan *lc);
+errval_t lmp_server_process_deregister_notify(struct lmp_chan *lc, domainid_t pid);
 
 errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes);
 
 /* MARK: - ========== Client ========== */
 
 void lmp_client_recv(struct lmp_chan *arg, struct capref *cap, struct lmp_recv_msg *msg);
+void lmp_client_recv_waitset(struct lmp_chan *lc, struct capref *cap, struct lmp_recv_msg *msg, struct waitset *ws);
 void lmp_client_wait(void *arg);
 
 
@@ -242,6 +234,22 @@ errval_t lmp_recv_string(struct lmp_chan *lc, char **string);
 // Process a string received through a message (automatically select protocol)
 errval_t lmp_recv_string_from_msg(struct lmp_chan *lc, struct capref cap,
                                   uintptr_t *words, char **string);
+
+
+/* MARK: - ========== Buffer ========== */
+
+// Send a buffer on a specific channel (automatically select protocol)
+errval_t lmp_send_buffer(struct lmp_chan *lc, const void *buf,
+                         size_t buf_len, uint8_t msg_type);
+
+// Blocking call to receive a buffer on a channel (automatically select protocol)
+errval_t lmp_recv_buffer(struct lmp_chan *lc, void **buf, size_t *len,
+                         uint8_t *msg_type);
+
+// Process a buffer received through a message (automatically select protocol)
+errval_t lmp_recv_buffer_from_msg(struct lmp_chan *lc, struct capref cap,
+                                  uintptr_t *words, void **buf, size_t *len,
+                                  uint8_t *msg_type);
 
 
 /* MARK: - ========== Spawn ========== */
@@ -262,10 +270,10 @@ errval_t lmp_recv_spawn_from_msg(struct lmp_chan *lc, struct capref cap,
 /* MARK: - ========== Send buffer ==========  */
 
 // Send a short buffer (using LMP arguments)
-errval_t lmp_send_short_buf(struct lmp_chan *lc, enum lmp_request_type type, void *buf, size_t size);
+errval_t lmp_send_short_buf(struct lmp_chan *lc, uintptr_t type, void *buf, size_t size);
 
 // Send an entire frame capability
-errval_t lmp_send_frame(struct lmp_chan *lc, enum lmp_request_type type, struct capref frame_cap, size_t frame_size);
+errval_t lmp_send_frame(struct lmp_chan *lc, uintptr_t type, struct capref frame_cap, size_t frame_size);
 
 
 /* MARK: - ========== Receive buffer ==========  */
@@ -284,6 +292,37 @@ errval_t lmp_recv_frame(struct lmp_chan *lc, enum lmp_request_type type, struct 
 errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, enum lmp_request_type type, struct capref msg_cap,
                                  uintptr_t *words, struct capref *frame_cap,
                                  size_t *size);
+
+
+
+/* MARK: - ========== Send buffer (FAST) ==========  */
+
+// Send a short buffer (using LMP arguments)
+errval_t lmp_send_short_buf_fast(struct lmp_chan *lc, uintptr_t type, void *buf, size_t size);
+
+// Send an entire frame capability
+errval_t lmp_send_frame_fast(struct lmp_chan *lc, uintptr_t type, struct capref frame_cap, size_t frame_size);
+
+
+/* MARK: - ========== Receive buffer (FAST) ==========  */
+
+// Receive a short buffer on a channel (using LMP arguments)
+errval_t lmp_recv_short_buf_fast(struct lmp_chan *lc, enum lmp_request_type type, void **buf, size_t *size);
+
+// Process a short buffer received through a message (using LMP arguments)
+errval_t lmp_recv_short_buf_from_msg_fast(struct lmp_chan *lc, enum lmp_request_type type, uintptr_t *words,
+                                     void **buf, size_t *size);
+
+// Receive a frame on a channel
+errval_t lmp_recv_frame_fast(struct lmp_chan *lc, enum lmp_request_type type, struct capref *frame_cap, size_t *size);
+
+// Process a frame received through a message
+errval_t lmp_recv_frame_from_msg_fast(struct lmp_chan *lc, enum lmp_request_type type, struct capref msg_cap,
+                                 uintptr_t *words, struct capref *frame_cap,
+                                 size_t *size);
+
+// Deregistration Forwarding
+void notify_deregister_listeners(domainid_t pid);
 
 
 #endif

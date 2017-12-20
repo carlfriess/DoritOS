@@ -102,7 +102,7 @@ errval_t spawn_serv_handler(char *name, coreid_t coreid, domainid_t *pid) {
     // Free the process info for memeater
     free(si);
     
-    print_process_list();
+    //print_process_list();
  
     return err;
     
