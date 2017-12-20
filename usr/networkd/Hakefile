@@ -17,7 +17,8 @@
                             "icmp.c",
                             "ip.c",
                             "slip.c",
-                            "udp.c"
+                            "udp.c",
+                            "../../tools/tunslip/hexdump.c"
                         ],
                         addLibraries = [ "netutil" ],
                         architectures = ["armv7"]
