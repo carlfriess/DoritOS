@@ -197,6 +197,7 @@ int main(int argc, char *argv[]) {
                         urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalReadUnlock);
                         break;
                 }
+                free((void *) in);
             }
         }
         collections_list_traverse_end(urpc_chan_list);
