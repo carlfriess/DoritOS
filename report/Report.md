@@ -112,6 +112,26 @@ Thanks to the provided `twolevel_slot_alloc` and `single_slot_alloc` slot alloca
 We were also provided with a slot pre-allocator. However, we weren't sure what was intended for and didn't use it. Instead we simply implemented the `slab_refill_no_pagefault(struct slab_allocator *slabs, struct capref frame, size_t minbytes)` method using only the `slab_default_refill()`, which only executes the previously discussed `slab_refill_pages()`.
 
 
+## Spawning Processes
+
+Content.
+
+
+## Lightweight Message Passing (LMP)
+
+Content.
+
+
+## Virtual Memory and Paging
+
+Content.
+
+
+## Multicore
+
+Content.
+
+
 ## User-level Message Passing (UMP)
 
 Since LMP does not work between cores, we implemented User-level Message Passing to establish communication. The protocol leverages the cache coherency protocol between cores, by writing to cache line sized slots in shared memory. In our case we are using cache lines in pairs allowing us to send 63 byte sized messages.
@@ -333,6 +353,16 @@ This family of functions is very similar to the `lmp_send_string()` and `lmp_rec
 Overall, the URPC API has proven to be extremely useful and was used in all of our individual projects. Most notably, it provides a direct abstraction for sockets in the network stack. It is also significantly simpler to use than just bare UMP or LMP channels.
 
 On the other hand, the API does not support sending capabilities in any way. This could be tricky to add, since it isn't supported in UMP either and some involvement of the init process would be necessary. Due to how process management is currently structured, the API also does not support binding with any instance init. However, if these features were implemented, the API would provide the ideal foundation to implement functionality such as memory management, which currently uses the `aos_rpc` calls.
+
+
+## TurtleSHELL (Sven Knobloch)
+
+Content.
+
+
+## Filesystem (Sebastian Winberg)
+
+Content.
 
 
 ## Network Stack (Carl Friess)
