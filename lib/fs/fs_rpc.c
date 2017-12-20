@@ -16,8 +16,8 @@
 #include "fs_internal.h"
 //#include <fs/fopen.c>
 
-
 #include <fs/fs_rpc.h>
+#include <fs_serv/fat_helper.h>
 
 //typedef struct fat32fs_handle *fat32fs_handle_t;
 
@@ -334,7 +334,7 @@ errval_t fs_rpc_read(void *st, fat32fs_handle_t handle, void *buffer, size_t byt
     memcpy(send_buffer, &send_msg, sizeof(struct fs_message));
     
     // Copy dirent into send buffer
-    memcpy(send_buffer + sizeof(struct fs_message), handle->dirent, sizeof(struct fat_dirent));
+    memcpy(send_buffer + sizeof(struct fs_message), h->dirent, sizeof(struct fat_dirent));
     
     // Send request message to server
     ump_send(&chan, send_buffer, send_size, UMP_MessageType_Read);
@@ -364,7 +364,7 @@ errval_t fs_rpc_read(void *st, fat32fs_handle_t handle, void *buffer, size_t byt
     assert(ret_bytes + sizeof(struct fs_message) <= recv_size);
     
     // Update file position
-    handle->file_pos += ret_bytes;
+    h->pos += ret_bytes;
     
     // Copy read data from receive buffer into buffer
     memcpy(buffer, recv_buffer + sizeof(struct fs_message), ret_bytes);
@@ -417,7 +417,10 @@ errval_t fs_rpc_write(void *st, fat32fs_handle_t handle, const void *buffer,
     memcpy(send_buffer, &send_msg, sizeof(struct fs_message));
     
     // Copy dirent into send buffer
-    memcpy(send_buffer + sizeof(struct fs_message), handle->dirent, sizeof(struct fat_dirent));
+    memcpy(send_buffer + sizeof(struct fs_message), h->dirent, sizeof(struct fat_dirent));
+    
+    // Copy buffer into send buffer
+    memcpy(send_buffer + sizeof(struct fs_message) + sizeof(struct fat_dirent), buffer, bytes);
     
     // Send request message to server
     ump_send(&chan, send_buffer, send_size, UMP_MessageType_Write);
@@ -445,7 +448,7 @@ errval_t fs_rpc_write(void *st, fat32fs_handle_t handle, const void *buffer,
     size_t ret_bytes = recv_msg->arg2;
     
     // Update file position
-    handle->file_pos += ret_bytes;
+    h->pos += ret_bytes;
     
     // Set return argument bytes written by server
     *bytes_written = ret_bytes;
@@ -457,28 +460,86 @@ errval_t fs_rpc_write(void *st, fat32fs_handle_t handle, const void *buffer,
     
 }
 
-// TODO:
-//errval_t ramfs_truncate(void *st, ramfs_handle_t handle, size_t bytes);
+/// -> [fs_message] | [dirent]
+/// <- [fs_message]
+errval_t fs_rpc_truncate(void *st, fat32fs_handle_t handle, size_t bytes) {
+    
+    errval_t err;
+    
+    struct fat32fs_handle *h = handle;
+    
+    struct fs_message send_msg = {
+        .arg1 = bytes,
+        .arg2 = 0,
+        .arg3 = 0,
+        .arg4 = 0
+    };
+    
+    // Size of send buffer
+    size_t send_size = sizeof(struct fs_message) + sizeof(struct fat_dirent);
+
+    // Allocate send buffer
+    uint8_t *send_buffer = calloc(1, send_size);
+    
+    // Copy fs_message into send buffer
+    memcpy(send_buffer, &send_msg, sizeof(struct fs_message));
+    
+    // Copy path (including '\0' into send buffers
+    memcpy(send_buffer + sizeof(struct fs_message), h->dirent, sizeof(struct fat32fs_handle));
+    
+    // Send request message to server
+    ump_send(&chan, send_buffer, send_size, UMP_MessageType_Truncate);
+    
+    // Receive response message from server
+    size_t recv_size;
+    ump_msg_type_t recv_msg_type;
+    uint8_t *recv_buffer;
+    
+    // Wait for response from server
+    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    
+    assert(recv_msg_type == UMP_MessageType_Truncate);
+    
+    // Receive header response message
+    struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
+    
+    // Set error
+    err = recv_msg->arg1;
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
+    // Free receive buffer
+    free(recv_buffer);
+    
+    return err;
+    
+}
 
 
 
 // TODO: handle void pointer?
-errval_t fs_rpc_tell(void *st, struct fat32fs_handle *handle, size_t *pos) {
+errval_t fs_rpc_tell(void *st, fat32fs_handle_t handle, size_t *ret_pos) {
     
     assert(handle != NULL);
+    assert(ret_pos != NULL);
+    
+    struct fat32fs_handle *h = handle;
     
     //struct fat32_handle *h = handle;
     
     // Check if handle is directory or file
-    if (handle->isdir) {
+    if (h->isdir) {
         
         // Set pos to 0
-        *pos = 0;
+        *ret_pos = 0;
+        //*pos = handle->pos;       // TODO: Why not?
+
     
     } else {
         
-        // Set pos to file_pos of handle
-        *pos = handle->file_pos;
+        // Set return position
+        *ret_pos = h->pos;
     
     }
     
