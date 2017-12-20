@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <aos/aos.h>
 
@@ -25,18 +26,6 @@ int main(int argc, char *argv[]) {
     }
     
     struct udp_socket s;
-    
-    err = socket(&s, port);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return 1;
-    }
-    
-    err = close(&s);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return 1;
-    }
     
     err = socket(&s, port);
     if (err_is_fail(err)) {
@@ -72,6 +61,18 @@ int main(int argc, char *argv[]) {
         
         printf("Echoed: %s\n", buf);
         
+        if (!strcmp(buf, "exit\n")) {
+            break;
+        }
+        
+        memset(buf, 0, sizeof(buf));
+        
+    }
+    
+    err = close(&s);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return 1;
     }
     
     return 0;
