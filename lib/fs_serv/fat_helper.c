@@ -86,7 +86,6 @@ char *convert_to_fat_name(const char *name) {
     
 }
 
-__attribute__((unused))
 char *convert_to_normal_name(char *fat_name) {
     
     // Head pointer of fat name

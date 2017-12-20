@@ -89,6 +89,8 @@ uint32_t getFATEntry(size_t n);
 
 errval_t setFATEntry(size_t n, uint32_t value);
 
+ // TODO: Differentiate between fat_open and fat_opendir with wrapper function!!!
+
 errval_t fat_open(void *st, char *path, struct fat_dirent **ret_dirent);
 
 errval_t fat_create(void *st, char *path, struct fat_dirent **ret_dirent);
@@ -121,7 +123,6 @@ errval_t init_root_dir(void *st);
 
 errval_t remove_dirent(struct fat_dirent *dirent);
 
-
 // DIRECTORY ENTRY HELPER FUNCTIONS
 
 errval_t get_dir_entries_count(size_t cluster_nr, size_t *ret_count);
@@ -141,13 +142,23 @@ errval_t set_dir_entry_size(size_t cluster_nr, size_t pos, size_t file_size);
 
 errval_t add_dir_entry_size(size_t cluster_nr, size_t pos, int delta, size_t *ret_size);
 
+errval_t fat_opendir(void *st, char *path, struct fat_dirent **ret_dirent);
 
-
+errval_t read_dir(size_t cluster_nr, size_t dir_index, struct fat_dirent **ret_dirent);
 
 errval_t remove_fat_entries(size_t cluster_nr);
 
+errval_t remove_fat_entries_from(size_t cluster_nr, size_t start_index);
+
+errval_t fat_make_dir(void *st, char *path);
+
+errval_t fat_remove_dir(void *st, char *path);
+
 errval_t read_dirent(struct fat_dirent *dirent, void *buffer, size_t start, size_t bytes, size_t *bytes_read);
 errval_t write_dirent(struct fat_dirent *dirent, void *buffer, size_t start, size_t bytes, size_t *bytes_written);
+
+errval_t truncate_dirent(struct fat_dirent *dirent, size_t bytes);
+
 
 errval_t read_cluster(size_t cluster_nr, void *buffer);
 errval_t write_cluster(size_t cluster_nr, void *buffer);
