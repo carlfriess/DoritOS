@@ -220,7 +220,7 @@ int main(int argc, char *argv[]) {
 
                 // Spawn process
                 domainid_t pid;
-                err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), args[0], 1, &pid);
+                errval_t err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), args[0], 1, &pid);
                 if (err_is_fail(err)) {
                     printf("%s: command not found\n", args[0]);
                 } else {
