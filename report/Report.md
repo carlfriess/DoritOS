@@ -316,6 +316,10 @@ Upon receiving the request, the server also creates an LMP endpoint using `lmp_c
 
 After the client's LMP channel is initialised it sends an acknowledgment to the server over the LMP channel. The server then finishes the binding process by sending the same acknowledgment as with UMP using `urpc_send()`, ensuring that the URPC is fully set up.
 
+### PID discovery
+
+The decision to use PIDs for binding was mostly based on the need for a unique identifier of processes, given the lack of a name-server. However, depending on the use-case, the PID of a target process may not be well know. To this end, we implemented a simple method for PID discovery by name: `aos_rpc_process_get_pid_by_name(const char *name, domainid_t *pid)`. This method is particularly useful when binding to services. It uses an RPC call to get an array of all PIDs of running processes. It then iterates the array and makes an RPC call for each PID to get the name of the process.
+
 ### Conclusion
 
 Overall, the URPC API has proven to be extremely useful and was used in all of our individual projects. Most notably, it provides a direct abstraction for sockets in the network stack. It is also significantly simpler to use than just bare UMP or LMP channels.
