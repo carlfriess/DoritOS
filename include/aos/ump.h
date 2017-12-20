@@ -34,15 +34,18 @@
 #define UMP_MessageType_UrpcBindRequest     9
 #define UMP_MessageType_UrpcBindAck         10
 
-#define UMP_MessageType_User0 32
-#define UMP_MessageType_User1 33
-#define UMP_MessageType_User2 34
-#define UMP_MessageType_User3 35
-#define UMP_MessageType_User4 36
-#define UMP_MessageType_User5 37
-#define UMP_MessageType_User6 38
-#define UMP_MessageType_User7 39
-
+#define UMP_MessageType_User0  32
+#define UMP_MessageType_User1  33
+#define UMP_MessageType_User2  34
+#define UMP_MessageType_User3  35
+#define UMP_MessageType_User4  36
+#define UMP_MessageType_User5  37
+#define UMP_MessageType_User6  38
+#define UMP_MessageType_User7  39
+#define UMP_MessageType_User8  40
+#define UMP_MessageType_User9  41
+#define UMP_MessageType_User10 42
+#define UMP_MessageType_User11 43
 
 // UMP message types type
 typedef uint8_t ump_msg_type_t;
