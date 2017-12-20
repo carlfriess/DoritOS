@@ -193,28 +193,45 @@ int main(int argc, char *argv[]) {
         memset(argstring, 0, BUF_SIZE);
         memset(buf, 0, BUF_SIZE);
 
+        len = get_input((char *) buf, BUF_SIZE);
+        printf("\n");
 
-        num_args = parse_args(args, len, buf, argstring);
+        num_args = (len == 0) ? 0 : parse_args(args, len, buf, argstring);
 
         if (num_args > 0) {
             if (!strcmp(args[0], "help")) {
                 cmd_help();
+            } else if (!strcmp(args[0], "exit")) {
+                printf("Exiting shell. Goodbye!\n");
+                break;
             } else if (!strcmp(args[0], "echo")) {
                 cmd_echo(num_args, args);
+            } else if (!strcmp(args[0], "ls")) {
+                cmd_ls(num_args, args);
+            } else if (!strcmp(args[0], "cat")) {
+                cmd_cat(num_args, args);
+            } else if (!strcmp(args[0], "mkdir")) {
+                cmd_mkdir(num_args, args);
+            } else if (!strcmp(args[0], "rmdir")) {
+                cmd_rmdir(num_args, args);
             } else {
                 // Allocate spawninfo
                 struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
 
                 // Spawn process
                 domainid_t pid;
-                err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), args[0], 0, &pid);
+                err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), args[0], 1, &pid);
                 if (err_is_fail(err)) {
                     printf("%s: command not found\n", args[0]);
+                } else {
+                    aos_rpc_process_deregister_notify(pid);
                 }
 
                 // Free spawninfo
                 free(si);
             }
+        } else {
+            printf("\n");
         }
     }
 
