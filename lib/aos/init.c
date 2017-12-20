@@ -41,6 +41,7 @@ void libc_exit(int);
 
 void libc_exit(int status)
 {
+    aos_rpc_process_deregister();
     // Use spawnd if spawned through spawnd
     if(disp_get_domain_id() == 0) {
         errval_t err = cap_revoke(cap_dispatcher);
@@ -75,6 +76,7 @@ static void libc_assert(const char *expression, const char *file,
     sys_print(buf, len < sizeof(buf) ? len : sizeof(buf));
 }
 
+/*
 static size_t syscall_terminal_write(const char *buf, size_t len)
 {
     if (len) {
@@ -88,6 +90,7 @@ static size_t dummy_terminal_read(char *buf, size_t len)
     debug_printf("terminal read NYI! returning %d characters read\n", len);
     return len;
 }
+*/
 
 /* Set libc function pointers */
 void barrelfish_libc_glue_init(void)
@@ -96,13 +99,8 @@ void barrelfish_libc_glue_init(void)
     // what we need for that
     // TODO: change these to use the user-space serial driver if possible
 
-    if (init_domain) {
-        _libc_terminal_read_func = dummy_terminal_read;
-        _libc_terminal_write_func = syscall_terminal_write;
-    } else {
-        _libc_terminal_read_func = aos_rpc_terminal_read;
-        _libc_terminal_write_func = aos_rpc_terminal_write;
-    }
+    _libc_terminal_read_func = aos_rpc_terminal_read;
+    _libc_terminal_write_func = aos_rpc_terminal_write;
 
     _libc_exit_func = libc_exit;
     _libc_assert_func = libc_assert;
@@ -203,22 +201,23 @@ errval_t barrelfish_init_onthread(struct spawn_domain_params *params)
     // Initialize capref and message
     struct capref cap;
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
-    
+
     // Wait on response
     lmp_client_recv(lc, &cap, &msg);
-    
+
     // Initialize RPC state and register it in application's core state
     struct aos_rpc *aos_rpc_state = malloc(sizeof(struct aos_rpc));
     if (aos_rpc_state == NULL) {
         return LIB_ERR_MALLOC_FAIL;
     }
-    aos_rpc_init(aos_rpc_state, lc);
-    set_init_rpc(aos_rpc_state);
 
     /* TODO MILESTONE 3: now we should have a channel with init set up and can
      * use it for the ram allocator */
 
     ram_alloc_set(NULL);
+
+    aos_rpc_init(aos_rpc_state, lc);
+    set_init_rpc(aos_rpc_state);
 
     // right now we don't have the nameservice & don't need the terminal
     // and domain spanning, so we return here

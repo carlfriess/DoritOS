@@ -28,7 +28,7 @@ void ump_chan_init(struct ump_chan *chan, uint8_t buf_select) {
 }
 
 // Send a buffer of at most UMP_SLOT_DATA_BYTES bytes on the URPC channel
-errval_t ump_send_one(struct ump_chan *chan, void *buf, size_t size,
+errval_t ump_send_one(struct ump_chan *chan, const void *buf, size_t size,
                        ump_msg_type_t msg_type, uint8_t last) {
     
     // Check for invalid sizes
@@ -65,11 +65,11 @@ errval_t ump_send_one(struct ump_chan *chan, void *buf, size_t size,
 }
 
 // Send a buffer on the UMP channel
-errval_t ump_send(struct ump_chan *chan, void *buf, size_t size,
+errval_t ump_send(struct ump_chan *chan, const void *buf, size_t size,
                    ump_msg_type_t msg_type) {
-    
+
     errval_t err = SYS_ERR_OK;
-    
+
     while (size > 0) {
         
         size_t msg_size = MIN(size, UMP_SLOT_DATA_BYTES);
@@ -115,51 +115,50 @@ errval_t ump_recv_one(struct ump_chan *chan, void *buf,
 
     // Memory barrier
     dmb();
-    
+
     // Mark the message as invalid
     rx_buf->slots[chan->rx_counter].valid = 0;
-    
+
     // Set the index of the next slot to read
     chan->rx_counter = (chan->rx_counter + 1) % UMP_NUM_SLOTS;
-    
+
     return SYS_ERR_OK;
     
 }
 
 // Receive a buffer of `size` bytes on the UMP channel
 errval_t ump_recv(struct ump_chan *chan, void **buf, size_t *size,
-                   ump_msg_type_t *msg_type) {
-    
+                   ump_msg_type_t* msg_type) {
     errval_t err = SYS_ERR_OK;
-    
+
     uint8_t last;
-    
+
     // Allocate memory for the first message
     *size = UMP_SLOT_DATA_BYTES;
     *buf = malloc(*size);
     if (*buf == NULL) {
         return LIB_ERR_MALLOC_FAIL;
     }
-    
+
     // Check that we have received an initial message
     err = ump_recv_one(chan, *buf, msg_type, &last);
     if (err_is_fail(err)) {
         free(*buf);
         return err;
     }
-    
+
     // Loop until we received the final message
     while (!last) {
-        
+
         ump_msg_type_t this_msg_type;
-        
+
         // Allocate more space for the next message
         *size += UMP_SLOT_DATA_BYTES;
         *buf = realloc(*buf, *size);
         if (*buf == NULL) {
             return LIB_ERR_MALLOC_FAIL;
         }
-        
+
         // Receive the next message
         err = ump_recv_one(chan,
                             *buf + *size - UMP_SLOT_DATA_BYTES,

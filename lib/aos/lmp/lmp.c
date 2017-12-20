@@ -1,4 +1,7 @@
 #include <stdio.h>
+
+#include <collections/list.h>
+
 #include <aos/aos.h>
 #include <aos/waitset.h>
 #include <aos/lmp.h>
@@ -6,6 +9,7 @@
 #include <aos/urpc.h>
 #include <aos/process.h>
 #include <aos/domain.h>
+#include <aos/aos_rpc.h>
 
 #define MAX_ALLOCATION 100000000
 
@@ -21,7 +25,7 @@ extern struct ump_chan init_uc;
 void lmp_server_dispatcher(void *arg) {
 
 #if PRINT_DEBUG
-    debug_printf("LMP Message Received!\n");
+    debug_printf("LMP Message Received from PID %d!\n", process_pid_for_lmp_chan((struct lmp_chan *) arg));
 #endif
 
     errval_t err;
@@ -122,23 +126,7 @@ void lmp_server_dispatcher(void *arg) {
             lmp_server_pid_discovery(lc);
             break;
             
-            
-        case LMP_RequestType_TerminalGetChar:
-#if PRINT_DEBUG
-            debug_printf("Terminal Get Message!\n");
-#endif
-            lmp_server_terminal_getchar(lc);
-            break;
-            
-            
-        case LMP_RequestType_TerminalPutChar:
-#if PRINT_DEBUG
-            debug_printf("Terminal Message!\n");
-#endif
-            lmp_server_terminal_putchar(lc, msg.words[1]);
-            break;
-            
-            
+
         case LMP_RequestType_Echo:
 #if PRINT_DEBUG
             debug_printf("Echo Message!\n");
@@ -174,12 +162,28 @@ void lmp_server_dispatcher(void *arg) {
             break;
         
         case LMP_RequestType_DeviceCap:
-            
+
+#if PRINT_DEBUG
             debug_printf("Device Capability Message!\n");
-            
+#endif
+
             // Retype device capability and send that back to client
             lmp_server_device_cap(lc, msg.words[1], msg.words[2]);
             
+            break;
+
+        case LMP_RequestType_ProcessDeregister:
+#if PRINT_DEBUG
+            debug_printf("Process Deregister Message!\n");
+#endif
+            lmp_server_process_deregister(lc);
+            break;
+
+        case LMP_RequestType_ProcessDeregisterNotify:
+#if PRINT_DEBUG
+            debug_printf("Process Deregister Notify Message!\n");
+#endif
+            lmp_server_process_deregister_notify(lc, msg.words[1]);
             break;
             
         default:
@@ -338,57 +342,6 @@ errval_t lmp_server_pid_discovery(struct lmp_chan *lc) {
     
 }
 
-// TERMINALSERV: Handle requests to get a char
-void lmp_server_terminal_getchar(struct lmp_chan *lc) {
-    errval_t err = SYS_ERR_OK;
-    char c = '\0';
-
-    // UMP call if not core 0
-    if (!disp_get_core_id()) {
-        while (c == '\0') {
-            sys_getchar(&c);
-        }
-    }
-    else {
-        ump_msg_type_t msg_type = UMP_MessageType_TerminalGetChar;
-        size_t size = sizeof(char);
-        void *ptr;
-
-        // Send request message
-        ump_send(&init_uc, &c, size, msg_type);
-
-        // Receive response
-        ump_recv_blocking(&init_uc, &ptr, &size, &msg_type);
-        assert(msg_type == UMP_MessageType_TerminalGetCharAck);
-        c = *((char *) ptr);
-    }
-
-    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalGetChar, err, c);
-}
-
-// TERMINALSERV: Handle requests to print a char
-void lmp_server_terminal_putchar(struct lmp_chan *lc, char c) {
-    errval_t err = SYS_ERR_OK;
-
-    if (!disp_get_core_id()) {
-        sys_print(&c, sizeof(char));
-    }
-    else {
-        size_t size = sizeof(char);
-        void *ptr;
-
-        ump_msg_type_t msg_type = UMP_MessageType_TerminalPutChar;
-
-        ump_send(&init_uc, &c, size, msg_type);
-
-        ump_recv_blocking(&init_uc, &ptr, &size, &msg_type);
-        assert(msg_type == UMP_MessageType_TerminalPutCharAck);
-    }
-
-
-    lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_TerminalPutChar, err, c);
-}
-
 errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes) {
     
     errval_t err;
@@ -431,28 +384,115 @@ errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes
     
 }
 
+// List Helper Functions
+
+static collections_listnode *deregister_listeners;
+static collections_listnode *dead_processes;
+
+struct process_listener {
+    domainid_t pid;
+    struct lmp_chan *lc;
+};
+
+
+static int deregister_listeners_visit(void *data, void *arg) {
+    struct process_listener *process_listener = (struct process_listener *) data;
+
+    if (process_listener->pid == *(domainid_t *) arg) {
+        lmp_chan_send1(process_listener->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_ProcessDeregisterNotify);
+    }
+    return 0;
+}
+
+static int32_t deregister_listeners_remove(void *data, void *arg) {
+    struct process_listener *process_listener = (struct process_listener *) data;
+    return process_listener->pid == *(domainid_t *) arg;
+}
+
+void notify_deregister_listeners(domainid_t pid) {
+    if (deregister_listeners == NULL || dead_processes == NULL) {
+        collections_list_create(&deregister_listeners, free);
+        collections_list_create(&dead_processes, free);
+    }
+
+    collections_list_visit(deregister_listeners, deregister_listeners_visit, &pid);
+    collections_list_remove_if(deregister_listeners, deregister_listeners_remove, &pid);
+}
+
+static int dead_processes_find(void *data, void *arg) {
+    return *(domainid_t *) data == *(domainid_t *) arg;
+}
+
+errval_t lmp_server_process_deregister(struct lmp_chan *lc) {
+    if (deregister_listeners == NULL || dead_processes == NULL) {
+        collections_list_create(&deregister_listeners, free);
+        collections_list_create(&dead_processes, free);
+    }
+
+    domainid_t pid = process_pid_for_lmp_chan(lc);
+
+    notify_deregister_listeners(pid);
+
+    ump_send(&init_uc, &pid, sizeof(domainid_t), UMP_MessageType_DeregisterForward);
+
+    return SYS_ERR_OK;
+}
+
+errval_t lmp_server_process_deregister_notify(struct lmp_chan *lc, domainid_t pid) {
+    if (deregister_listeners == NULL || dead_processes == NULL) {
+        collections_list_create(&deregister_listeners, free);
+        collections_list_create(&dead_processes, free);
+    }
+
+    struct process_listener *process_listener = (struct process_listener *) malloc(sizeof(process_listener));
+    process_listener->pid = pid;
+    process_listener->lc = lc;
+
+
+    if (collections_list_find_if(dead_processes, dead_processes_find, &pid)) {
+        lmp_chan_send1(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_ProcessDeregisterNotify);
+    } else {
+        collections_list_insert(deregister_listeners, (void *) process_listener);
+    }
+
+    return SYS_ERR_OK;
+}
+
 /* MARK: - ========== Client ========== */
 
 // Blocking call for receiving messages
 void lmp_client_recv(struct lmp_chan *lc, struct capref *cap, struct lmp_recv_msg *msg) {
+
+
+    // Use default waitset
+    lmp_client_recv_waitset(lc, cap, msg, get_default_waitset());
+
+}
+// Blocking call for receiving messages on a specific waitset
+void lmp_client_recv_waitset(struct lmp_chan *lc, struct capref *cap, struct lmp_recv_msg *msg, struct waitset *ws) {
+
     int done = 0;
     errval_t err;
 
-    err = lmp_chan_register_recv(lc, get_default_waitset(), MKCLOSURE(lmp_client_wait, &done));
+    err = lmp_chan_register_recv(lc, ws, MKCLOSURE(lmp_client_wait, &done));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return;
     }
 
     while (!done) {
-        event_dispatch(get_default_waitset());
+        event_dispatch(ws);
     }
 
     err = lmp_chan_recv(lc, msg, cap);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
-    
+
+    #if PRINT_DEBUG
+        debug_printf("Received LMP message with type %zu!\n", msg->words[0] & 0xFFFFFF);
+    #endif
+
 }
 void lmp_client_wait(void *arg) {
     *(int *)arg = 1;
@@ -624,7 +664,7 @@ errval_t lmp_send_buffer(struct lmp_chan *lc, const void *buf,
         
         uintptr_t type = ((uintptr_t) msg_type) << 24;
         type |= LMP_RequestType_BufferShort;
-        
+
         return lmp_send_short_buf_fast(lc,
                                        type,
                                        (void *) buf,
@@ -632,7 +672,7 @@ errval_t lmp_send_buffer(struct lmp_chan *lc, const void *buf,
         
     }
     else {
-        
+
         // Allocating frame capability
         size_t ret_size;
         struct capref frame_cap;
@@ -664,7 +704,7 @@ errval_t lmp_send_buffer(struct lmp_chan *lc, const void *buf,
         }
         
         // Cleaning up after sending
-        err = paging_unmap(get_current_paging_state(), buf);
+        err = paging_unmap(get_current_paging_state(), tx_buf);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
             return err;
@@ -1202,20 +1242,20 @@ errval_t lmp_recv_frame_from_msg(struct lmp_chan *lc, enum lmp_request_type type
 
 // Send a short buffer (using LMP arguments)
 errval_t lmp_send_short_buf_fast(struct lmp_chan *lc, uintptr_t type, void *buf, size_t size) {
-    
+
     errval_t err;
-    
+
     assert(size <= sizeof(uintptr_t) * SHORT_BUF_SIZE);
-    
+
     // Allocate new memory to construct the arguments
     char *buf_arg = calloc(sizeof(uintptr_t), SHORT_BUF_SIZE);
     if (buf_arg == NULL) {
         return LIB_ERR_MALLOC_FAIL;
     }
-    
+
     // Copy in the string
     memcpy(buf_arg, buf, size);
-    
+
     // Send the LMP message
     err = lmp_chan_send9(lc,
                          LMP_SEND_FLAGS_DEFAULT,
@@ -1234,7 +1274,7 @@ errval_t lmp_send_short_buf_fast(struct lmp_chan *lc, uintptr_t type, void *buf,
         free(buf_arg);
         return err;
     }
-    
+
     // Free the memory for constructing the arguments
     free(buf_arg);
     
