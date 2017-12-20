@@ -1,5 +1,5 @@
 //
-//  fs_rpc_serv.c
+//  fatfs_rpc_serv.c
 //  DoritOS
 //
 
@@ -11,9 +11,9 @@
 #include <aos/urpc.h>
 #include <aos/aos_rpc.h>
 
-#include <fs_serv/fs_fat_serv.h>
+#include <fs_serv/fatfs_serv.h>
 
-#include <fs_serv/fs_rpc_serv.h>
+#include <fs_serv/fatfs_rpc_serv.h>
 
 #include <fs/fs_rpc.h>
 
@@ -34,7 +34,7 @@ errval_t run_rpc_serv(void) {
     domainid_t pid = 0;
     aos_rpc_process_spawn(aos_rpc_get_init_channel(), "hello", 0, &pid);
     
-    struct fat32_mount mount;
+    struct fatfs_serv_mount mount;
     
     err = init_root_dir((void *) &mount);
     if (err_is_fail(err)) {
@@ -45,11 +45,6 @@ errval_t run_rpc_serv(void) {
     struct ump_chan chan;
     err = urpc_accept(&chan);
     assert(err_is_ok(err));
-    
-    // Variable declarations
-    //uint32_t counter;
-    //size_t size;
-    //void *ptr;
     
     // Receive request message from client
     uint8_t *recv_buffer;
@@ -99,7 +94,7 @@ errval_t run_rpc_serv(void) {
                 //int flags = recv_msg->arg1;
                 
                 // Open existing file and return dirent
-                err = fat_open((void *) &mount, path, &dirent);
+                err = fatfs_serv_open((void *) &mount, path, &dirent);
                 if (err_is_fail(err)) {
                     debug_printf("%s\n", err_getstring(err));
                 }
@@ -138,7 +133,7 @@ errval_t run_rpc_serv(void) {
                 //int flags = recv_msg->arg1;
                 
                 // Create existing file and return dirent
-                err = fat_create((void *) &mount, path, &dirent);
+                err = fatfs_serv_create((void *) &mount, path, &dirent);
                 if (err_is_fail(err)) {
                     debug_printf("%s\n", err_getstring(err));
                 }
@@ -323,7 +318,7 @@ errval_t run_rpc_serv(void) {
                 path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
                 
                 // Open directory
-                err = fat_opendir((void *) &mount, path, &dirent);
+                err = fatfs_serv_opendir((void *) &mount, path, &dirent);
                 if (err_is_fail(err)) {
                     debug_printf("%s\n", err_getstring(err));
                     return err;
@@ -374,7 +369,7 @@ errval_t run_rpc_serv(void) {
                 struct fat_dirent *ret_dirent = calloc(1, sizeof(struct fat_dirent));
                 
                 // Find dirent data
-                err = read_dir(dirent->first_cluster_nr, dir_index, &ret_dirent);
+                err = fatfs_serv_readdir(dirent->first_cluster_nr, dir_index, &ret_dirent);
                 if (err_is_fail(err)) {
                     debug_printf("%s\n", err_getstring(err));
                 }
@@ -406,7 +401,7 @@ errval_t run_rpc_serv(void) {
                 path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
 
                 // Make directory
-                err = fat_make_dir((void *) &mount, path);
+                err = fatfs_serv_mkdir((void *) &mount, path);
                 if (err_is_fail(err)) {
                     debug_printf("%s\n", err_getstring(err));
                 }
@@ -436,7 +431,7 @@ errval_t run_rpc_serv(void) {
                 path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
                 
                 // Make directory
-                err = fat_remove_dir((void *) &mount, path);
+                err = fatfs_serv_rmdir((void *) &mount, path);
                 if (err_is_fail(err)) {
                     debug_printf("%s\n", err_getstring(err));
                 }

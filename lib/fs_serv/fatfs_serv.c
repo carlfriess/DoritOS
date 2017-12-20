@@ -1,5 +1,5 @@
 //
-//  fs_fat_serv.c
+//  fatfs_serv.c
 //  DoritOS
 //
 
@@ -10,7 +10,7 @@
 
 #include <fs_serv/fat_helper.h>
 
-#include <fs_serv/fs_fat_serv.h>
+#include <fs_serv/fatfs_serv.h>
 
 #define PRINT_DEBUG 0
 
@@ -213,7 +213,7 @@ errval_t setFATEntry(size_t n, uint32_t value) {
  
 }
 
-errval_t fat_open(void *st, char *path, struct fat_dirent **ret_dirent) {
+errval_t fatfs_serv_open(void *st, char *path, struct fat_dirent **ret_dirent) {
     
     debug_printf("Opening file: -%s-\n", path);
     
@@ -221,7 +221,7 @@ errval_t fat_open(void *st, char *path, struct fat_dirent **ret_dirent) {
     
     assert(ret_dirent != NULL);
     
-    struct fat32_mount *mount = st;
+    struct fatfs_serv_mount *mount = st;
     
     // Allocate memory for potential new file dirent
     struct fat_dirent *file_dirent = calloc(1, sizeof(struct fat_dirent));
@@ -242,7 +242,7 @@ errval_t fat_open(void *st, char *path, struct fat_dirent **ret_dirent) {
 
 
 
-errval_t fat_create(void *st, char *path, struct fat_dirent **ret_dirent) {
+errval_t fatfs_serv_create(void *st, char *path, struct fat_dirent **ret_dirent) {
     
     debug_printf("Creating file: -%s-\n", path);
 
@@ -250,7 +250,7 @@ errval_t fat_create(void *st, char *path, struct fat_dirent **ret_dirent) {
     
     assert(ret_dirent != NULL);
 
-    struct fat32_mount *mount = st;
+    struct fatfs_serv_mount *mount = st;
     
     // Allocate memory for potential new file dirent
     struct fat_dirent *file_dirent = calloc(1, sizeof(struct fat_dirent));
@@ -601,7 +601,7 @@ errval_t init_root_dir(void *st) {
     
     size_t err;
     
-    struct fat32_mount *mount = st;
+    struct fatfs_serv_mount *mount = st;
     
     mount->root = create_dirent("/", BPB_RootClus, 0, true, 0, 0);
     
@@ -796,6 +796,55 @@ errval_t find_free_dir_entry(size_t cluster_nr, size_t *ret_pos) {
     
 }
 
+errval_t get_dir_entry(size_t cluster_nr, size_t pos, struct DIR_Entry **ret_dir_data) {
+    
+    errval_t err;
+    
+    assert(ret_dir_data != NULL);
+    
+    // Data buffer
+    uint8_t data[32];
+    
+    // Read directory data from [pos * 32, pos * 32 + 31]
+    err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Convert data to return directory data
+    data_to_dir_data(*ret_dir_data, data);
+    
+    return err;
+    
+}
+
+errval_t set_dir_entry(size_t cluster_nr, size_t pos, struct DIR_Entry *dir_data) {
+    
+    errval_t err;
+    
+    uint8_t data[32];
+    
+    // Read directory data from [pos * 32, pos * 32 + 31]
+    err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Convert directory data and save it in data buffer
+    dir_data_to_data(data, dir_data);
+    
+    // Write modified directory data buffer back
+    err = write_cluster_chain(cluster_nr, data, pos * 32, 32);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    return err;
+    
+}
 
 errval_t add_dir_entry(size_t cluster_nr, struct DIR_Entry *dir_data, size_t *ret_pos) {
     
@@ -814,21 +863,16 @@ errval_t add_dir_entry(size_t cluster_nr, struct DIR_Entry *dir_data, size_t *re
         
         switch (err) {
             case FS_ERR_INDEX_BOUNDS:
-                
                 // Append cluster chain by one cluster
                 err = append_cluster_chain(cluster_nr, 1);
                 if (err_is_fail(err)) {
                     debug_printf("%s\n", err_getstring(err));
                     return err;
                 }
-                
                 break;
-                
             default:
-                
                 debug_printf("%s\n", err_getstring(err));
                 return err;
-                
         }
         
     }
@@ -843,90 +887,6 @@ errval_t add_dir_entry(size_t cluster_nr, struct DIR_Entry *dir_data, size_t *re
     // Set return position
     *ret_pos = pos;
     
-    return err;
-    
-}
-
-errval_t get_dir_entry(size_t cluster_nr, size_t pos, struct DIR_Entry **ret_dir_data) {
- 
-    errval_t err;
- 
-    assert(ret_dir_data != NULL);
- 
-    // Data buffer
-    uint8_t data[32];
- 
-    // Read directory data from [pos * 32, pos * 32 + 31]
-    err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return err;
-    }
- 
-    // Convert directory data and save it in data buffer
-    dir_data_to_data(data, *ret_dir_data);
-    
-    return err;
- 
-}
- 
-errval_t set_dir_entry(size_t cluster_nr, size_t pos, struct DIR_Entry *dir_data) {
-    
-    errval_t err;
-    
-#if PRINT_DEBUG_EXCEPTION
-    uint8_t cluster_data[32 * 32];
-    read_cluster_chain(cluster_nr, cluster_data, 0, 32 * 32);
-    debug_printf("Directory entry data at pos %d: \n", pos);
-    for (int j = 0; j < 16; j++) {
-        for (int i = 0; i < 32; i += 8) {
-            debug_printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
-                         cluster_data[j*32 + i], cluster_data[j*32 + i+1],
-                         cluster_data[j*32 + i+2], cluster_data[j*32 + i+3],
-                         cluster_data[j*32 + i+4], cluster_data[j*32 + i+5],
-                         cluster_data[j*32 + i+6], cluster_data[j*32 + i+7]);
-        }
-    }
-#endif
-    
-    uint8_t data[32];
-    
-    // Read directory data from [pos * 32, pos * 32 + 31]
-    err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return err;
-    }
-    
-    // Convert directory data and save it in data buffer
-    dir_data_to_data(data, dir_data);
-    
-    debug_printf("Directory entry data at pos %d: \n", pos);
-    for (int i = 0; i < 32; i += 8) {
-        debug_printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
-                     data[i], data[i+1], data[i+2], data[i+3],
-                     data[i+4], data[i+5], data[i+6], data[i+7]);
-    }
-    
-    // Write modified directory data buffer back
-    err = write_cluster_chain(cluster_nr, data, pos * 32, 32);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-        return err;
-    }
-    
-#if PRINT_DEBUG_EXCEPTION
-    read_cluster_chain(cluster_nr, cluster_data, 0, 32 * 32);
-    debug_printf("Directory entry data at pos %d: \n", pos);
-    for (int j = 0; j < 16; j++) {
-        for (int i = 0; i < 32; i += 8) {
-            debug_printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
-                         cluster_data[j*32 + i], cluster_data[j*32 + i+1], cluster_data[j*32 + i+2], cluster_data[j*32 + i+3],
-                         cluster_data[j*32 + i+4], cluster_data[j*32 + i+5], cluster_data[j*32 + i+6], cluster_data[j*32 + i+7]);
-        }
-    }
-#endif
-
     return err;
     
 }
@@ -1743,7 +1703,7 @@ errval_t append_cluster_chain(size_t cluster_nr, size_t cluster_count) {
 
 
 
-errval_t fat_opendir(void *st, char *path, struct fat_dirent **ret_dirent) {
+errval_t fatfs_serv_opendir(void *st, char *path, struct fat_dirent **ret_dirent) {
     
     debug_printf("Opening directory: -%s-\n", path);
     
@@ -1751,7 +1711,7 @@ errval_t fat_opendir(void *st, char *path, struct fat_dirent **ret_dirent) {
     
     assert(ret_dirent != NULL);
     
-    struct fat32_mount *mount = st;
+    struct fatfs_serv_mount *mount = st;
     
     // Allocate memory for potential new dirent
     struct fat_dirent *dirent = calloc(1, sizeof(struct fat_dirent));
@@ -1786,7 +1746,7 @@ errval_t fat_opendir(void *st, char *path, struct fat_dirent **ret_dirent) {
     
 }
 
-errval_t read_dir(size_t cluster_nr, size_t dir_index, struct fat_dirent **ret_dirent) {
+errval_t fatfs_serv_readdir(size_t cluster_nr, size_t dir_index, struct fat_dirent **ret_dirent) {
     
     errval_t err;
     
@@ -1913,11 +1873,11 @@ errval_t read_dir(size_t cluster_nr, size_t dir_index, struct fat_dirent **ret_d
     
 }
 
-errval_t fat_make_dir(void *st, char *path) {
+errval_t fatfs_serv_mkdir(void *st, char *path) {
     
     errval_t err;
     
-    struct fat32_mount *mount = st;
+    struct fatfs_serv_mount *mount = st;
     
     // Allocate memory for potential new dirent
     struct fat_dirent *dirent = calloc(1, sizeof(struct fat_dirent));
@@ -2047,11 +2007,11 @@ errval_t fat_make_dir(void *st, char *path) {
     
 }
 
-errval_t fat_remove_dir(void *st, char *path) {
+errval_t fatfs_serv_rmdir(void *st, char *path) {
     
     errval_t err;
     
-    struct fat32_mount *mount = st;
+    struct fatfs_serv_mount *mount = st;
     
     // Allocate dirent
     struct fat_dirent *dirent = calloc(1, sizeof(struct fat_dirent));
