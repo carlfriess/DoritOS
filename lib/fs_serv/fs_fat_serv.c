@@ -244,85 +244,6 @@ errval_t setFATEntry(size_t n, uint32_t value) {
  
 }
 
-
-/* LEGACY
-/// FILETABLE
-
-static struct filetab_entry filetab[MAX_FILE];
-
-int filetab_alloc(struct filetab_entry *new_entry)
-{
-    for (int i = MIN_FILE; i < MAX_FILE; i++) {
-        
-        if (filetab[i].type == FILETAB_TYPE_AVAILABLE) {
-            memcpy(&filetab[i], new_entry, sizeof(struct filetab_entry));
-            
-            return i;
-        }
-        
-    }
-    
-    // filetable full
-    //errno = EMFILE;
-    return -1;
-}
-
-struct filetab_entry *filetab_get(int index)
-{
-    static struct filetab_entry invalid = {
-        .type = FILETAB_TYPE_AVAILABLE,
-        .refcount = 0,
-        .dirent = NULL
-    };
-    
-    if (index < MIN_FILE || index >= MAX_FILE) {
-        debug_printf("INVALID\n");
-        return &invalid;
-    } else {
-        debug_printf("VALID\n");
-        return &filetab[index];
-    }
-}
-
-void filetab_free(int index)
-{
-    assert(index >= MIN_FILE && index < MAX_FILE);
-    assert(filetab[index].type != FILETAB_TYPE_AVAILABLE);
-
-    filetab[index].type = FILETAB_TYPE_AVAILABLE;
-    filetab[index].refcount = 0;
-    filetab[index].dirent = NULL;
-    
-}
-
-static int filetab_check_dirent(struct fat_dirent *dirent) {
-    
-    assert(dirent != NULL);
-    
-    for (int i = MIN_FILE; i < MAX_FILE; i++) {
-    
-        if (filetab[i].type != FILETAB_TYPE_AVAILABLE) {
-            
-            assert(filetab[i].dirent != NULL);
-            
-            if (filetab[i].dirent->first_cluster_nr == dirent->first_cluster_nr) {
-                
-                debug_printf("This file is already in filetab!\n");
-                
-                return i;
-                
-            }
-            
-        }
-        
-    }
-    
-    return -1;
-    
-}
-*/
-
-
 errval_t fat_open(void *st, char *path, struct fat_dirent **ret_dirent) {
     
     debug_printf("Opening file: -%s-\n", path);
@@ -365,12 +286,10 @@ errval_t fat_create(void *st, char *path, struct fat_dirent **ret_dirent) {
     // Allocate memory for potential new file dirent
     struct fat_dirent *file_dirent = calloc(1, sizeof(struct fat_dirent));
 
-    // Careful since
     err = fat_resolve_path(mount->root, path, &file_dirent);
     if (err_is_ok(err)) {
         // Free file dirent
         free(file_dirent);
-        debug_printf("1\n");
         debug_printf("%s\n", err_getstring(FS_ERR_EXISTS));
         return FS_ERR_EXISTS;
     }
@@ -398,11 +317,9 @@ errval_t fat_create(void *st, char *path, struct fat_dirent **ret_dirent) {
         // Resolve parent directory
         err = fat_resolve_path(mount->root, pathbuf, &parent);
         if (err_is_fail(err)) {
-            debug_printf("2\n");
             debug_printf("%s\n", err_getstring(err));
             return err;
         } else if (parent != NULL && !parent->is_dir) {
-            debug_printf("3\n");
             debug_printf("%s\n", err_getstring(FS_ERR_NOTDIR));
             return FS_ERR_NOTDIR; // parent is not a directory
         }
@@ -428,8 +345,6 @@ errval_t fat_create(void *st, char *path, struct fat_dirent **ret_dirent) {
     
     // Construct DIR_Entry
     struct DIR_Entry *dir_data = calloc(1, sizeof(struct DIR_Entry));
-    
-    debug_printf("fat_name: -%s-\n", fat_name);
     
     memcpy(dir_data->Name, fat_name, 12);
     //dir_data->NTRes = 0;
@@ -606,14 +521,11 @@ errval_t fat_find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_
             uint8_t *dirent_data = &data[pos_index * 32];
             
             if (memcmp(fat_name, &dirent_data[0], 11) == 0) {
-                
+#if PRINT_DEBUG
                 debug_printf("SAME NAME\n");
-                
+#endif
                 // Allocating memory for return dirent
                 struct fat_dirent *dirent = calloc(1, sizeof(struct fat_dirent));
-                
-                // Set refcount of dirent to 1
-                dirent->refcount = 1;
                 
                 // Set size of dirent
                 dirent->size = *((uint32_t *) &dirent_data[28]);
@@ -798,24 +710,7 @@ static void delete_dirent(struct fat_dirent *dirent) {
     
 }
 */
-/*
-static void open_dirent(struct fat_dirent *dirent) {
-    
-    assert(dirent != NULL);
-    
-    dirent->refcount += 1;
-    
-}
-*/
-/* UNUSED
-static void close_dirent(struct fat_dirent *dirent) {
-    
-    assert(dirent != NULL);
 
-    dirent->refcount -= 1;
-    
-}
-*/
 
 errval_t init_root_dir(void *st) {
     
