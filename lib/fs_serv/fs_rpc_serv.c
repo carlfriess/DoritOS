@@ -252,11 +252,37 @@ errval_t run_rpc_serv(void) {
                 
                 break;
                 
-            case UMP_MessageType_Add:
+            case UMP_MessageType_Truncate:
                 
-                debug_printf("UMP Message Add Request!\n");
+                debug_printf("UMP Message Truncate Request!\n");
                 
-                debug_printf("NOT IMPLEMENTED YET\n");
+                bytes = recv_msg->arg1;
+
+                memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
+
+                // Truncate dirent to size bytes
+                err = truncate_dirent(dirent, bytes);
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                }
+                
+                // Size of send buffer
+                send_size = sizeof(struct fs_message);
+                
+                // Allocate send buffer
+                send_buffer = calloc(1, send_size);
+                
+                // Set error
+                ((struct fs_message *) send_buffer)->arg1 = err;
+                
+                // Send response message to client
+                ump_send(&chan, send_buffer, send_size, UMP_MessageType_Truncate);
+                
+                // Free send buffer
+                free(send_buffer);
+                
+                break;
+                
                 
                 break;
                 
