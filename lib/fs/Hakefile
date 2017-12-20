@@ -20,5 +20,8 @@
         "dirent.c",
         "fs_rpc.c",
         "vfs.c"
+    ],
+    addLibraries = [ "fs_serv" ]
+
   }
 ]
