@@ -124,7 +124,7 @@ When booting on the second core (APP) init will map this frame and initialise a 
 
 ### Communication using ring buffers
 
-Every UMP channel uses two pages of shared memory, one for each direction of communication. Each page contains a 64 slots of 64 bytes. We were able to implement the protocol without any other share variables.
+Every UMP channel uses two pages of shared memory, one for each direction of communication. Each page contains 64 slots consisting of 64 bytes. We were able to implement the protocol without any other share variables.
 
 ```c
 struct ump_chan {
@@ -321,3 +321,155 @@ After the client's LMP channel is initialised it sends an acknowledgment to the 
 Overall, the URPC API has proven to be extremely useful and was used in all of our individual projects. Most notably, it provides a direct abstraction for sockets in the network stack. It is also significantly simpler to use than just bare UMP or LMP channels.
 
 On the other hand, the API does not support sending capabilities in any way. This could be tricky to add, since it isn't supported in UMP either and some involvement of the init process would be necessary. Due to how process management is currently structured, the API also does not support binding with any instance init. However, if these features were implemented, the API would provide the ideal foundation to implement functionality such as memory management, which currently uses the `aos_rpc` calls.
+
+
+## Network Stack (Carl Friess)
+
+The network stack has a very modular structure, where the implementations for SLIP, IP, ICMP and UDP are all separated and (as far as is reasonable) only use methods from the next network layer. Client processes access the network using UDP sockets and the `net` library. UDP sockets consist mostly of a URPC channel and a port.
+
+All interactions with the network run through the `networkd` service, which is automatically executed at startup. Most of `networkd`'s code is designed to be as portable as possible.
+
+### Serial - Physical Layer
+
+The physical layer is provided by an additional serial connection (UART4). The driver for this was provided, but required access to the device frame for the serial controller. The device frame is retrieved using the `aos_rpc_get_device_cap()` RPC call and mapped uncachable. Furthermore for it's initialisation to succeed, it requires the IRQ capability, which is normally only available in init. For simplicity, the capability is just copied into every process's cspace.
+
+The serial controller has a 64 byte input FIFO. An interrupt is triggered when one byte is inserted into the FIFO. The interrupt event is dispatched on the main waitset and the data in the FIFO is passed directly to the SLIP parser.
+
+Overall this mechanism worked well. However, the interrupts were seemingly not delivered fast enough so that it was necessary to decrease the BAUD rate of the serial connection to 9600 in order to be able to read incoming data faster than it was delivered and thereby avoid a buffer overrun.
+
+### Serial Line Internet Protocol (SLIP) - Link Layer
+
+The incoming data is parsed as it comes in and stored in a fixed size buffer. The parser unescapes the escape sequences and when a `SLIP_END` byte is received invokes a handler on the IP layer to process the received packet. Empty packets are immediately discarded.
+
+The `slip` module also provides the `slip_send(uint8_t *buf, size_t len, bool end)` method, which escapes and sends a buffer, optionally terminating the packet with a `SLIP_END` byte.
+
+### Internet Protocol (IP) - Internet Layer
+
+When invoking the incoming packet handler, the packet is first checked for a valid length. Next, the IP header is parsed and all fields are stored in a struct and where necessary, converted from network order to little-endian. It's probably unnecessary to parse the full header, but it provides more clarity in subsequent code. Once the header is parsed, the checksum is computed (using the `netutil/checksum` library) and if faulty, the package is dropped.
+
+Now the packet can be passed on to the next module based on the protocol number in the IP header.
+
+Outgoing packets are sent from the configured IP address, which can be set using the `ip_set_ip_address(uint8_t a, uint8_t b, uint8_t c, uint8_t d)` method.
+
+### Internet Control Message Protocol (ICMP) - Transport Layer
+
+Again, the ICMP header is parsed similarly as on IP layer and the checksum is computed. Then the message type is evaluated. Currently only type 8 (echo request) is supported. All other messages are dropped.
+
+Echo requests are handled by sending back the message with type 0 (echo reply). First, an IP header is constructed and sent by calling the `ip_send_header(uint32_t dest_ip, uint8_t protocol, size_t total_len)` method of the `ip` module. Next a new `struct icmp_header` is populated and the checksum for the entire message computed. Finally, the header is encoded and sent with the ICMP payload using `ip_send(uint8_t *buf, size_t len, bool end)`.
+
+### User Datagram Protocol (UDP) - Transport Layer
+
+When handling an incoming datagram, the UDP header is first parsed in a similar manner as in the `ip` and `icmp` modules, but the computation of the checksum is slightly more involved, as a pseudo IP header needs to be constructed and included in the checksum. I solved this by adding the following struct which accurately lays out the pseudo header and can be used to complete the checksum computation.
+
+```c
+struct udp_checksum_ip_pseudo_header {
+    uint32_t src_addr;
+    uint32_t dest_addr;
+    uint8_t zeros;
+    uint8_t protocol;
+    uint16_t udp_length;
+    uint16_t checksum;  // Checksum of UDP header and payload
+} __attribute__ ((__packed__));
+```
+<center>*Pseudo IP header for UDP checksum computation*</center>
+
+Once the packet has been validated, it is passed on to a client process or dropped. This multiplexing of UDP packets is achieved using the socket model.
+
+### UDP sockets
+
+I implemented the `net` library to provide an API for interaction with `networkd` roughly based on the UNIX socket API.
+
+```c
+// Open a UDP socket and optionally bind to a specific port
+//  Specify port 0 to bind on random port.
+errval_t socket(struct udp_socket *socket, uint16_t port);
+
+// Blockingly receive a UDP packet on the given socket
+errval_t recvfrom(struct udp_socket *socket, void *buf, size_t len,
+                  size_t *ret_len, uint32_t *from_addr, uint16_t *from_port);
+
+// Send a UDP packet on the given socket to a specific destination
+errval_t sendto(struct udp_socket *socket, void *buf, size_t len,
+                uint32_t to_addr, uint16_t to_port);
+
+// Close a UDP socket
+errval_t close(struct udp_socket *socket);
+```
+<center>*Socket API provided by the net library*</center>
+
+The socket API is built on top of the URPC API. Each socket instance is essentially just a wrapper around a URPC channel, as can be seen below. Thanks to URPC's binding mechanism, it's possible to easily set up multiple URPC channels between two processes, meaning that a client of the `net` library can hold multiple sockets without complicated multiplexing on either the client side or in `networkd`.
+
+```c
+struct udp_socket_common {
+    uint16_t port;
+};
+struct udp_socket {
+    struct udp_socket_common pub;
+    struct urpc_chan chan;
+};
+```
+<center>*Data structure describing a socket (client side)*</center>
+
+```c
+enum udp_socket_state {
+    UDP_SOCKET_STATE_CLOSED,
+    UDP_SOCKET_STATE_OPEN
+};
+struct udp_socket {
+    struct udp_socket_common pub;
+    struct urpc_chan chan;
+    enum udp_socket_state state;
+};
+```
+<center>*Data structure describing a socket (networkd)*</center>
+
+### Opening sockets
+
+In order to send or receive the client must always first open a socket using the `socket()` call. The client can bind to a specific port or have one allocated by `networkd`. Opening a socket will first make a bind request to `networkd` and then send a `URPC_MessageType_SocketOpen` message over the newly created URPC channel.
+
+`networkd` holds a linked list of open socket. These are initially in the `UDP_SOCKET_STATE_CLOSED` state (after binding has completed). On receiving a `URPC_MessageType_SocketOpen` message, `networkd` will check the list for any other sockets holding the requested port or just allocate an unused port. If successful it will change the state of the socket to `UDP_SOCKET_STATE_OPEN` allowing packets to be forwarded on this socket's URPC channel.
+
+### Receiving datagrams
+
+Whenever a UDP datagram is received, `networkd` searches the linked list searching for a socket bound to the destination port. If one is found, the datagram is forwarded over the socket's URPC channel. Otherwise, the packet is dropped.
+
+Rather than forwarding the entire packet, the source address, source port and payload are forwarded using the structure below. This provides the client with all the necessary information to send back a packet.
+
+```c
+struct udp_urpc_packet {
+    uint32_t addr;
+    uint16_t port;
+    uint8_t payload[];
+} __attribute__ ((__packed__));
+
+```
+<center>*struct for forwarding a datagram over URPC*</center>
+
+Clients can use `recvfrom()` to receive incoming UDP packets. `recvfrom()` simply uses `urpc_recv_blocking()` to wait for a `URPC_MessageType_Receive` message on the socket's URPC channel and returns the data and payload contained in the `struct udp_urpc_packet`.
+
+### Sending datagrams
+
+To send a datagram clients can use the `sendto()` method, which encodes the packet in the same `struct udp_urpc_packet` format and sends it in a `URPC_MessageType_Send`. Now the `addr` and `port` fields describe the destination rather than the source, which was the case for receiving.
+
+To handle these incoming messages (as well as bind requests and other messages), `networkd` needs a way to check for new messages on all the URPC channels attached to sockets. I solved this by adding an `event_queue` to the default waitset which contains a handler which first checks for a new bind request and then iterates the list of sockets and calls `urpc_recv()` on each socket's URPC channel.
+
+This could have been solved by using a simple while loop but the events on the default waitset must be dispatched in order for the serial interrupts to be delivered. This could have been done by calling `event_dispatch_non_block()` but I found the solution described above to be more elegant.
+
+Once `networkd` has received a `URPC_MessageType_Send` send message it sends an IP header, composes and encodes the UDP header, computes the UDP checksum and finally sends the UDP header and payload. The source port is set to the port the socket is bound to.
+
+### Closing sockets
+
+Closing a socket is a simple operation but very important so that ports are not blocked until the system restarts. The `close()` method simply sends a `URPC_MessageType_SocketClose` message to `networkd` causing the socket to be deleted from the linked list. Unfortunately the URPC API currently does not provide a way to clean up dead URPC channels due to the lacking of underlying support for cleaning up UMP and LMP channels. This means that closing sockets will leak some resources.
+
+
+### UDP echo server
+
+Using this API I implemented a simple UDP echo server (`udp_echo`) which makes use of all of the API's features. It can be launched without an argument or with a port as first argument.
+
+### Performance issues
+
+As previously described, the serial port provided some performance limitations, but the UDP event handler on the default waitset did not improve things. In fact, for messages greater than 64 bytes (where performance issues start to occur due to the serial FIFO's size) it became necessary to cancel the UDP handler on the event queue until the incoming packet is received.
+
+To implement this I added an "idle" state to the SLIP parser. When exiting this state the parser calls `udp_cancel_event_queue()`. When re-entering the idle state parser then calls `udp_register_event_queue()` to re-enable UDP event handling. This works almost all of the time but is really just a work-around and has only been properly tested at 9600 BAUD. The issue is, that the parser could (with unluckily timing) miss the beginning of a package at which point it's already too late. A better solution would be to use Request To Send and Clear To Send flow control signals on the serial line or even to use DMA rather than just the RX FIFO.
+
+Overall, the performance is reasonably good though and given packets smaller than 64 bytes the network stack works flawlessly.
