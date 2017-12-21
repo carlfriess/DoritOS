@@ -8,6 +8,7 @@
 
 #include <fs/ramfs.h>
 #include <fs/fs_rpc.h>
+#include <fs/mbtfs.h>
 
 #include <fs/vfs.h>
 
@@ -71,6 +72,9 @@ errval_t vfs_open(void *st, const char *path, vfs_handle_t *rethandle) {
         case FATFS:
             err = fs_rpc_open(mt->fat_mount, rel_path, &h->handle);
             break;
+        case MBTFS:
+            err = mbtfs_open(mt->mbt_mount, rel_path, &h->handle);
+            break;
         default:
             err = SYS_ERR_OK;
             debug_printf("vfs open unsuccessful\n");
@@ -115,6 +119,9 @@ errval_t vfs_create(void *st, const char *path, vfs_handle_t *rethandle) {
         case FATFS:
             err = fs_rpc_create(mt->fat_mount, rel_path, &h->handle);
             break;
+        case MBTFS:
+            err = mbtfs_create(mt->mbt_mount, rel_path, &h->handle);
+            break;
         default:
             err = SYS_ERR_OK;
             debug_printf("vfs create unsuccessful\n");
@@ -154,6 +161,9 @@ errval_t vfs_remove(void *st, const char *path) {
         case FATFS:
             err = fs_rpc_remove(mt->fat_mount, rel_path);
             break;
+        case MBTFS:
+            err = mbtfs_remove(mt->mbt_mount, rel_path);
+            break;
         default:
             err = SYS_ERR_OK;
             debug_printf("vfs remove unsuccessful\n");
@@ -184,6 +194,9 @@ errval_t vfs_read(void *st, vfs_handle_t handle, void *buffer, size_t bytes, siz
         case FATFS:
             err = fs_rpc_read(mt->fat_mount, h->handle, buffer, bytes, bytes_read);
             break;
+        case MBTFS:
+            err = mbtfs_read(mt->mbt_mount, h->handle, buffer, bytes, bytes_read);
+            break;
         default:
             err = SYS_ERR_OK;
             debug_printf("vfs read unsuccessful\n");
@@ -210,6 +223,9 @@ errval_t vfs_write(void *st, vfs_handle_t handle, void *buffer, size_t bytes, si
             break;
         case FATFS:
             err = fs_rpc_read(mt->fat_mount, h->handle, buffer, bytes, bytes_written);
+            break;
+        case MBTFS:
+            err = mbtfs_read(mt->mbt_mount, h->handle, buffer, bytes, bytes_written);
             break;
         default:
             err = SYS_ERR_OK;
@@ -238,6 +254,9 @@ errval_t vfs_truncate(void *st, vfs_handle_t handle, size_t bytes) {
         case FATFS:
             err = fs_rpc_truncate(mt->fat_mount, h->handle, bytes);
             break;
+        case MBTFS:
+            err = mbtfs_truncate(mt->mbt_mount, h->handle, bytes);
+            break;
         default:
             err = SYS_ERR_OK;
             debug_printf("vfs truncate unsuccessful\n");
@@ -264,6 +283,9 @@ errval_t vfs_tell(void *st, vfs_handle_t handle, size_t *pos){
             break;
         case FATFS:
             err = fs_rpc_tell(mt->fat_mount, h->handle, pos);
+            break;
+        case MBTFS:
+            err = mbtfs_tell(mt->mbt_mount, h->handle, pos);
             break;
         default:
             err = SYS_ERR_OK;
@@ -293,6 +315,9 @@ errval_t vfs_stat(void *st, vfs_handle_t handle, struct fs_fileinfo *info) {
         case FATFS:
             err = fs_rpc_stat(mt->fat_mount, h->handle, info);
             break;
+        case MBTFS:
+            err = mbtfs_stat(mt->mbt_mount, h->handle, info);
+            break;
         default:
             err = SYS_ERR_OK;
             debug_printf("vfs stat unsuccessful\n");
@@ -319,6 +344,9 @@ errval_t vfs_seek(void *st, vfs_handle_t handle, enum fs_seekpos whence, off_t o
             break;
         case FATFS:
             err = fs_rpc_seek(mt->fat_mount, h->handle, whence, offset);
+            break;
+        case MBTFS:
+            err = mbtfs_seek(mt->mbt_mount, h->handle, whence, offset);
             break;
         default:
             err = SYS_ERR_OK;
@@ -347,6 +375,9 @@ errval_t vfs_close(void *st, vfs_handle_t handle) {
             break;
         case FATFS:
             err = fs_rpc_close(mt->fat_mount, h->handle);
+            break;
+        case MBTFS:
+            err = mbtfs_close(mt->mbt_mount, h->handle);
             break;
         default:
             err = SYS_ERR_OK;
@@ -386,6 +417,9 @@ errval_t vfs_opendir(void *st, const char *path, vfs_handle_t *rethandle) {
         case FATFS:
             err = fs_rpc_opendir(mt->fat_mount, rel_path, &h->handle);
             break;
+        case MBTFS:
+            err = mbtfs_opendir(mt->mbt_mount, rel_path, &h->handle);
+            break;
         default:
             err = SYS_ERR_OK;
             debug_printf("vfs opendir unsuccessful\n");
@@ -424,6 +458,9 @@ errval_t vfs_dir_read_next(void *st, vfs_handle_t handle, char **retname, struct
         case FATFS:
             err = fs_rpc_readdir(mt->fat_mount, h->handle, retname, info);
             break;
+        case MBTFS:
+            err = mbtfs_dir_read_next(mt->mbt_mount, h->handle, retname, info);
+            break;
         default:
             err = SYS_ERR_OK;
             debug_printf("vfs read dir unsuccessful\n");
@@ -451,6 +488,9 @@ errval_t vfs_closedir(void *st, vfs_handle_t dirhandle) {
             break;
         case FATFS:
             err = fs_rpc_closedir(mt->fat_mount, h->handle);
+            break;
+        case MBTFS:
+            err = mbtfs_closedir(mt->mbt_mount, h->handle);
             break;
         default:
             err = SYS_ERR_OK;
@@ -486,6 +526,9 @@ errval_t vfs_mkdir(void *st, const char *path) {
         case FATFS:
             err = fs_rpc_mkdir(mt->fat_mount, rel_path);
             break;
+        case MBTFS:
+            err = mbtfs_mkdir(mt->mbt_mount, rel_path);
+            break;
         default:
             err = SYS_ERR_OK;
             debug_printf("vfs make dir unsuccessful\n");
@@ -515,13 +558,15 @@ errval_t vfs_rmdir(void *st, const char *path) {
     debug_printf("path is -%s- -%s- %d\n", path, rel_path, type);
     
     
-    
     switch (type) {
         case RAMFS:
             err = ramfs_rmdir(mt->ram_mount, rel_path);
             break;
         case FATFS:
             err = fs_rpc_rmdir(mt->fat_mount, rel_path);
+            break;
+        case MBTFS:
+            err = mbtfs_rmdir(mt->mbt_mount, rel_path);
             break;
         default:
             err = SYS_ERR_OK;
