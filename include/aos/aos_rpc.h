@@ -17,19 +17,8 @@
 
 #include <aos/aos.h>
 
-#define URPC_MessageType_TerminalWrite              URPC_MessageType_User0
-#define URPC_MessageType_TerminalWriteUnlock        URPC_MessageType_User1
-#define URPC_MessageType_TerminalRead               URPC_MessageType_User2
-#define URPC_MessageType_TerminalReadUnlock         URPC_MessageType_User3
-
 #define LMP_MessageType_ProcessDeregister          URPC_MessageType_User0
 #define LMP_MessageType_ProcessDeregisterNotify    URPC_MessageType_User0
-
-struct terminal_msg {
-    errval_t err;
-    bool lock;
-    char c;
-};
 
 struct aos_rpc {
     // TODO: add state for your implementation
@@ -38,8 +27,6 @@ struct aos_rpc {
     struct urpc_chan *uc;
 };
 
-size_t aos_rpc_terminal_write(const char* buf, size_t len);
-size_t aos_rpc_terminal_read(char *buf, size_t len);
 
 /**
  * \brief send a number over the given channel

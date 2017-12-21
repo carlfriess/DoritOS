@@ -617,16 +617,28 @@ static errval_t spawn_cleanup(struct spawninfo *si) {
 
 // TODO(M2): Implement this function such that it starts a new process
 // TODO(M4): Build and pass a messaging channel to your child process
-errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
-    //printf("spawn start_child: starting: %s\n", binary_name);
+errval_t spawn_load_by_name(void * cmd, struct spawninfo * si) {
 
     errval_t err = SYS_ERR_OK;
 
     // Init spawninfo
     memset(si, 0, sizeof(*si));
-    si->binary_name = binary_name;
     si->pi = (struct process_info *) malloc(sizeof(struct process_info));
-
+    
+    // Extract binary name
+    si->binary_name = malloc(strlen((char *) cmd));
+    if (!si->binary_name) {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+    if (sscanf(cmd, "%s", si->binary_name) != 1) {
+        free(si->binary_name);
+        return -1;
+    }
+    si->binary_name = realloc(si->binary_name, strlen(si->binary_name) + 1);
+    if (!si->binary_name) {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+    
     // TODO: Implement me
     // - Get the binary from multiboot image
     // - Map multiboot module in your address space
@@ -703,10 +715,10 @@ errval_t spawn_load_by_name(void * binary_name, struct spawninfo * si) {
     paging_alloc_fixed_commit(si->child_paging_state);
     
     // Get arguments string from multiboot
-    const char *argstring = multiboot_module_opts(mem);
+    //const char *argstring = multiboot_module_opts(mem);
     
     // Set up the arguments for the child process
-    err = spawn_setup_args(si, argstring);
+    err = spawn_setup_args(si, cmd);
     if (err_is_fail(err)) {
         debug_printf("spawn: Failed setting up the arguments: %s\n", err_getstring(err));
         return err;
