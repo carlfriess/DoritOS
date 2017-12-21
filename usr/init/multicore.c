@@ -208,7 +208,7 @@ errval_t boot_core(coreid_t core_id, struct ump_chan *ump_chan) {
     }
     
     // Structured buffer for message to send
-    struct urpc_bi_caps *msg = (struct urpc_bi_caps *) malloc(sizeof(struct urpc_bi_caps) + 16 * sizeof(struct module_frame_identity));
+    struct urpc_bi_caps *msg = (struct urpc_bi_caps *) malloc(sizeof(struct urpc_bi_caps) + 32 * sizeof(struct module_frame_identity));
     if (msg == NULL) {
         return LIB_ERR_MALLOC_FAIL;
     }
@@ -246,7 +246,7 @@ errval_t boot_core(coreid_t core_id, struct ump_chan *ump_chan) {
     for (int i = 0; i < bi->regions_length; i++) {
         
         // FIXME: Remove max module count
-        assert(i < 16);
+        assert(i < 32);
         
         if (bi->regions[i].mr_type == RegionType_Module) {
             
