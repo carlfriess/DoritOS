@@ -11,6 +11,8 @@
 
 #include <fs/ramfs.h>
 #include <fs/fs_rpc.h>
+#include <fs/mbtfs.h>
+
 
 #include "fs_internal.h"
 
@@ -45,7 +47,7 @@ errval_t filesystem_init(void)
     
     // Allocate 'mounting' datastructure
     
-    ramfs_mount_t ram_mount = NULL;
+    void *ram_mount = NULL;
     err = ramfs_mount("/", &ram_mount);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
@@ -61,15 +63,23 @@ errval_t filesystem_init(void)
         debug_printf("%s\n", err_getstring(err));
     }
     
+    void *mbt_mount = NULL;
+    
+    err = mbtfs_mount("/", &mbt_mount);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
     /* register libc fopen/fread and friends */
     //fs_libc_init(state);
 
     // Allocate VFS mount structure to be saved in fopen.c when calling fs_libc_init()
     struct vfs_mount *vfs_st = calloc(1, sizeof(struct vfs_mount));
     
-    // Set ram and fat mounts
+    // Set ram, fat and mbt mounts
     vfs_st->ram_mount = ram_mount;
     vfs_st->fat_mount = NULL;
+    vfs_st->mbt_mount = mbt_mount;
     
     // Allocate mount linked list node with ramfs type and name "/"
     struct mount_node *head = calloc(1, sizeof(struct mount_node));
@@ -137,6 +147,9 @@ errval_t filesystem_mount(const char *path, const char *uri)
     else if (0 == strcmp(service, "mmchs")) {
         new_node->type = FATFS;
     }
+    else if (0 == strcmp(service, "multiboot")) {
+        new_node->type = MBTFS;
+    }
     else {
         debug_printf("Couldn't parse path -> default file system: RAMFS\n");
         new_node->type = RAMFS;
@@ -160,7 +173,7 @@ errval_t filesystem_mount(const char *path, const char *uri)
         indirect = &(*indirect)->next;
         
     }
-    
+        
     // Insert new node between node with lexicographical bigger and smaller node
     new_node->next = *indirect;
     *indirect = new_node;
