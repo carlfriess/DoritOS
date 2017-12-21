@@ -175,26 +175,26 @@ enum lmp_request_type {
     LMP_RequestType_StringShort,
     LMP_RequestType_StringLong,
     LMP_RequestType_BufferShort,
-    LMP_RequestType_BufferLong,
+    LMP_RequestType_BufferLong,     // 5
     LMP_RequestType_SpawnShort,
     LMP_RequestType_SpawnLong,
     
     LMP_RequestType_ShortBuf,
     LMP_RequestType_FrameSend,
     
-    LMP_RequestType_DeviceCap,
+    LMP_RequestType_DeviceCap,      // 10
     
     LMP_RequestType_Register,
     LMP_RequestType_MemoryAlloc,
     LMP_RequestType_MemoryFree,
     LMP_RequestType_Spawn,
-    LMP_RequestType_NameLookup,
+    LMP_RequestType_NameLookup,     // 15
     LMP_RequestType_PidDiscover,
     LMP_RequestType_Echo,
     LMP_RequestType_UmpBind,
     LMP_RequestType_LmpBind,
 
-    LMP_RequestType_ProcessDeregister,
+    LMP_RequestType_ProcessDeregister,      // 20
     LMP_RequestType_ProcessDeregisterNotify
 };
 
