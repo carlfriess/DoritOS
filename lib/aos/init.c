@@ -25,6 +25,7 @@
 #include <barrelfish_kpi/domain_params.h>
 #include <aos/lmp.h>
 #include <aos/aos_rpc.h>
+#include <aos/terminal.h>
 
 #include "threads_priv.h"
 #include "init.h"
@@ -99,8 +100,8 @@ void barrelfish_libc_glue_init(void)
     // what we need for that
     // TODO: change these to use the user-space serial driver if possible
 
-    _libc_terminal_read_func = aos_rpc_terminal_read;
-    _libc_terminal_write_func = aos_rpc_terminal_write;
+    _libc_terminal_read_func = terminal_read;
+    _libc_terminal_write_func = terminal_write;
 
     _libc_exit_func = libc_exit;
     _libc_assert_func = libc_assert;

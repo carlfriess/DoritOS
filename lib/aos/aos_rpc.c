@@ -17,137 +17,7 @@
 #include <aos/urpc.h>
 #include <aos/ump.h>
 #include <aos/threads.h>
-
-#define PRINT_DEBUG 0
-
-size_t aos_rpc_terminal_write(const char* buf, size_t len) {
-    errval_t err = SYS_ERR_OK;
-    size_t n = 0;
-
-    struct aos_rpc *chan = aos_rpc_get_serial_channel();
-
-    if (chan == NULL) {
-        sys_print(buf, len);
-        return len;
-    }
-
-    struct terminal_msg *in;
-    struct terminal_msg out = {
-        .lock = 1
-    };
-
-    size_t size;
-    urpc_msg_type_t msg_type;
-
-    bool in_use = 0;
-
-    do {
-        size = sizeof(struct terminal_msg);
-        msg_type = URPC_MessageType_TerminalWrite;
-
-        err = urpc_send(chan->uc, (void *) &out, size, msg_type);
-        if (err_is_fail(err)) {
-            debug_printf("%s\n", err_getstring(err));
-        }
-        urpc_recv_blocking(chan->uc, (void **) &in, &size, &msg_type);
-
-        assert(msg_type == URPC_MessageType_TerminalWrite);
-        in_use = in->err == TERM_ERR_TERMINAL_IN_USE;
-
-        free(in);
-    } while (in_use);
-
-    {
-        for (size_t i = 0; i < len; i++) {
-
-            err = aos_rpc_serial_putchar(chan, buf[i]);
-            if (err_is_fail(err)) {
-                debug_printf("%s\n", err_getstring(err));
-            }
-
-            n = i + 1;
-        }
-    }
-
-    size = sizeof(struct terminal_msg);
-    msg_type = URPC_MessageType_TerminalWriteUnlock;
-
-    urpc_send(chan->uc, (void *) &out, size, msg_type);
-    urpc_recv_blocking(chan->uc, (void **) &in, &size, &msg_type);
-
-    free(in);
-
-    assert(msg_type == URPC_MessageType_TerminalWriteUnlock);
-
-    return n;
-}
-
-size_t aos_rpc_terminal_read(char *buf, size_t len) {
-    errval_t err = SYS_ERR_OK;
-    size_t n = 0;
-
-    struct aos_rpc *chan = aos_rpc_get_serial_channel();
-
-    if (chan == NULL) {
-        for (size_t i = 0; i < len; i++) {
-            sys_getchar(&buf[i]);
-            n = i;
-        }
-        return n;
-    }
-
-    struct terminal_msg *in;
-    struct terminal_msg out = {
-        .lock = 1
-    };
-
-    size_t size;
-    urpc_msg_type_t msg_type;
-
-    bool in_use = 0;
-
-    do {
-        size = sizeof(struct terminal_msg);
-        msg_type = URPC_MessageType_TerminalRead;
-
-        urpc_send(chan->uc, (void *) &out, size, msg_type);
-        urpc_recv_blocking(chan->uc, (void **) &in, &size, &msg_type);
-
-        assert(msg_type == URPC_MessageType_TerminalRead);
-        in_use = in->err == TERM_ERR_TERMINAL_IN_USE;
-        free(in);
-
-    } while (in_use);
-
-    {
-        for (size_t i = 0; i < len; i++) {
-
-            char c;
-
-            err = aos_rpc_serial_getchar(chan, &c);
-            if (err_is_fail(err)) {
-                debug_printf("%s\n", err_getstring(err));
-            }
-
-            if (c == 0x04 || c == 0x0A || c == 0x0D) {
-                break;
-            }
-            n = i + 1;
-            buf[i] = c;
-        }
-    }
-
-    size = sizeof(struct terminal_msg);
-    msg_type = URPC_MessageType_TerminalReadUnlock;
-
-    urpc_send(chan->uc, (void *) &out, size, msg_type);
-    urpc_recv_blocking(chan->uc, (void **) &in, &size, &msg_type);
-
-    free(in);
-
-    assert(msg_type == URPC_MessageType_TerminalReadUnlock);
-    return n;
-}
+#include <aos/terminal.h>
 
 errval_t aos_rpc_send_number(struct aos_rpc *chan, uintptr_t val)
 {
@@ -261,34 +131,32 @@ errval_t aos_rpc_get_ram_cap(struct aos_rpc *chan, size_t size, size_t align,
 
 errval_t aos_rpc_serial_getchar(struct aos_rpc *chan, char *retc)
 {
-    errval_t err = SYS_ERR_OK;
+    errval_t err;
 
     if (chan->uc == NULL) return LIB_ERR_TERMINAL_INIT;
 
-    struct terminal_msg *in;
-    struct terminal_msg out = {
-        .lock = 0
-    };
+    size_t size = sizeof(struct terminal_msg);
+    urpc_msg_type_t msg_type = URPC_MessageType_TerminalRead;
+    struct terminal_msg in;
 
-    size_t size;
-    urpc_msg_type_t msg_type;
 
-    bool in_use = 0;
+    err = urpc_send(chan->uc, (void *) &in, size, msg_type);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
 
-    do {
-        size = sizeof(struct terminal_msg);
-        msg_type = URPC_MessageType_TerminalRead;
+    struct terminal_msg *buf;
 
-        urpc_send(chan->uc, (void *) &out, size, msg_type);
-        urpc_recv_blocking(chan->uc, (void **) &in, &size, &msg_type);
+    err = urpc_recv_blocking(chan->uc, (void **) &buf, &size, &msg_type);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
 
-        assert(msg_type == URPC_MessageType_TerminalRead);
-        in_use = in->err == TERM_ERR_TERMINAL_IN_USE || in->err == TERM_ERR_BUFFER_EMPTY;
+    assert(msg_type == URPC_MessageType_TerminalRead);
 
-        free(in);
-    } while (in_use);
+    free(buf);
 
-    *retc = in->c;
+    *retc = buf->c;
 
     return err;
 }
@@ -302,30 +170,27 @@ errval_t aos_rpc_serial_putchar(struct aos_rpc *chan, char c)
         aos_rpc_serial_putchar(chan, '\r');
     }
 
-    struct terminal_msg *in;
-    struct terminal_msg out = {
-        .c = c,
-        .lock = 0
+    size_t size = sizeof(struct terminal_msg);
+    urpc_msg_type_t msg_type = URPC_MessageType_TerminalWrite;
+    struct terminal_msg msg = {
+        .c = c
     };
 
-    size_t size;
-    urpc_msg_type_t msg_type;
-    bool in_use = 0;
 
-    do {
-        out.lock = 0;
+    err = urpc_send(chan->uc, (void *) &msg, size, msg_type);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
 
-        size = sizeof(struct terminal_msg);
-        msg_type = URPC_MessageType_TerminalWrite;
+    void *out;
+    err = urpc_recv_blocking(chan->uc, (void **) &out, &size, &msg_type);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
 
-        urpc_send(chan->uc, (void *) &out, size, msg_type);
-        urpc_recv_blocking(chan->uc, (void **) &in, &size, &msg_type);
+    assert(msg_type == URPC_MessageType_TerminalWrite);
 
-        assert(msg_type == URPC_MessageType_TerminalWrite);
-        in_use = in->err == TERM_ERR_TERMINAL_IN_USE;
-        free(in);
-    } while (in_use);
-
+    free(out);
     return err;
 }
 
@@ -334,7 +199,7 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
 {
     
     errval_t err;
-    
+
     // Send spawn request with send_short_buf() or send_frame() depending on size of name
     err = lmp_send_spawn(chan->lc, name, core);
     if (err_is_fail(err)) {
