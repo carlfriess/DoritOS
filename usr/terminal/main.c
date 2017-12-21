@@ -12,6 +12,9 @@
 
 #define PRINT_DEBUG 0
 
+#define IO_BUFFER_SIZE  256
+
+
 struct io_buffer {
     char *buf;
     size_t pos;
@@ -29,8 +32,6 @@ volatile char *mem;
 
 // Flag byte to check for read/write
 volatile char *flag;
-
-const size_t IO_BUFFER_SIZE = 256;
 
 static void io_buffer_init(struct io_buffer **buf) {
     *buf = (struct io_buffer *) malloc(sizeof(struct io_buffer));
@@ -250,70 +251,12 @@ int main(int argc, char *argv[]) {
         while ((node = collections_list_traverse_next(urpc_chan_list)) != NULL) {
             err = urpc_recv(node, (void *) &msg, &size, &msg_type);
 
-            if (err == SYS_ERR_OK) {
+            if (err_is_ok(err)) {
                 struct terminal_event *event = (struct terminal_event *) malloc(sizeof(struct terminal_event));
-
                 event->chan = node;
                 event->type = msg_type;
                 event->msg = *msg;
                 collections_list_insert_tail(terminal_event_queue, event);
-
-//                switch (msg_type) {
-//                    case URPC_MessageType_TerminalWriteLock:
-//                        if (state.write_lock == NULL) {
-//                            state.write_lock = node;
-//                        }
-//
-//                    case URPC_MessageType_TerminalWrite:
-//                        if (state.write_lock == NULL || state.write_lock == node) {
-//                            out.err = SYS_ERR_OK;
-//                            put_char(in->c);
-//                        } else {
-//                            // TODO: QUEUE
-//                            out.err = TERM_ERR_TERMINAL_IN_USE;
-//                        }
-//
-//                        urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalWrite);
-//                        break;
-//                    case URPC_MessageType_TerminalWriteUnlock:
-//                        if (state.write_lock == NULL || state.write_lock == node) {
-//                            state.write_lock = NULL;
-//                            out.err = SYS_ERR_OK;
-//                        } else {
-//                            out.err = TERM_ERR_NOT_PART_OF_SESSION;
-//                        }
-//
-//                        urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalWriteUnlock);
-//                        break;
-//                    case URPC_MessageType_TerminalReadLock:
-//                        if (state.read_lock == NULL) {
-//                            state.read_lock = node;
-//                            // TODO: RESPOND
-//                        } else {
-//                            // TODO: QUEUE
-//                        }
-//                    case URPC_MessageType_TerminalRead:
-//                        if (state.read_lock == NULL || state.read_lock == node) {
-//                            out.err = get_next_char(&out.c);
-//                        } else {
-//                            // TODO: QUEUE
-//                            out.err = TERM_ERR_TERMINAL_IN_USE;
-//                        }
-//
-//                        urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalRead);
-//                        break;
-//                    case URPC_MessageType_TerminalReadUnlock:
-//                        if (state.read_lock == NULL || state.read_lock == node) {
-//                            state.read_lock = NULL;
-//                            out.err = SYS_ERR_OK;
-//                        } else {
-//                            // TODO: RESPOND
-//                            out.err = TERM_ERR_NOT_PART_OF_SESSION;
-//                        }
-//
-//                        urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalReadUnlock);
-//                        break;
-//                }
                 free((void *) msg);
             }
         }
