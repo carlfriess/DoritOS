@@ -2,10 +2,10 @@
 //  mbtfs.c
 //  DoritOS
 //
-//  Created by Sebastian Winberg on 21.12.17.
-//
 
 #include <stdio.h>
+
+#include <aos/aos_rpc.h>
 
 #include <fs/fs.h>
 
@@ -17,7 +17,7 @@ struct mbtfs_mount {
     
     size_t module_count;
     
-    char *modules[];
+    char **modules;
     
 };
 
@@ -50,7 +50,8 @@ errval_t mbtfs_open(void *st, char *path, mbtfs_handle_t *ret_handle) {
     struct capref frame;
     size_t ret_bytes = 0;
     
-    //err = aos_rpc_get_module_frame(path[pos], &frame, &ret_bytes);
+    // Get module frame from init
+    err = aos_rpc_get_module_frame(aos_rpc_get_init_channel(), &path[pos], &frame, &ret_bytes);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
@@ -58,11 +59,12 @@ errval_t mbtfs_open(void *st, char *path, mbtfs_handle_t *ret_handle) {
     // Buffer for file data
     void *buffer;
     
-    // Calculate frame size
-    size_t frame_size = (ret_bytes + (BASE_PAGE_SIZE - 1)) / BASE_PAGE_SIZE;
-    
+    // Get frame size from frame identity
+    struct frame_identity id;
+    invoke_frame_identify(frame, &id);
+
     // Map frame to virtual address space
-    err = paging_map_frame_attr(get_current_paging_state(), &buffer, frame_size, frame, VREGION_FLAGS_READ, NULL, NULL);
+    err = paging_map_frame_attr(get_current_paging_state(), &buffer, id.bytes, frame, VREGION_FLAGS_READ, NULL, NULL);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
@@ -164,11 +166,55 @@ errval_t mbtfs_tell(void *st, mbtfs_handle_t handle, size_t *pos) {
 }
 
 errval_t mbtfs_stat(void *st, mbtfs_handle_t handle, struct fs_fileinfo *info) {
+
+    struct mbtfs_mount *mt = st;
+    
+    struct mbtfs_handle *h = handle;
+
+    assert(info != NULL);
+    
+    info->type = h->isdir ? FS_DIRECTORY : FS_FILE;
+    
+    if (h->isdir) {
+        info->size = mt->module_count;
+    } else {
+        info->size = h->size;
+    }
+    
     return SYS_ERR_OK;
+
 }
 
 errval_t mbtfs_seek(void *st, mbtfs_handle_t handle, enum fs_seekpos whence, off_t offset) {
+    
+    struct mbtfs_mount *mt = st;
+    
+    struct mbtfs_handle *h = handle;
+    
+    switch (whence) {
+        case FS_SEEK_SET:
+            assert(offset >= 0);
+            h->pos = offset;
+            break;
+            
+        case FS_SEEK_CUR:
+            assert(offset >= 0 || -offset <= h->pos);
+            h->pos += offset;
+            
+            break;
+            
+        case FS_SEEK_END:
+            if (h->isdir) {
+                h->pos = mt->module_count + offset;
+            } else {
+                h->pos = h->size + offset;
+            }
+            break;
+            
+    }
+    
     return SYS_ERR_OK;
+    
 }
 
 errval_t mbtfs_close(void *st, mbtfs_handle_t handle) {
@@ -254,7 +300,8 @@ errval_t mbtfs_dir_read_next(void *st, mbtfs_handle_t handle, char **retname, st
     
     if (info != NULL) {
         
-        // TODO: Set filesystem info
+        // Set filesystem info
+        mbtfs_stat(st, handle, info);
         
     }
 
@@ -298,31 +345,29 @@ errval_t mbtfs_mount(const char *uri, mbtfs_mount_t *retst) {
     
     errval_t err;
     
-    struct capref frame;
-    size_t frame_size = 0;
+    assert(retst != NULL);
+    
     size_t module_count = 0;
     
     // Module name array
     char **modules = NULL;
     
     // Get RPC multiboot module list
-    err = aos_rpc_get_multiboot_module_list(aos_rpc_get_init_channel(), &modules, &module_count);
+    err = aos_rpc_get_module_list(aos_rpc_get_init_channel(), &modules, &module_count);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
-   
+
+    // Allocate and set multiboot filesystem mount state
+    struct mbtfs_mount *mt = calloc(1, sizeof(struct mbtfs_mount));
+    mt->name = "/";
+    mt->module_count = module_count;
+    mt->modules = modules;
     
-    // Map frame to virtual address space
-    err = paging_map_frame_attr(get_current_paging_state(), module, frame_size, frame, VREGION_FLAGS_READ, NULL, NULL);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-    }
+    // Set return state
+    *retst = mt;
     
-    
-    
-    // create mbtfs_mount root
-    
-    return SYS_ERR_OK;
+    return err;
     
 }
