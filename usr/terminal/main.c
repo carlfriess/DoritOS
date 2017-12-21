@@ -22,6 +22,8 @@ struct terminal_state {
     void *write_lock;
     void *read_lock;
     struct io_buffer *buffer;
+    collections_listnode *urpc_chan_list;
+    collections_listnode *terminal_event_queue;
 };
 
 // Memory location to read/write from
@@ -99,6 +101,10 @@ struct terminal_event {
     struct urpc_chan *chan;
     struct terminal_msg msg;
 };
+
+static int urpc_chan_list_remove(void *data, void *arg) {
+    return data == arg;
+}
 
 static int terminal_event_dispatch(void *data, void *arg) {
     errval_t err = SYS_ERR_OK;
@@ -190,6 +196,21 @@ static int terminal_event_dispatch(void *data, void *arg) {
                 debug_printf("%s\n", err_getstring(err));
             }
             return 1;
+        case URPC_MessageType_TerminalDeregister:
+#if PRINT_DEBUG
+            debug_printf("EVENT: Deregister!\n");
+#endif
+            collections_list_remove_if(state->urpc_chan_list, urpc_chan_list_remove, event->chan);
+            err = urpc_send(event->chan, (void *) &msg, sizeof(struct terminal_msg), event->type);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+            }
+#if PRINT_DEBUG
+            debug_printf("Registered Processes: %d", collections_list_size(state->urpc_chan_list));
+#endif
+
+            return 1;
+            break;
     }
 
     return 0;
@@ -223,21 +244,19 @@ int main(int argc, char *argv[]) {
     mem = (char *) vaddr;
     flag = (char *) vaddr + 0x14;
 
-    collections_listnode *urpc_chan_list;
-    collections_list_create(&urpc_chan_list, free);
+    collections_list_create(&state.urpc_chan_list, free);
 
-    collections_listnode *terminal_event_queue;
-    collections_list_create(&terminal_event_queue, free);
+    collections_list_create(&state.terminal_event_queue, free);
 
     terminal_ready();
 
     void *chan = malloc(sizeof(struct urpc_chan));
     while (true) {
-        while (collections_list_remove_if(terminal_event_queue, terminal_event_dispatch, &state) != NULL);
+        while (collections_list_remove_if(state.terminal_event_queue, terminal_event_dispatch, &state) != NULL);
 
         err = urpc_accept((struct urpc_chan *) chan);
         if (err != LIB_ERR_NO_URPC_BIND_REQ) {
-            collections_list_insert(urpc_chan_list, chan);
+            collections_list_insert(state.urpc_chan_list, chan);
             chan = malloc(sizeof(struct urpc_chan));
         }
 
@@ -246,8 +265,8 @@ int main(int argc, char *argv[]) {
         size_t size;
         urpc_msg_type_t msg_type;
 
-        collections_list_traverse_start(urpc_chan_list);
-        while ((node = collections_list_traverse_next(urpc_chan_list)) != NULL) {
+        collections_list_traverse_start(state.urpc_chan_list);
+        while ((node = collections_list_traverse_next(state.urpc_chan_list)) != NULL) {
             err = urpc_recv(node, (void *) &msg, &size, &msg_type);
 
             if (err == SYS_ERR_OK) {
@@ -256,68 +275,12 @@ int main(int argc, char *argv[]) {
                 event->chan = node;
                 event->type = msg_type;
                 event->msg = *msg;
-                collections_list_insert_tail(terminal_event_queue, event);
+                collections_list_insert_tail(state.terminal_event_queue, event);
 
-//                switch (msg_type) {
-//                    case URPC_MessageType_TerminalWriteLock:
-//                        if (state.write_lock == NULL) {
-//                            state.write_lock = node;
-//                        }
-//
-//                    case URPC_MessageType_TerminalWrite:
-//                        if (state.write_lock == NULL || state.write_lock == node) {
-//                            out.err = SYS_ERR_OK;
-//                            put_char(in->c);
-//                        } else {
-//                            // TODO: QUEUE
-//                            out.err = TERM_ERR_TERMINAL_IN_USE;
-//                        }
-//
-//                        urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalWrite);
-//                        break;
-//                    case URPC_MessageType_TerminalWriteUnlock:
-//                        if (state.write_lock == NULL || state.write_lock == node) {
-//                            state.write_lock = NULL;
-//                            out.err = SYS_ERR_OK;
-//                        } else {
-//                            out.err = TERM_ERR_NOT_PART_OF_SESSION;
-//                        }
-//
-//                        urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalWriteUnlock);
-//                        break;
-//                    case URPC_MessageType_TerminalReadLock:
-//                        if (state.read_lock == NULL) {
-//                            state.read_lock = node;
-//                            // TODO: RESPOND
-//                        } else {
-//                            // TODO: QUEUE
-//                        }
-//                    case URPC_MessageType_TerminalRead:
-//                        if (state.read_lock == NULL || state.read_lock == node) {
-//                            out.err = get_next_char(&out.c);
-//                        } else {
-//                            // TODO: QUEUE
-//                            out.err = TERM_ERR_TERMINAL_IN_USE;
-//                        }
-//
-//                        urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalRead);
-//                        break;
-//                    case URPC_MessageType_TerminalReadUnlock:
-//                        if (state.read_lock == NULL || state.read_lock == node) {
-//                            state.read_lock = NULL;
-//                            out.err = SYS_ERR_OK;
-//                        } else {
-//                            // TODO: RESPOND
-//                            out.err = TERM_ERR_NOT_PART_OF_SESSION;
-//                        }
-//
-//                        urpc_send(node, (void *) &out, sizeof(struct terminal_msg), URPC_MessageType_TerminalReadUnlock);
-//                        break;
-//                }
                 free((void *) msg);
             }
         }
-        collections_list_traverse_end(urpc_chan_list);
+        collections_list_traverse_end(state.urpc_chan_list);
 
         event_dispatch_non_block(get_default_waitset());
     }

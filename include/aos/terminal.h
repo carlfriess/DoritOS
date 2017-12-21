@@ -8,6 +8,7 @@
 #define URPC_MessageType_TerminalRead               URPC_MessageType_User3
 #define URPC_MessageType_TerminalReadLock           URPC_MessageType_User4
 #define URPC_MessageType_TerminalReadUnlock         URPC_MessageType_User5
+#define URPC_MessageType_TerminalDeregister         URPC_MessageType_User6
 
 struct terminal_msg {
     errval_t err;
