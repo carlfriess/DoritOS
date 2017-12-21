@@ -206,7 +206,7 @@ void lmp_server_dispatcher(void *arg) {
 #endif
             
             // Get frame for module and send it back
-            err = lmp_server_module_frame(lc);
+            err = lmp_server_module_frame(lc, cap, msg.words);
             if (err_is_fail(err)) {
                 debug_printf("%s\n", err_getstring(err));
             }
@@ -229,7 +229,10 @@ void lmp_server_dispatcher(void *arg) {
             
         default:
 #if PRINT_DEBUG
+            
             debug_printf("Invalid Message!\n");
+            debug_printf("->%d\n", msg.words[0]);
+
 #endif
             break;
             
@@ -460,9 +463,6 @@ errval_t lmp_server_module_list(struct lmp_chan *lc) {
             // Increment buffer size
             buffer_size += strlen(name) + 1;
             
-            // Free module name string
-            free((char *) name);
-            
             // Update module count
             module_count++;
             
@@ -483,19 +483,30 @@ errval_t lmp_server_module_list(struct lmp_chan *lc) {
     
 }
 
-
-
-errval_t lmp_server_module_frame(struct lmp_chan *lc) {
+errval_t lmp_server_module_frame(struct lmp_chan *lc, struct capref cap, uintptr_t *words) {
     
-    errval_t err = SYS_ERR_OK;
-
-    // Module name
-    char *name;
+    errval_t err;
     
-    err = lmp_recv_string(lc, &name);
+    // Process the message and get the capability and size
+    struct capref frame_cap;
+    size_t size;
+    err = lmp_recv_frame_from_msg(lc, LMP_RequestType_ModuleFrame, cap, words, &frame_cap, &size);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
+        return err;
     }
+    
+    // Map the recieved frame into memory
+    void *buf;
+    err = paging_map_frame(get_current_paging_state(), &buf,
+                           size, frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Initialize string as beginning of name
+    char *name = (char *) buf;
     
     struct mem_region *mem = multiboot_find_module(lmp_bi, name);
     if (!mem) {
@@ -517,8 +528,20 @@ errval_t lmp_server_module_frame(struct lmp_chan *lc) {
                          mem->mrmod_size
                          );
     
-    // Free module name string
-    free(name);
+    // Clean up the frame
+    err = paging_unmap(get_current_paging_state(), buf);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    // FIXME: Make this work
+    /*err = ram_free_handler(frame_cap, size);
+     if (err_is_fail(err)) {
+     debug_printf("%s\n", err_getstring(err));
+     }*/
+    // Temporary less optimal soution:
+    cap_delete(frame_cap);
+    slot_free(frame_cap);
     
     return err;
 
@@ -631,6 +654,7 @@ void lmp_client_recv_waitset(struct lmp_chan *lc, struct capref *cap, struct lmp
     }
 
 #if PRINT_DEBUG
+    if ((msg->words[0] & 0xFFFFFF) != 4)
     debug_printf("Received LMP message with type %zu!\n", msg->words[0] & 0xFFFFFF);
 #endif
 

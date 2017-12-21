@@ -460,22 +460,50 @@ errval_t aos_rpc_get_module_frame(struct aos_rpc *chan, char *name,
     
     assert(ret_bytes != NULL);
     
-    // Send request to get frame of module
-    err = lmp_chan_send1(chan->lc,
-                         LMP_SEND_FLAGS_DEFAULT,
-                         NULL_CAP,
-                         LMP_RequestType_ModuleFrame
-                         );
+    // Allocating frame capability
+    size_t ret_size;
+    struct capref frame_cap;
+    err = frame_alloc(&frame_cap, strlen(name) + 1, &ret_size);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
+        return err;
     }
     
-    // Send name of module to init
-    err = lmp_send_string(chan->lc, name);
+    // Mapping frame into virtual address space
+    void *buf;
+    err = paging_map_frame(get_current_paging_state(), &buf,
+                           ret_size, frame_cap, NULL, NULL);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
+        return err;
     }
     
+    // Copy name into buffer after core id
+    memcpy(buf, name, strlen(name) + 1);
+    
+    // Send the frame to the recipient
+    err = lmp_send_frame(chan->lc, LMP_RequestType_ModuleFrame, frame_cap, ret_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Cleaning up after sending
+    err = paging_unmap(get_current_paging_state(), buf);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    // FIXME: Make this work
+    /*err = ram_free_handler(frame_cap, ret_size);
+     if (err_is_fail(err)) {
+     debug_printf("%s\n", err_getstring(err));
+     }*/
+    // Temporary less optimal soution:
+    cap_delete(frame_cap);
+    slot_free(frame_cap);
+    
+
     // Initialize message
     struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
     

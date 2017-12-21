@@ -223,7 +223,7 @@ void lmp_set_bootinfo(struct bootinfo *bi);
 
 errval_t lmp_server_module_list(struct lmp_chan *lc);
 
-errval_t lmp_server_module_frame(struct lmp_chan *lc);
+errval_t lmp_server_module_frame(struct lmp_chan *lc, struct capref cap, uintptr_t *words);
 
 
 /* MARK: - ========== Client ========== */
