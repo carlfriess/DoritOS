@@ -481,6 +481,7 @@ Rather than forwarding the entire packet, the source address, source port and pa
 struct udp_urpc_packet {
     uint32_t addr;
     uint16_t port;
+    uint16_t size;
     uint8_t payload[];
 } __attribute__ ((__packed__));
 
@@ -515,3 +516,15 @@ As previously described, the serial port provided some performance limitations, 
 To implement this I added an "idle" state to the SLIP parser. When exiting this state the parser calls `udp_cancel_event_queue()`. When re-entering the idle state parser then calls `udp_register_event_queue()` to re-enable UDP event handling. This works almost all of the time but is really just a work-around and has only been properly tested at 9600 BAUD. The issue is, that the parser could (with unluckily timing) miss the beginning of a package at which point it's already too late. A better solution would be to use Request To Send and Clear To Send flow control signals on the serial line or even to use DMA rather than just the RX FIFO.
 
 Overall, the performance is reasonably good though and given packets smaller than 64 bytes the network stack works flawlessly.
+
+### Network configuration
+
+`networkd` can be configured dynamically at runtime. Currently the static IP address can be set and dumping of raw packages can be enabled using the following two network utilities.
+
+#### ip\_set\_addr
+
+This simple application opens a socket to establish communication with `networkd` and then sends a special `URPC_MessageType_SetIPAddress`, which contains the four bytes making up the new IP address. On receiving this message, the `ip_set_ip_address()` method is called and all future packets are sent from the new IP address.
+
+#### dump\_packets
+
+Similar to the previous utility this application sends a `URPC_MessageType_DumpPackets` containing just a boolean value. It tells the SLIP parser whether to dump incoming packets to the stdout after they have been fully parsed.
