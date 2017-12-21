@@ -32,6 +32,8 @@ module /armv7/sbin/shell
 
 # milestone 7 network
 module /armv7/sbin/networkd
+module /armv7/sbin/ip_set_addr
+module /armv7/sbin/dump_packets
 module /armv7/sbin/udp_echo
 
 # For pandaboard, use following values.
