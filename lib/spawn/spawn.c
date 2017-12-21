@@ -581,6 +581,11 @@ static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
 
     // Register the process
     process_register(si->pi);
+    
+    // Set the process PID
+    dispatcher_handle_t dcb_addr_parent_handle = (dispatcher_handle_t) si->dcb_addr_parent;
+    struct dispatcher_generic *disp_gen = get_dispatcher_generic(dcb_addr_parent_handle);
+    disp_gen->domain_id = si->pi->pid;
 
     // Invoking the dispatcher
     err = invoke_dispatcher(si->child_dispatcher_cap,
