@@ -59,7 +59,7 @@ errval_t vfs_open(void *st, const char *path, vfs_handle_t *rethandle) {
     char *rel_path;
     
     // VFS handle to store the FS specific handle and the type
-    struct vfs_handle *h = (struct vfs_handle *) calloc(1, sizeof(struct vfs_handle));
+    struct vfs_handle *h = calloc(1, sizeof(struct vfs_handle));
     
     // Find the file system type for given path in mount linked list
     enum fs_type type = find_mount_type(mt->head, path, &rel_path);
