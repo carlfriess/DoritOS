@@ -6,6 +6,7 @@
 #ifndef INCLUDE_FS_FS_H_
 #define INCLUDE_FS_FS_H_
 
+#include <aos/aos.h>
 
 #define FS_PATH_SEP '/'
 
@@ -67,7 +68,7 @@ errval_t filesystem_mount(const char *path, const char *uri);
  */
 
 /**
- * @brief acquires a block from the fil
+ * @brief acquires a block from the file
  * @param id    id of the block to read
  * @param data  returns data
  *

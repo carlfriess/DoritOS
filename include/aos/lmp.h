@@ -175,23 +175,26 @@ enum lmp_request_type {
     LMP_RequestType_StringShort,
     LMP_RequestType_StringLong,
     LMP_RequestType_BufferShort,
-    LMP_RequestType_BufferLong,
+    LMP_RequestType_BufferLong,     // 5
     LMP_RequestType_SpawnShort,
     LMP_RequestType_SpawnLong,
     
     LMP_RequestType_ShortBuf,
     LMP_RequestType_FrameSend,
     
-    LMP_RequestType_DeviceCap,
+    LMP_RequestType_DeviceCap,      // 10
+    
+    LMP_RequestType_ModuleList,
+    LMP_RequestType_ModuleFrame,
     
     LMP_RequestType_Register,
     LMP_RequestType_MemoryAlloc,
-    LMP_RequestType_MemoryFree,
+    LMP_RequestType_MemoryFree,     // 15
     LMP_RequestType_Spawn,
     LMP_RequestType_NameLookup,
     LMP_RequestType_PidDiscover,
     LMP_RequestType_Echo,
-    LMP_RequestType_UmpBind,
+    LMP_RequestType_UmpBind,        // 20
     LMP_RequestType_LmpBind,
 
     LMP_RequestType_ProcessDeregister,
@@ -215,6 +218,13 @@ errval_t lmp_server_process_deregister(struct lmp_chan *lc);
 errval_t lmp_server_process_deregister_notify(struct lmp_chan *lc, domainid_t pid);
 
 errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes);
+
+void lmp_set_bootinfo(struct bootinfo *bi);
+
+errval_t lmp_server_module_list(struct lmp_chan *lc);
+
+errval_t lmp_server_module_frame(struct lmp_chan *lc, struct capref cap, uintptr_t *words);
+
 
 /* MARK: - ========== Client ========== */
 

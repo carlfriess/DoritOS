@@ -223,6 +223,8 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Set bootinfo in lmp such that it can acces multiboot modules
+    lmp_set_bootinfo(bi);
     
     // MARK: - Start Terminal Driver
     

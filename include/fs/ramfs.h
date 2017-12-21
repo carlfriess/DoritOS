@@ -7,19 +7,19 @@
  * ETH Zurich D-INFK, Universitaetstr 6, CH-8092 Zurich. Attn: Systems Group.
  */
 
-#ifndef FS_RAMFS_H_
-#define FS_RAMFS_H_
+#ifndef RAMFS_H_
+#define RAMFS_H_
 
 #include <fs/fs.h>
 
 typedef void *ramfs_handle_t;
 typedef void *ramfs_mount_t;
 
-errval_t ramfs_open(void *st, const char *path, ramfs_handle_t *rethandle);
+errval_t ramfs_open(void *st, char *path, ramfs_handle_t *rethandle);
 
-errval_t ramfs_create(void *st, const char *path, ramfs_handle_t *rethandle);
+errval_t ramfs_create(void *st, char *path, ramfs_handle_t *rethandle);
 
-errval_t ramfs_remove(void *st, const char *path);
+errval_t ramfs_remove(void *st, char *path);
 
 errval_t ramfs_read(void *st, ramfs_handle_t handle, void *buffer, size_t bytes,
                     size_t *bytes_read);
@@ -38,17 +38,17 @@ errval_t ramfs_seek(void *st, ramfs_handle_t handle, enum fs_seekpos whence,
 
 errval_t ramfs_close(void *st, ramfs_handle_t inhandle);
 
-errval_t ramfs_opendir(void *st, const char *path, ramfs_handle_t *rethandle);
+errval_t ramfs_opendir(void *st, char *path, ramfs_handle_t *rethandle);
 
 errval_t ramfs_dir_read_next(void *st, ramfs_handle_t inhandle, char **retname,
                              struct fs_fileinfo *info);
 
 errval_t ramfs_closedir(void *st, ramfs_handle_t dhandle);
 
-errval_t ramfs_mkdir(void *st, const char *path);
+errval_t ramfs_mkdir(void *st, char *path);
 
-errval_t ramfs_rmdir(void *st, const char *path);
+errval_t ramfs_rmdir(void *st, char *path);
 
 errval_t ramfs_mount(const char *uri, ramfs_mount_t *retst);
 
-#endif /* FS_RAMFS_H_ */
+#endif /* RAMFS_H_ */

@@ -99,6 +99,21 @@ errval_t aos_rpc_process_get_pid_by_name(const char *name, domainid_t *pid);
 errval_t aos_rpc_get_device_cap(struct aos_rpc *chan, lpaddr_t paddr, size_t bytes,
                                 struct capref *frame);
 
+
+/**
+ * \brief Returns an array with all multiboot module names and size of that array.
+ */
+errval_t aos_rpc_get_module_list(struct aos_rpc *chan,
+                                 char ***modules,
+                                 size_t *module_count);
+
+/**
+ * \brief Returns the frame and module size of module "name".
+ */
+errval_t aos_rpc_get_module_frame(struct aos_rpc *chan, char *name,
+                                  struct capref *frame, size_t *ret_bytes);
+
+
 /**
  * \brief Deregister process with init. Will not return;
  */

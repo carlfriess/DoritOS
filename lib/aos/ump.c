@@ -128,7 +128,7 @@ errval_t ump_recv_one(struct ump_chan *chan, void *buf,
 
 // Receive a buffer of `size` bytes on the UMP channel
 errval_t ump_recv(struct ump_chan *chan, void **buf, size_t *size,
-                   ump_msg_type_t* msg_type) {
+                  ump_msg_type_t* msg_type) {
     errval_t err = SYS_ERR_OK;
 
     uint8_t last;

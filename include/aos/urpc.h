@@ -25,7 +25,14 @@
 #define URPC_MessageType_User5  UMP_MessageType_User5
 #define URPC_MessageType_User6  UMP_MessageType_User6
 #define URPC_MessageType_User7  UMP_MessageType_User7
-
+#define URPC_MessageType_User8  UMP_MessageType_User8
+#define URPC_MessageType_User9  UMP_MessageType_User9
+#define URPC_MessageType_User10 UMP_MessageType_User10
+#define URPC_MessageType_User11 UMP_MessageType_User11
+#define URPC_MessageType_User12 UMP_MessageType_User12
+#define URPC_MessageType_User13 UMP_MessageType_User13
+#define URPC_MessageType_User14 UMP_MessageType_User14
+#define URPC_MessageType_User15 UMP_MessageType_User15
 
 // UMP message types type
 typedef ump_msg_type_t urpc_msg_type_t;

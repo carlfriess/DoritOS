@@ -6,23 +6,17 @@
 -- If you do not find this file, copies can be found by writing to:
 -- ETH Zurich D-INFK, Haldeneggsteig 4, CH-8092 Zurich. Attn: Systems Group.
 --
--- Hakefile for lib/vfs
+-- Hakefile for lib/fs_serv
 --
 --------------------------------------------------------------------------
 
 [
   build library {
-    target = "fs",
+    target = "fs_serv",
     cFiles = [
-        "fs.c",
-        "fopen.c",
-        "ramfs.c",
-        "dirent.c",
-        "fs_rpc.c",
-        "vfs.c",
-        "mbtfs.c"
-    ],
-    addLibraries = [ "fs_serv" ]
-
+        "fatfs_serv.c",
+        "fatfs_rpc_serv.c",
+        "fat_helper.c"
+    ]
   }
 ]

@@ -383,6 +383,154 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *chan,
     
 }
 
+errval_t aos_rpc_get_module_list(struct aos_rpc *chan,
+                                 char ***modules,
+                                 size_t *module_count)
+{
+
+    errval_t err;
+    
+    assert(modules != NULL);
+    
+    // Send request to get frame buffer with all multiboot module names
+    err = lmp_chan_send1(chan->lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         NULL_CAP,
+                         LMP_RequestType_ModuleList
+                         );
+    
+    // Buffer for names
+    char *buffer;
+    
+    // Buffer size
+    size_t buffer_size = 0;
+    
+    // Message type
+    uint8_t msg_type;
+    
+    // Receive buffer with all module names from init
+    lmp_recv_buffer(chan->lc, (void **) &buffer, &buffer_size, &msg_type);
+    
+    assert(msg_type == LMP_RequestType_ModuleList);
+
+    // Get module count from buffer
+    size_t count = ((uint32_t *) buffer)[0];
+    
+    // Array of all module names
+    char **modules_array = calloc(count, sizeof(char *));
+    
+    // Pointer to beginning of current name string in buffer
+    char *ptr = buffer + sizeof(uint32_t);
+    char *next_ptr;
+    
+    size_t i;
+    for (i = 0; i < count; i++) {
+        
+        next_ptr = strchr(ptr, '\0');
+        if (next_ptr == NULL) {
+            debug_printf("Failed parsing module name buffer\n");
+            break;
+        }
+        
+        // Set ith element in modules name array
+        modules_array[i] = strdup(ptr);
+        
+        // Update pointer
+        ptr = next_ptr + 1;
+        
+    }
+    
+    // Set return module count
+    *module_count = i;
+    
+    // Set return modules array
+    *modules = modules_array;
+    
+    // Free buffer
+    free(buffer);
+
+    return err;
+    
+}
+
+errval_t aos_rpc_get_module_frame(struct aos_rpc *chan, char *name,
+                                  struct capref *frame, size_t *ret_bytes) {
+    
+    errval_t err;
+    
+    assert(ret_bytes != NULL);
+    
+    // Allocating frame capability
+    size_t ret_size;
+    struct capref frame_cap;
+    err = frame_alloc(&frame_cap, strlen(name) + 1, &ret_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Mapping frame into virtual address space
+    void *buf;
+    err = paging_map_frame(get_current_paging_state(), &buf,
+                           ret_size, frame_cap, NULL, NULL);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Copy name into buffer after core id
+    memcpy(buf, name, strlen(name) + 1);
+    
+    // Send the frame to the recipient
+    err = lmp_send_frame(chan->lc, LMP_RequestType_ModuleFrame, frame_cap, ret_size);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Cleaning up after sending
+    err = paging_unmap(get_current_paging_state(), buf);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    // FIXME: Make this work
+    /*err = ram_free_handler(frame_cap, ret_size);
+     if (err_is_fail(err)) {
+     debug_printf("%s\n", err_getstring(err));
+     }*/
+    // Temporary less optimal soution:
+    cap_delete(frame_cap);
+    slot_free(frame_cap);
+    
+
+    // Initialize message
+    struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+    
+    // Receive the frame capability where the module names are saved
+    lmp_client_recv(chan->lc, frame, &msg);
+    
+    // Allocate recv slot
+    err = lmp_chan_alloc_recv_slot(chan->lc);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Check that it received correct response
+    assert(msg.words[0] == LMP_RequestType_ModuleFrame);
+    
+    // Set error
+    err = msg.words[1];
+    
+    // Set return bytes
+    *ret_bytes = msg.words[2];
+    
+    return err;
+    
+}
+
+
 errval_t aos_rpc_process_deregister(void) {
     errval_t err;
 

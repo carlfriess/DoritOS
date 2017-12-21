@@ -53,6 +53,7 @@
                              "ump.c",
                              "urpc.c",
                              "waitset.c" ],
+                  addLibraries = [ "spawn" ],
                   assemblyFiles = [ "arch/arm/entry.S", "arch/arm/syscall.S" ],
                   addIncludes =   [ "include", "include/arch/arm" ],
                   addGeneratedDependencies = [ "/include/asmoffsets.h" ]

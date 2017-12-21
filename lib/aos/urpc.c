@@ -81,7 +81,7 @@ void urpc_register_process_handler(struct ump_chan *chan, void *msg,
     
     new_process->core_id = req->core_id;
     new_process->pid = req->pid;
-    new_process->name = (char *) malloc(strlen(req->name));
+    new_process->name = (char *) malloc(strlen(req->name) + 1);
     assert(new_process->name != NULL);
     strcpy(new_process->name, req->name);
     

@@ -2,7 +2,6 @@
 #include <stdlib.h>
 
 #include <aos/aos.h>
-#include <aos/ump.h>
 #include <aos/urpc.h>
 #include <aos/aos_rpc.h>
 

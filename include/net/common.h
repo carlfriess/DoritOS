@@ -21,6 +21,10 @@
 #define URPC_MessageType_Receive        URPC_MessageType_User3
 #define URPC_MessageType_SocketClose    URPC_MessageType_User4
 
+// Message types for network utilities
+#define URPC_MessageType_SetIPAddress   URPC_MessageType_User5
+#define URPC_MessageType_DumpPackets    URPC_MessageType_User6
+
 
 struct udp_socket_common {
     uint16_t port;

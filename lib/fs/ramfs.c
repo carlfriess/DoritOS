@@ -14,8 +14,7 @@
 #include <fs/fs.h>
 #include <fs/ramfs.h>
 
-#include "fs_internal.h"
-
+ 
 #define BULK_MEM_SIZE       (1U << 16)      // 64kB
 #define BULK_BLOCK_SIZE     BULK_MEM_SIZE   // (it's RPC)
 
@@ -25,7 +24,7 @@
  */
 struct ramfs_dirent
 {
-    char *name;                     ///< name of the file or directoyr
+    char *name;                     ///< name of the file or directory
     size_t size;                    ///< the size of the direntry in bytes or files
     size_t refcount;                ///< reference count for open handles
     struct ramfs_dirent *parent;    ///< parent directory
@@ -46,7 +45,7 @@ struct ramfs_dirent
  */
 struct ramfs_handle
 {
-    struct fs_handle common;
+    //struct fs_handle common;
     char *path;
     bool isdir;
     struct ramfs_dirent *dirent;
@@ -143,7 +142,7 @@ static struct ramfs_dirent *dirent_create(const char *name, bool is_dir)
     return d;
 }
 
-static errval_t find_dirent(struct ramfs_dirent *root, const char *name,
+static errval_t find_dirent(struct ramfs_dirent *root, char *name,
                             struct ramfs_dirent **ret_de)
 {
     if (!root->is_dir) {
@@ -164,7 +163,7 @@ static errval_t find_dirent(struct ramfs_dirent *root, const char *name,
     return FS_ERR_NOTFOUND;
 }
 
-static errval_t resolve_path(struct ramfs_dirent *root, const char *path,
+static errval_t resolve_path(struct ramfs_dirent *root, char *path,
                              struct ramfs_handle **ret_fh)
 {
     errval_t err;
@@ -224,7 +223,7 @@ static errval_t resolve_path(struct ramfs_dirent *root, const char *path,
     return SYS_ERR_OK;
 }
 
-errval_t ramfs_open(void *st, const char *path, ramfs_handle_t *rethandle)
+errval_t ramfs_open(void *st, char *path, ramfs_handle_t *rethandle)
 {
     errval_t err;
 
@@ -246,7 +245,7 @@ errval_t ramfs_open(void *st, const char *path, ramfs_handle_t *rethandle)
     return SYS_ERR_OK;
 }
 
-errval_t ramfs_create(void *st, const char *path, ramfs_handle_t *rethandle)
+errval_t ramfs_create(void *st, char *path, ramfs_handle_t *rethandle)
 {
     errval_t err;
 
@@ -305,7 +304,7 @@ errval_t ramfs_create(void *st, const char *path, ramfs_handle_t *rethandle)
     return SYS_ERR_OK;
 }
 
-errval_t ramfs_remove(void *st, const char *path)
+errval_t ramfs_remove(void *st, char *path)
 {
     errval_t err;
 
@@ -499,7 +498,7 @@ errval_t ramfs_close(void *st, ramfs_handle_t inhandle)
     return SYS_ERR_OK;
 }
 
-errval_t ramfs_opendir(void *st, const char *path, ramfs_handle_t *rethandle)
+errval_t ramfs_opendir(void *st, char *path, ramfs_handle_t *rethandle)
 {
     errval_t err;
 
@@ -566,7 +565,7 @@ errval_t ramfs_closedir(void *st, ramfs_handle_t dhandle)
 }
 
 // fails if already present
-errval_t ramfs_mkdir(void *st, const char *path)
+errval_t ramfs_mkdir(void *st, char *path)
 {
     errval_t err;
 
@@ -621,7 +620,7 @@ errval_t ramfs_mkdir(void *st, const char *path)
 
 
 
-errval_t ramfs_rmdir(void *st, const char *path)
+errval_t ramfs_rmdir(void *st, char *path)
 {
     errval_t err;
 
@@ -662,7 +661,7 @@ errval_t ramfs_rmdir(void *st, const char *path)
 errval_t ramfs_mount(const char *uri, ramfs_mount_t *retst)
 {
 
-    /* Setup channel and connect ot service */
+    /* Setup channel and connect to service */
     /* TODO: setup channel to init for multiboot files */
 
     struct ramfs_mount *mount = calloc(1, sizeof(struct ramfs_mount));

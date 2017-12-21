@@ -73,8 +73,10 @@ static errval_t get_next_char(struct terminal_state *state, char *c) {
 
 static void terminal_ready(void) {
     domainid_t pid;
-    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "networkd", 0, &pid);
-    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "shell", 0, &pid);
+    struct aos_rpc *init_chan = aos_rpc_get_init_channel();
+    aos_rpc_process_spawn(init_chan, "networkd", 0, &pid);
+    aos_rpc_process_spawn(init_chan, "mmchs", 0, &pid);
+    aos_rpc_process_spawn(init_chan, "shell", 0, &pid);
 }
 
 static void serial_interrupt_handler(void *arg) {
