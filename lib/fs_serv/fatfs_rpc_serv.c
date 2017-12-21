@@ -11,10 +11,16 @@
 #include <aos/aos_rpc.h>
 
 #include <fs_serv/fatfs_serv.h>
-
 #include <fs_serv/fatfs_rpc_serv.h>
 
 #include <fs/fs_rpc.h>
+
+#include <collections/list.h>
+
+
+// List of bound channels
+static collections_listnode *chan_list;
+
 
 static void handle_urpc_msg(struct urpc_chan *chan,
                             uint8_t *recv_buffer,
@@ -447,29 +453,58 @@ errval_t run_rpc_serv(void) {
         debug_printf("%s\n", err_getstring(err));
     }
     
-    domainid_t pid = 0;
-    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "filereader", 0, &pid);
+    // Initialize channel list
+    collections_list_create(&chan_list, free);
     
-    // Accept a binding request from a client
-    struct urpc_chan chan;
-    err = urpc_accept_blocking(&chan);
-    assert(err_is_ok(err));
+//    domainid_t pid = 0;
+//    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "filereader", 0, &pid);
     
     // Receive request message from client
     uint8_t *recv_buffer;
     size_t recv_size;
     urpc_msg_type_t recv_msg_type;
     
+    struct urpc_chan *new_chan = malloc(sizeof(struct urpc_chan));
+    assert(new_chan);
+
     while (true) {
         
-        // Wait for fs_message from client
-        urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+        // Accept a binding request from a client
+        err = urpc_accept(new_chan);
+        if (err_is_ok(err)) {
+            collections_list_insert(chan_list, new_chan);
+            new_chan = malloc(sizeof(struct urpc_chan));
+            assert(new_chan);
+        }
+        else if (err != LIB_ERR_NO_URPC_BIND_REQ) {
+            debug_printf("Error in urpc_accept(): %s\n", err_getstring(err));
+        }
         
-        // Handle received message
-        handle_urpc_msg(&chan, recv_buffer, recv_size, recv_msg_type, &mt);
-        
-        // Free receive buffer
-        free(recv_buffer);
+        // Iterate all bound URPC channels
+        struct urpc_chan *chan;
+        collections_list_traverse_start(chan_list);
+        while ((chan = (struct urpc_chan *) collections_list_traverse_next(chan_list)) != NULL) {
+            
+            // Wait for fs_message from client
+            err = urpc_recv(chan,
+                            (void **) &recv_buffer,
+                            &recv_size,
+                            &recv_msg_type);
+            if (err_is_ok(err)) {
+                
+                // Handle received message
+                handle_urpc_msg(chan, recv_buffer, recv_size, recv_msg_type, &mt);
+                
+                // Free receive buffer
+                free(recv_buffer);
+                
+            }
+            else if (err != LIB_ERR_NO_URPC_MSG) {
+                debug_printf("Error in urpc_recv(): %s\n", err_getstring(err));
+            }
+            
+        }
+        collections_list_traverse_end(chan_list);
         
     }
     
