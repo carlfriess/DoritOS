@@ -7,8 +7,8 @@
  * ETH Zurich D-INFK, Universitaetstr 6, CH-8092 Zurich. Attn: Systems Group.
  */
 
-#ifndef FS_RAMFS_H_
-#define FS_RAMFS_H_
+#ifndef RAMFS_H_
+#define RAMFS_H_
 
 #include <fs/fs.h>
 
@@ -51,4 +51,4 @@ errval_t ramfs_rmdir(void *st, char *path);
 
 errval_t ramfs_mount(const char *uri, ramfs_mount_t *retst);
 
-#endif /* FS_RAMFS_H_ */
+#endif /* RAMFS_H_ */

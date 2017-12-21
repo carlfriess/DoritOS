@@ -11,7 +11,7 @@
 enum fs_type {
     RAMFS,
     FATFS,
-    MULTIBOOTFS
+    MBTFS
 };
 
 struct mount_node {
@@ -29,6 +29,7 @@ struct vfs_handle {
 struct vfs_mount {
     void *ram_mount;
     void *fat_mount;
+    void *mbt_mount;
 
     struct mount_node *head;
 };

@@ -19,7 +19,8 @@
         "ramfs.c",
         "dirent.c",
         "fs_rpc.c",
-        "vfs.c"
+        "vfs.c",
+        "mbtfs.c"
     ],
     addLibraries = [ "fs_serv" ]
 
