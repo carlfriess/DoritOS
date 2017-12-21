@@ -395,7 +395,27 @@ errval_t aos_rpc_get_device_cap(struct aos_rpc *chan,
 }
 
 errval_t aos_rpc_process_deregister(void) {
+    errval_t err;
+
     struct aos_rpc *chan = aos_rpc_get_init_channel();
+
+    struct aos_rpc *serial_chan = aos_rpc_get_serial_channel();
+
+    void *buf = NULL;
+
+    size_t size = sizeof(void *);
+    urpc_msg_type_t msg_type = URPC_MessageType_TerminalDeregister;
+
+    err = urpc_send(serial_chan->uc, (void *) &buf, size, msg_type);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    err = urpc_recv_blocking(serial_chan->uc, (void **) &buf, &size, &msg_type);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+
+    free(buf);
 
     lmp_chan_send1(chan->lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_ProcessDeregister);
 

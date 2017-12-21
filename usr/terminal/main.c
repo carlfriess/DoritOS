@@ -25,6 +25,8 @@ struct terminal_state {
     void *write_lock;
     void *read_lock;
     struct io_buffer *buffer;
+    collections_listnode *urpc_chan_list;
+    collections_listnode *terminal_event_queue;
 };
 
 // Memory location to read/write from
@@ -100,6 +102,10 @@ struct terminal_event {
     struct urpc_chan *chan;
     struct terminal_msg msg;
 };
+
+static int urpc_chan_list_remove(void *data, void *arg) {
+    return data == arg;
+}
 
 static int terminal_event_dispatch(void *data, void *arg) {
     errval_t err = SYS_ERR_OK;
@@ -191,6 +197,21 @@ static int terminal_event_dispatch(void *data, void *arg) {
                 debug_printf("%s\n", err_getstring(err));
             }
             return 1;
+        case URPC_MessageType_TerminalDeregister:
+#if PRINT_DEBUG
+            debug_printf("EVENT: Deregister!\n");
+#endif
+            collections_list_remove_if(state->urpc_chan_list, urpc_chan_list_remove, event->chan);
+            err = urpc_send(event->chan, (void *) &msg, sizeof(struct terminal_msg), event->type);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+            }
+#if PRINT_DEBUG
+            debug_printf("Registered Processes: %d", collections_list_size(state->urpc_chan_list));
+#endif
+
+            return 1;
+            break;
     }
 
     return 0;
@@ -224,21 +245,19 @@ int main(int argc, char *argv[]) {
     mem = (char *) vaddr;
     flag = (char *) vaddr + 0x14;
 
-    collections_listnode *urpc_chan_list;
-    collections_list_create(&urpc_chan_list, free);
+    collections_list_create(&state.urpc_chan_list, free);
 
-    collections_listnode *terminal_event_queue;
-    collections_list_create(&terminal_event_queue, free);
+    collections_list_create(&state.terminal_event_queue, free);
 
     terminal_ready();
 
     void *chan = malloc(sizeof(struct urpc_chan));
     while (true) {
-        while (collections_list_remove_if(terminal_event_queue, terminal_event_dispatch, &state) != NULL);
+        while (collections_list_remove_if(state.terminal_event_queue, terminal_event_dispatch, &state) != NULL);
 
         err = urpc_accept((struct urpc_chan *) chan);
         if (err != LIB_ERR_NO_URPC_BIND_REQ) {
-            collections_list_insert(urpc_chan_list, chan);
+            collections_list_insert(state.urpc_chan_list, chan);
             chan = malloc(sizeof(struct urpc_chan));
         }
 
@@ -247,8 +266,8 @@ int main(int argc, char *argv[]) {
         size_t size;
         urpc_msg_type_t msg_type;
 
-        collections_list_traverse_start(urpc_chan_list);
-        while ((node = collections_list_traverse_next(urpc_chan_list)) != NULL) {
+        collections_list_traverse_start(state.urpc_chan_list);
+        while ((node = collections_list_traverse_next(state.urpc_chan_list)) != NULL) {
             err = urpc_recv(node, (void *) &msg, &size, &msg_type);
 
             if (err_is_ok(err)) {
@@ -256,11 +275,11 @@ int main(int argc, char *argv[]) {
                 event->chan = node;
                 event->type = msg_type;
                 event->msg = *msg;
-                collections_list_insert_tail(terminal_event_queue, event);
+
                 free((void *) msg);
             }
         }
-        collections_list_traverse_end(urpc_chan_list);
+        collections_list_traverse_end(state.urpc_chan_list);
 
         event_dispatch_non_block(get_default_waitset());
     }
