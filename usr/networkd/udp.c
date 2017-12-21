@@ -8,6 +8,7 @@
 
 #include "udp.h"
 
+#include <stdbool.h>
 #include <string.h>
 
 #include <aos/urpc.h>
@@ -18,6 +19,9 @@
 
 #include <netutil/htons.h>
 #include <netutil/checksum.h>
+
+// (SLIP) Should dump every received packet to stdout
+extern bool dump_packets;
 
 
 struct event_queue_pair {
@@ -354,6 +358,17 @@ static void udp_handle_urpc(struct udp_socket *socket, void *buf, size_t size,
             collections_list_traverse_end(socket_list);
             collections_list_remove_if(socket_list, predicate_equals, socket);
             collections_list_traverse_start(socket_list);
+            break;
+            
+        // For network utilites
+        case URPC_MessageType_SetIPAddress:
+            ip_set_ip_address(((uint8_t *) buf)[0],
+                              ((uint8_t *) buf)[1],
+                              ((uint8_t *) buf)[2],
+                              ((uint8_t *) buf)[3]);
+            break;
+        case URPC_MessageType_DumpPackets:
+            dump_packets = *(bool *) buf;
             break;
             
         default:
