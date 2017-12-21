@@ -114,6 +114,16 @@ domainid_t disp_get_domain_id(void)
 }
 
 /**
+ * \brief returns the terminal_pid stored in disp_priv struct
+ */
+domainid_t disp_get_terminal_pid(void)
+{
+    dispatcher_handle_t handle = curdispatcher();
+    struct dispatcher_generic* disp = get_dispatcher_generic(handle);
+    return disp->terminal_pid;
+}
+
+/**
  * \brief returns the core_id stored in disp_priv struct
  */
 coreid_t disp_handle_get_core_id(dispatcher_handle_t handle)

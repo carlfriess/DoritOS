@@ -16,6 +16,7 @@ void process_register(struct process_info *pi);
 
 struct process_info *process_info_for_pid(domainid_t pid);
 domainid_t process_pid_for_lmp_chan(struct lmp_chan *lc);
+domainid_t process_pid_for_name(char *name);
 char *process_name_for_pid(domainid_t pid);
 size_t get_all_pids(domainid_t *ret_list);
 void print_process_list(void);

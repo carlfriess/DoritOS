@@ -198,7 +198,10 @@ enum lmp_request_type {
     LMP_RequestType_ProcessDeregisterNotify
 };
 
-typedef errval_t (*lmp_server_spawn_handler)(char *name, coreid_t coreid, domainid_t *pid);
+typedef errval_t (*lmp_server_spawn_handler)(char *name,
+                                             coreid_t coreid,
+                                             domainid_t terminal_pid,
+                                             domainid_t *pid);
 
 typedef errval_t (*ram_free_handler_t)(struct capref);
 
@@ -257,7 +260,8 @@ errval_t lmp_recv_buffer_from_msg(struct lmp_chan *lc, struct capref cap,
 void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler);
 
 // Send a name on a specific channel (automatically select protocol)
-errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core);
+errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core,
+                        domainid_t terminal_pid);
 
 // Blocking call to receive a spawn process name on a channel (automatically select protocol)
 errval_t lmp_recv_spawn(struct lmp_chan *lc, char **name);

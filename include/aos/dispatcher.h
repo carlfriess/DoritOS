@@ -72,6 +72,9 @@ struct dispatcher_generic {
 
     /// Domain ID cache
     domainid_t domain_id;
+    
+    /// The pid of the terminal the dispatcher is using
+    domainid_t terminal_pid;
 
     /// virtual address of the eh_frame
     lvaddr_t eh_frame;

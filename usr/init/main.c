@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
         struct spawninfo *terminal = (struct spawninfo *) malloc(sizeof(struct spawninfo));
 
         // Spawn process
-        err = spawn_load_by_name("terminal", terminal);
+        err = spawn_load_by_name("terminal", terminal, 0);
         if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
         }

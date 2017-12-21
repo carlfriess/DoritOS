@@ -61,7 +61,7 @@ static void urpc_spawn_handler(struct ump_chan *chan, void *msg, size_t size,
     struct urpc_spaw_response res;
     
     // Pass message to spawn server
-    res.err = lmp_server_spawn_handler_func((char *) msg, disp_get_core_id(), &res.pid);
+    res.err = lmp_server_spawn_handler_func((char *) msg + sizeof(domainid_t), disp_get_core_id(), *(domainid_t *) msg, &res.pid);
     
     // Send response back to requesting core
     ump_send(chan,
