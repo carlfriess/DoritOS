@@ -44,9 +44,6 @@ struct terminal_event {
 
 
 void io_buffer_init(struct io_buffer **buf);
-errval_t get_next_char(struct terminal_state *st, char *c);
-int urpc_chan_list_remove(void *data, void *arg);
-int terminal_event_dispatch(void *data, void *arg);
 void terminal_runloop(struct terminal_state *st);
 
 // Need to be implemented:

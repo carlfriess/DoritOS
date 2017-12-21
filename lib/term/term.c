@@ -21,7 +21,7 @@ void io_buffer_init(struct io_buffer **buf) {
     memset((*buf)->buf, 0, IO_BUFFER_SIZE);
 }
 
-errval_t get_next_char(struct terminal_state *st, char *c) {
+static errval_t get_next_char(struct terminal_state *st, char *c) {
     static size_t i = 0;
     
     if (i >= st->buffer->pos) {
@@ -40,11 +40,11 @@ errval_t get_next_char(struct terminal_state *st, char *c) {
     return SYS_ERR_OK;
 }
 
-int urpc_chan_list_remove(void *data, void *arg) {
+static int urpc_chan_list_remove(void *data, void *arg) {
     return data == arg;
 }
 
-int terminal_event_dispatch(void *data, void *arg) {
+static int terminal_event_dispatch(void *data, void *arg) {
         
     errval_t err = SYS_ERR_OK;
     
