@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <stdbool.h>
 
 #include <aos/aos_rpc.h>
@@ -258,7 +259,7 @@ int main(int argc, char *argv[]) {
 
                     // Spawn process
                     domainid_t pid;
-                    err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), args[0], 1, &pid);
+                    err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), buf, 1, &pid);
                     if (err_is_fail(err)) {
                         printf("%s: command not found\n", args[0]);
                     } else if (wait) {
