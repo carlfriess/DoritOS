@@ -154,7 +154,9 @@ void exception_handler(enum exception_type type, int subtype, void *addr, arch_r
 errval_t paging_init_state(struct paging_state *st, lvaddr_t start_vaddr,
         struct capref pdir, struct slot_allocator * ca)
 {
+#if PRINT_DEBUG
     debug_printf("paging_init_state\n");
+#endif
     // TODO (M4): Implement page fault handler that installs frames when a page fault
     // occurs and keeps track of the virtual address space.
     
@@ -230,7 +232,9 @@ static errval_t temp_slot_alloc(struct slot_allocator *ca, struct capref *cap) {
 errval_t paging_init(void)
 {
     errval_t err = SYS_ERR_OK;
+#if PRINT_DEBUG
     debug_printf("paging_init\n");
+#endif
     // TODO (M4): initialize self-paging handler
     // TIP: use thread_set_exception_handler() to setup a page fault handler
     // TIP: Think about the fact that later on, you'll have to make sure that

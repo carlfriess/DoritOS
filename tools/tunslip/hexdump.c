@@ -5,7 +5,7 @@
 #define HEXDUMP_COLS 8
 #endif
 
-
+void hexdump(void *mem, unsigned int len);
  
 void hexdump(void *mem, unsigned int len)
 {

@@ -19,6 +19,10 @@
 
 #include <netutil/user_serial.h>
 
+#include "../../tools/tunslip/hexdump.h"
+
+
+#define DUMP_PACKETS    0
 
 static void slip_parse_raw_ip_packet(struct ip_packet_raw *raw_packet);
 
@@ -171,6 +175,12 @@ static void slip_parse_raw_ip_packet(struct ip_packet_raw *raw_packet) {
     if (raw_packet->len == 0) {
         return;
     }
+    
+#if DUMP_PACKETS
+    printf("\n\n");
+    hexdump(raw_packet->buf - raw_packet->len, raw_packet->len);
+    printf("\n");
+#endif
     
     ip_handle_packet(raw_packet->buf - raw_packet->len, raw_packet->len);
     

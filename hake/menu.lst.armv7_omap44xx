@@ -26,6 +26,10 @@ module /armv7/sbin/really_long_module_name_such_that_it_will_use_spawn_long
 module /armv7/sbin/mmchs
 module /armv7/sbin/filereader
 
+# milestone 7 shell
+module /armv7/sbin/terminal
+module /armv7/sbin/shell
+
 # milestone 7 network
 module /armv7/sbin/networkd
 module /armv7/sbin/udp_echo

@@ -45,7 +45,7 @@ struct event_queue_pair {
 
 static void ump_event_handler(void *arg) {
 
-    // Check if a message was received form different core
+    // Check if a message was received from different core
     errval_t err;
     void *msg;
     size_t msg_size;
@@ -74,20 +74,13 @@ int main(int argc, char *argv[])
 {
     errval_t err;
     struct urpc_bi_caps *bi_frame_identities = NULL;
-    
 
     /* Set the core id in the disp_priv struct */
     err = invoke_kernel_get_core_id(cap_kernel, &my_core_id);
     assert(err_is_ok(err));
     disp_set_core_id(my_core_id);
 
-    debug_printf("init: on core %" PRIuCOREID " invoked as:", my_core_id);
-    for (int i = 0; i < argc; i++) {
-       printf(" %s", argv[i]);
-    }
-    printf("\n");
-    
-    
+
     // MARK: - Set up UMP (on APP)
     if (my_core_id != 0) {
         
@@ -211,9 +204,17 @@ int main(int argc, char *argv[])
     // Initialize the spawn server
     spawn_serv_init(&init_uc);
 
-    
+
+
+    debug_printf("init: on core %" PRIuCOREID " invoked as:", my_core_id);
+    for (int i = 0; i < argc; i++) {
+       printf(" %s", argv[i]);
+    }
+    printf("\n");
+
+
     // MARK: - Multicore
-    
+
     // If on the BSP, boot the other core
     if (my_core_id == 0) {
         err = boot_core(1, &init_uc);
@@ -222,55 +223,24 @@ int main(int argc, char *argv[])
         }
     }
 
-    /*if (my_core_id == 1) {
-
-        // Allocate spawninfo
-        struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-
-        // Spawn bind_server
-        err = spawn_load_by_name("bind_server", si);
-        if(err_is_fail(err)) {
-            debug_printf("%s\n", err_getstring(err));
-        }
-        
-        // Free the process info
-        free(si);
-        
-        
-        // Demonstrate that spawning processes with very long module names works
-        
-        // Allocate spawninfo
-        struct spawninfo *really_long_si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-        
-        // Spawn really_long_module_name_such_that_it_will_use_spawn_long to demonstrate SpawnLong
-        err = spawn_load_by_name("really_long_module_name_such_that_it_will_use_spawn_long", really_long_si);
-        if(err_is_fail(err)) {
-            debug_printf("%s\n", err_getstring(err));
-        }
-        
-        // Free the process info
-        free(really_long_si);
-        
-    }*/
     
+    // MARK: - Start Terminal Driver
     
-    // Start networkd
     if (my_core_id == 0) {
-    
+
         // Allocate spawninfo
-        struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-        
-        // Spawn bind_server
-        err = spawn_load_by_name("networkd", si);
-        if(err_is_fail(err)) {
+        struct spawninfo *terminal = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+
+        // Spawn process
+        err = spawn_load_by_name("terminal", terminal);
+        if (err_is_fail(err)) {
             debug_printf("%s\n", err_getstring(err));
         }
-        
-        // Free the process info
-        free(si);
-        
-    }
 
+        // Free spawninfo
+        free(terminal);
+    }
+    
     
     // MARK: - Message handling
     
