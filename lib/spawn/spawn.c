@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <aos/aos.h>
 #include <spawn/spawn.h>
 
@@ -573,7 +575,7 @@ static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
     errval_t err = SYS_ERR_OK;
 
     // Complete process info
-    si->pi->name = si->binary_name;
+    si->pi->name = strdup(si->binary_name);
     si->pi->core_id = disp_get_core_id();
     si->pi->dispatcher_cap = &si->child_dispatcher_cap;
 
