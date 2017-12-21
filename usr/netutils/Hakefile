@@ -1,0 +1,26 @@
+--------------------------------------------------------------------------
+-- Copyright (c) 2007-2013, ETH Zurich.
+-- All rights reserved.
+--
+-- This file is distributed under the terms in the attached LICENSE file.
+-- If you do not find this file, copies can be found by writing to:
+-- ETH Zurich D-INFK, Universitaetstr. 6, CH-8092 Zurich. Attn: Systems Group.
+--
+-- Hakefile for omap44xx sd-card driver
+--
+--------------------------------------------------------------------------
+
+[
+    build application { target = "ip_set_addr",
+                        cFiles = [
+                            "ip_set_addr.c"
+                        ],
+                        addLibraries = [ "net" ]
+    },
+    build application { target = "dump_packets",
+                        cFiles = [
+                            "dump_packets.c"
+                        ],
+                        addLibraries = [ "net" ]
+    }
+]
