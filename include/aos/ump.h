@@ -47,6 +47,10 @@
 #define UMP_MessageType_User9  41
 #define UMP_MessageType_User10 42
 #define UMP_MessageType_User11 43
+#define UMP_MessageType_User12 44
+#define UMP_MessageType_User13 45
+#define UMP_MessageType_User14 46
+#define UMP_MessageType_User15 47
 
 // UMP message types type
 typedef uint8_t ump_msg_type_t;

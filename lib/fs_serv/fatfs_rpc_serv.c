@@ -7,7 +7,6 @@
 #include <stdlib.h>
 
 #include <aos/aos.h>
-#include <aos/ump.h>
 #include <aos/urpc.h>
 #include <aos/aos_rpc.h>
 
@@ -17,39 +16,30 @@
 
 #include <fs/fs_rpc.h>
 
-/*
-#define UMP_MessageType_Open      UMP_MessageType_User0
-#define UMP_MessageType_Close     UMP_MessageType_User1
-#define UMP_MessageType_Read      UMP_MessageType_User2
-#define UMP_MessageType_Write     UMP_MessageType_User3
-#define UMP_MessageType_Add       UMP_MessageType_User4
-#define UMP_MessageType_Remove    UMP_MessageType_User5
-#define UMP_MessageType_Create    UMP_MessageType_User6
-*/
-
 errval_t run_rpc_serv(void) {
     
     errval_t err;
     
-    domainid_t pid = 0;
-    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "hello", 0, &pid);
-    
     struct fatfs_serv_mount mount;
     
+    // Initialize root directory for fatfs_serv
     err = init_root_dir((void *) &mount);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
     
+    domainid_t pid = 0;
+    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "filereader", 0, &pid);
+    
     // Accept a binding request from a client
-    struct ump_chan chan;
+    struct urpc_chan chan;
     err = urpc_accept(&chan);
     assert(err_is_ok(err));
     
     // Receive request message from client
     uint8_t *recv_buffer;
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     
     // Send request message to client
     size_t send_size;
@@ -60,7 +50,7 @@ errval_t run_rpc_serv(void) {
     while (true) {
         
         // Wait for fs_message from client
-        ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+        urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
         
         // Receive header response message
         struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
@@ -85,9 +75,9 @@ errval_t run_rpc_serv(void) {
         
         switch (recv_msg_type) {
             
-            case UMP_MessageType_Open:
+            case URPC_MessageType_Open:
                 
-                debug_printf("UMP Message Open Request!\n");
+                debug_printf("URPC Message Open Request!\n");
                 
                 // Copy path string from recieve buffer
                 path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
@@ -118,16 +108,16 @@ errval_t run_rpc_serv(void) {
                 memcpy(send_buffer + sizeof(struct fs_message), dirent, sizeof(struct fat_dirent));
                 
                 // Send response message to client
-                ump_send(&chan, send_buffer, send_size, UMP_MessageType_Open);
+                urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Open);
                 
                 // Free send buffer
                 free(send_buffer);
                 
                 break;
                 
-            case UMP_MessageType_Create:
+            case URPC_MessageType_Create:
                 
-                debug_printf("UMP Message Creates Request!\n");
+                debug_printf("URPC Message Creates Request!\n");
                 
                 path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
                 //int flags = recv_msg->arg1;
@@ -157,24 +147,24 @@ errval_t run_rpc_serv(void) {
                 memcpy(send_buffer + sizeof(struct fs_message), dirent, sizeof(struct fat_dirent));
                 
                 // Send response message to client
-                ump_send(&chan, send_buffer, send_size, UMP_MessageType_Create);
+                urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Create);
                 
                 // Free send buffer
                 free(send_buffer);
                 
                 break;
                 
-            case UMP_MessageType_Close:
+            case URPC_MessageType_Close:
                 
-                debug_printf("UMP Message Close Request!\n");
+                debug_printf("URPC Message Close Request!\n");
                 
                 debug_printf("NOT IMPLEMENTED YET\n");
                 
                 break;
                 
-            case UMP_MessageType_Read:
+            case URPC_MessageType_Read:
 
-                debug_printf("UMP Message Read Request!\n");
+                debug_printf("URPC Message Read Request!\n");
                 
                 // Set start and bytes
                 start = recv_msg->arg1;
@@ -203,16 +193,16 @@ errval_t run_rpc_serv(void) {
                 ((struct fs_message *) send_buffer)->arg2 = bytes_read;
                 
                 // Send response message to client
-                ump_send(&chan, send_buffer, send_size, UMP_MessageType_Read);
+                urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Read);
 
                 // Free send buffer
                 free(send_buffer);
                 
                 break;
                 
-            case UMP_MessageType_Write:
+            case URPC_MessageType_Write:
                 
-                debug_printf("UMP Message Write Request!\n");
+                debug_printf("URPC Message Write Request!\n");
                 
                 start = recv_msg->arg1;
                 bytes = recv_msg->arg2;
@@ -240,16 +230,16 @@ errval_t run_rpc_serv(void) {
                 ((struct fs_message *) send_buffer)->arg2 = bytes_written;
                 
                 // Send response message to client
-                ump_send(&chan, send_buffer, send_size, UMP_MessageType_Write);
+                urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Write);
                 
                 // Free send buffer
                 free(send_buffer);
                 
                 break;
                 
-            case UMP_MessageType_Truncate:
+            case URPC_MessageType_Truncate:
                 
-                debug_printf("UMP Message Truncate Request!\n");
+                debug_printf("URPC Message Truncate Request!\n");
                 
                 bytes = recv_msg->arg1;
 
@@ -271,7 +261,7 @@ errval_t run_rpc_serv(void) {
                 ((struct fs_message *) send_buffer)->arg1 = err;
                 
                 // Send response message to client
-                ump_send(&chan, send_buffer, send_size, UMP_MessageType_Truncate);
+                urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Truncate);
                 
                 // Free send buffer
                 free(send_buffer);
@@ -281,9 +271,9 @@ errval_t run_rpc_serv(void) {
                 
                 break;
                 
-            case UMP_MessageType_Remove:
+            case URPC_MessageType_Remove:
                 
-                debug_printf("UMP Message Remove Request!\n");
+                debug_printf("URPC Message Remove Request!\n");
                 
                 memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
                 
@@ -303,16 +293,16 @@ errval_t run_rpc_serv(void) {
                 ((struct fs_message *) send_buffer)->arg1 = err;
                 
                 // Send response message to client
-                ump_send(&chan, send_buffer, send_size, UMP_MessageType_Remove);
+                urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Remove);
                 
                 // Free send buffer
                 free(send_buffer);
                 
                 break;
                 
-            case UMP_MessageType_OpenDir:
+            case URPC_MessageType_OpenDir:
                 
-                debug_printf("UMP Message Open Directory Request!\n");
+                debug_printf("URPC Message Open Directory Request!\n");
                 
                 // Copy path string from recieve buffer
                 path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
@@ -343,16 +333,16 @@ errval_t run_rpc_serv(void) {
                 memcpy(send_buffer + sizeof(struct fs_message), dirent, sizeof(struct fat_dirent));
                 
                 // Send response message to client
-                ump_send(&chan, send_buffer, send_size, UMP_MessageType_OpenDir);
+                urpc_send(&chan, send_buffer, send_size, URPC_MessageType_OpenDir);
                 
                 // Free send buffer
                 free(send_buffer);
 
                 break;
                 
-            case UMP_MessageType_ReadDir:
+            case URPC_MessageType_ReadDir:
                 
-                debug_printf("UMP Message Read Directory Request!\n");
+                debug_printf("URPC Message Read Directory Request!\n");
 
                 // Set directory index
                 dir_index = recv_msg->arg1;
@@ -383,7 +373,7 @@ errval_t run_rpc_serv(void) {
                 }
                 
                 // Send response message to client
-                ump_send(&chan, send_buffer, send_size, UMP_MessageType_ReadDir);
+                urpc_send(&chan, send_buffer, send_size, URPC_MessageType_ReadDir);
                 
                 // Free return dirent
                 free(ret_dirent);
@@ -393,9 +383,9 @@ errval_t run_rpc_serv(void) {
                 
                 break;
                 
-        case UMP_MessageType_MakeDir:
+        case URPC_MessageType_MakeDir:
 
-                debug_printf("UMP Message Make Directory Request!\n");
+                debug_printf("URPC Message Make Directory Request!\n");
                 
                 // Copy path string from recieve buffer
                 path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
@@ -416,16 +406,16 @@ errval_t run_rpc_serv(void) {
                 ((struct fs_message *) send_buffer)->arg1 = err;
                 
                 // Send response message to client
-                ump_send(&chan, send_buffer, send_size, UMP_MessageType_MakeDir);
+                urpc_send(&chan, send_buffer, send_size, URPC_MessageType_MakeDir);
                 
                 // Free send buffer
                 free(send_buffer);
                 
                 break;
                 
-            case UMP_MessageType_RemoveDir:
+            case URPC_MessageType_RemoveDir:
                 
-                debug_printf("UMP Message Remove Directory Request!\n");
+                debug_printf("URPC Message Remove Directory Request!\n");
 
                 // Copy path string from recieve buffer
                 path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
@@ -446,7 +436,7 @@ errval_t run_rpc_serv(void) {
                 ((struct fs_message *) send_buffer)->arg1 = err;
                 
                 // Send response message to client
-                ump_send(&chan, send_buffer, send_size, UMP_MessageType_RemoveDir);
+                urpc_send(&chan, send_buffer, send_size, URPC_MessageType_RemoveDir);
                 
                 // Free send buffer
                 free(send_buffer);
@@ -455,7 +445,7 @@ errval_t run_rpc_serv(void) {
                 
             default:
                 
-                debug_printf("UMP Message Unknown Request!\n");
+                debug_printf("URPC Message Unknown Request!\n");
 
                 debug_printf("Received Message Type: %d", recv_msg_type);
                 

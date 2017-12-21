@@ -7,7 +7,6 @@
 #include <string.h>
 
 #include <aos/aos.h>
-#include <aos/ump.h>
 #include <aos/urpc.h>
 #include <aos/aos_rpc.h>
 
@@ -26,53 +25,27 @@ static struct fat32fs_handle *handle_open(struct fat_dirent *dirent);
 static void handle_close(struct fat32fs_handle *handle);
 
 
-static struct ump_chan chan;
+static struct urpc_chan chan;
 
 errval_t fs_rpc_init(void *state) {
     
     errval_t err;
-
-    struct aos_rpc *rpc_chan = aos_rpc_get_init_channel();
-
-    domainid_t pid = 0;
     
-    // Find fs_service (mmchs) pid
-    {
-        
-        // Request the pids of all running processes
-        domainid_t *pids;
-        size_t num_pids;
-        err = aos_rpc_process_get_all_pids(rpc_chan, &pids, &num_pids);
-        assert(err_is_ok(err));
-        
-        
-        // Iterate pids and compare names
-        for (int i = 0; i < num_pids; i++) {
-            
-            // Get the process name
-            char *name;
-            err = aos_rpc_process_get_name(rpc_chan, pids[i], &name);
-            assert(err_is_ok(err));
-            
-            // Compare the name
-            if (!strcmp("mmchs", name)) {
-                pid = pids[i];
-                printf("Found mmchs, PID: %d\n", pid);
-                free(name);
-                break;
-            }
-            free(name);
-        }
-        
-        // Make sure bind_server was found
-        assert(pid != 0 && "mmchs NOT FOUND");
+    // Find mmchs's pid
+    domainid_t pid = 0;
+    err = aos_rpc_process_get_pid_by_name("mmchs", &pid);
+    if (err_is_fail(err)) {
+        return err;
+    }
+
+    // Try to bind to mmchs
+    //  Use LMP when on core 0!
+    err = urpc_bind(pid, &chan, !disp_get_core_id());
+    if (err_is_fail(err)) {
+        return err;
     }
     
-    // Bind to the server
-    err = urpc_bind(pid, &chan);
-    assert(err_is_ok(err));
-    
-    return err;
+    return SYS_ERR_OK;
 
 }
 
@@ -110,19 +83,19 @@ errval_t fs_rpc_open(void *st, char *path, fat32fs_handle_t *ret_handle) {
     memcpy(send_buffer + sizeof(struct fs_message), path, path_size);
     
     // Send request message to server
-    ump_send(&chan, send_buffer, send_size, UMP_MessageType_Open);
+    urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Open);
 
     // TODO: Free send buffer?
     
     // Receive response message from server
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     uint8_t *recv_buffer;
     
     // Wait for response from server
-    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
     
-    assert(recv_msg_type == UMP_MessageType_Open);
+    assert(recv_msg_type == URPC_MessageType_Open);
     
     // Receive header response message
     struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
@@ -188,19 +161,19 @@ errval_t fs_rpc_create(void *st, char *path, fat32fs_handle_t *ret_handle) {
     memcpy(send_buffer + sizeof(struct fs_message), path, path_size);
     
     // Send request message to server
-    ump_send(&chan, send_buffer, send_size, UMP_MessageType_Create);
+    urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Create);
     
     // TODO: Free send buffer?
     
     // Receive response message from server
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     uint8_t *recv_buffer;
     
     // Wait for response from server
-    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
     
-    assert(recv_msg_type == UMP_MessageType_Create);
+    assert(recv_msg_type == URPC_MessageType_Create);
     
     // Receive header response message
     struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
@@ -268,17 +241,17 @@ errval_t fs_rpc_remove(void *st, char *path)
     memcpy(send_buffer + sizeof(struct fs_message), path, path_size);
     
     // Send request message to server
-    ump_send(&chan, send_buffer, send_size, UMP_MessageType_Remove);
+    urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Remove);
     
     // Receive response message from server
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     uint8_t *recv_buffer;
     
     // Wait for response from server
-    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
 
-    assert(recv_msg_type == UMP_MessageType_Remove);
+    assert(recv_msg_type == URPC_MessageType_Remove);
     
     // Receive header response message
     struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
@@ -337,17 +310,17 @@ errval_t fs_rpc_read(void *st, fat32fs_handle_t handle, void *buffer, size_t byt
     memcpy(send_buffer + sizeof(struct fs_message), h->dirent, sizeof(struct fat_dirent));
     
     // Send request message to server
-    ump_send(&chan, send_buffer, send_size, UMP_MessageType_Read);
+    urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Read);
     
     // Receive response message from server
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     uint8_t *recv_buffer;
     
     // Wait for response from server
-    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
     
-    assert(recv_msg_type == UMP_MessageType_Read);
+    assert(recv_msg_type == URPC_MessageType_Read);
     
     // Receive header response message
     struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
@@ -423,17 +396,17 @@ errval_t fs_rpc_write(void *st, fat32fs_handle_t handle, const void *buffer,
     memcpy(send_buffer + sizeof(struct fs_message) + sizeof(struct fat_dirent), buffer, bytes);
     
     // Send request message to server
-    ump_send(&chan, send_buffer, send_size, UMP_MessageType_Write);
+    urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Write);
     
     // Receive response message from server
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     uint8_t *recv_buffer;
     
     // Wait for response from server
-    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
     
-    assert(recv_msg_type == UMP_MessageType_Write);
+    assert(recv_msg_type == URPC_MessageType_Write);
     
     // Receive header response message
     struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
@@ -488,17 +461,17 @@ errval_t fs_rpc_truncate(void *st, fat32fs_handle_t handle, size_t bytes) {
     memcpy(send_buffer + sizeof(struct fs_message), h->dirent, sizeof(struct fat32fs_handle));
     
     // Send request message to server
-    ump_send(&chan, send_buffer, send_size, UMP_MessageType_Truncate);
+    urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Truncate);
     
     // Receive response message from server
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     uint8_t *recv_buffer;
     
     // Wait for response from server
-    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
     
-    assert(recv_msg_type == UMP_MessageType_Truncate);
+    assert(recv_msg_type == URPC_MessageType_Truncate);
     
     // Receive header response message
     struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
@@ -658,19 +631,19 @@ errval_t fs_rpc_opendir(void *st, char *path, fs_dirhandle_t *ret_dirhandle) {
     memcpy(send_buffer + sizeof(struct fs_message), path, path_size);
     
     // Send request message to server
-    ump_send(&chan, send_buffer, send_size, UMP_MessageType_OpenDir);
+    urpc_send(&chan, send_buffer, send_size, URPC_MessageType_OpenDir);
     
     // TODO: Free send buffer?
     
     // Receive response message from server
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     uint8_t *recv_buffer;
     
     // Wait for response from server
-    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
     
-    assert(recv_msg_type == UMP_MessageType_OpenDir);
+    assert(recv_msg_type == URPC_MessageType_OpenDir);
     
     // Receive header response message
     struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
@@ -741,17 +714,17 @@ errval_t fs_rpc_readdir(void *st, fs_dirhandle_t dirhandle, char **ret_name,
     memcpy(send_buffer + sizeof(struct fs_message), handle->dirent, sizeof(struct fat_dirent));
     
     // Send request message to server
-    ump_send(&chan, send_buffer, send_size, UMP_MessageType_ReadDir);
+    urpc_send(&chan, send_buffer, send_size, URPC_MessageType_ReadDir);
     
     // Receive response message from server
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     uint8_t *recv_buffer;
     
     // Wait for response from server
-    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
     
-    assert(recv_msg_type == UMP_MessageType_ReadDir);
+    assert(recv_msg_type == URPC_MessageType_ReadDir);
     
     // Receive header response message
     struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
@@ -860,19 +833,19 @@ errval_t fs_rpc_mkdir(void *st, char *path) {
     memcpy(send_buffer + sizeof(struct fs_message), path, path_size);
 
     // Send request message to server
-    ump_send(&chan, send_buffer, send_size, UMP_MessageType_MakeDir);
+    urpc_send(&chan, send_buffer, send_size, URPC_MessageType_MakeDir);
     
     // TODO: Free send buffer?
 
     // Receive response message from server
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     uint8_t *recv_buffer;
     
     // Wait for response from server
-    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
     
-    assert(recv_msg_type == UMP_MessageType_MakeDir);
+    assert(recv_msg_type == URPC_MessageType_MakeDir);
     
     // Receive header response message
     struct fs_message *recv_msg = (struct fs_message *) recv_buffer;
@@ -923,19 +896,19 @@ errval_t fs_rpc_rmdir(void *st, char *path) {
     memcpy(send_buffer + sizeof(struct fs_message), path, path_size);
     
     // Send request message to server
-    ump_send(&chan, send_buffer, send_size, UMP_MessageType_RemoveDir);
+    urpc_send(&chan, send_buffer, send_size, URPC_MessageType_RemoveDir);
     
     // TODO: Free send buffer?
     
     // Receive response message from server
     size_t recv_size;
-    ump_msg_type_t recv_msg_type;
+    urpc_msg_type_t recv_msg_type;
     uint8_t *recv_buffer;
     
     // Wait for response from server
-    ump_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
+    urpc_recv_blocking(&chan, (void **) &recv_buffer, &recv_size, &recv_msg_type);
     
-    assert(recv_msg_type == UMP_MessageType_RemoveDir);
+    assert(recv_msg_type == URPC_MessageType_RemoveDir);
     
     // Receive header response message
     struct fs_message *recv_msg = (struct fs_message *) recv_buffer;

@@ -12,19 +12,19 @@
 #include <fs/fs_fat.h>
 #include <fs/dirent.h>
 
-#define UMP_MessageType_Open      UMP_MessageType_User0
-#define UMP_MessageType_Close     UMP_MessageType_User1
-#define UMP_MessageType_Read      UMP_MessageType_User2
-#define UMP_MessageType_Write     UMP_MessageType_User3
-#define UMP_MessageType_Truncate  UMP_MessageType_User4
-#define UMP_MessageType_Remove    UMP_MessageType_User5
-#define UMP_MessageType_Create    UMP_MessageType_User6
+#define URPC_MessageType_Open      URPC_MessageType_User0
+#define URPC_MessageType_Close     URPC_MessageType_User1
+#define URPC_MessageType_Read      URPC_MessageType_User2
+#define URPC_MessageType_Write     URPC_MessageType_User3
+#define URPC_MessageType_Truncate  URPC_MessageType_User4
+#define URPC_MessageType_Remove    URPC_MessageType_User5
+#define URPC_MessageType_Create    URPC_MessageType_User6
 
-#define UMP_MessageType_OpenDir   UMP_MessageType_User7
-#define UMP_MessageType_CloseDir  UMP_MessageType_User8
-#define UMP_MessageType_ReadDir   UMP_MessageType_User9
-#define UMP_MessageType_MakeDir   UMP_MessageType_User10
-#define UMP_MessageType_RemoveDir UMP_MessageType_User11
+#define URPC_MessageType_OpenDir   URPC_MessageType_User7
+#define URPC_MessageType_CloseDir  URPC_MessageType_User8
+#define URPC_MessageType_ReadDir   URPC_MessageType_User9
+#define URPC_MessageType_MakeDir   URPC_MessageType_User10
+#define URPC_MessageType_RemoveDir URPC_MessageType_User11
 
 typedef void *fat32fs_handle_t;
 
