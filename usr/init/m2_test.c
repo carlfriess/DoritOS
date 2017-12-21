@@ -135,7 +135,7 @@ static errval_t test_spawn_n(size_t n) {
     for (int i = 0; i < n; i++) {
         debug_printf("===== %d =====\n", i+1);
         struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
-        spawn_load_by_name("hello", si);
+        spawn_load_by_name("hello", si, 0);
         free(si);
     }
     

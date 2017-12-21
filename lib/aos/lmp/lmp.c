@@ -831,7 +831,8 @@ void lmp_server_spawn_register_handler(lmp_server_spawn_handler handler) {
     lmp_server_spawn_handler_func = handler;
 }
 
-errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core) {
+errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core,
+                        domainid_t terminal_pid) {
     
     errval_t err;
     
@@ -839,7 +840,7 @@ errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core) {
     size_t name_len = strlen(name);
     
     // Get length of entire buffer (including '\0')
-    size_t buf_len = sizeof(coreid_t) + name_len + 1;
+    size_t buf_len = sizeof(coreid_t) + sizeof(domainid_t) + name_len + 1;
     
     // Check wether to use SpawnShort with send_short_buf() or SpawnLong with send_frame()
     if (buf_len <= sizeof(uintptr_t) * SHORT_BUF_SIZE) {
@@ -850,8 +851,11 @@ errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core) {
         // Copy core id into beginning of buffer
         *(coreid_t *) buf = core;
         
+        // Copy terminal pid into beginning of buffer
+        *(domainid_t *) (buf + sizeof(coreid_t)) = terminal_pid;
+        
         // Initialize string as beginning of name
-        char *string = ((char *) buf) + sizeof(coreid_t);
+        char *string = ((char *) buf) + sizeof(coreid_t) + sizeof(domainid_t);
 
         // Copy name into buffer after core id
         memcpy(string, name, name_len + 1);
@@ -885,8 +889,11 @@ errval_t lmp_send_spawn(struct lmp_chan *lc, const char *name, coreid_t core) {
         // Copy core id into beginning of buffer
         *(coreid_t *) buf = core;
         
+        // Copy terminal pid into beginning of buffer
+        *(domainid_t *) (buf + sizeof(coreid_t)) = terminal_pid;
+        
         // Initialize string as beginning of name
-        char *string = ((char *) buf) + sizeof(coreid_t);
+        char *string = ((char *) buf) + sizeof(coreid_t) + sizeof(domainid_t);
         
         // Copy name into buffer after core id
         memcpy(string, name, name_len + 1);
@@ -954,8 +961,11 @@ errval_t lmp_recv_spawn_from_msg(struct lmp_chan *lc, struct capref cap,
         // Get core id out of buffer
         coreid_t core = *(coreid_t *) buf;
         
+        // Get terminal pid out of buffer
+        domainid_t terminal_pid = *(coreid_t *) (buf + sizeof(coreid_t));
+                
         // Initialize string as beginning of name
-        char *string = ((char *) buf) + sizeof(coreid_t);
+        char *string = ((char *) buf) + sizeof(coreid_t) + sizeof(domainid_t);
         
         // Get length of string
         size_t string_len = strlen(string);
@@ -971,7 +981,7 @@ errval_t lmp_recv_spawn_from_msg(struct lmp_chan *lc, struct capref cap,
         
         // Handle spawn request by passing it on to the spawn server
         domainid_t pid = 0;
-        err = lmp_server_spawn_handler_func(*name, core, &pid);
+        err = lmp_server_spawn_handler_func(*name, core, terminal_pid, &pid);
         
         // Free buffer
         free(buf);
@@ -1005,8 +1015,11 @@ errval_t lmp_recv_spawn_from_msg(struct lmp_chan *lc, struct capref cap,
         // Extract core out of buffer
         coreid_t core = *(coreid_t *) buf;
         
+        // Get terminal pid out of buffer
+        domainid_t terminal_pid = *(coreid_t *) (buf + sizeof(coreid_t));
+        
         // Initialize string as beginning of name
-        char *string = ((char *) buf) + sizeof(coreid_t);
+        char *string = ((char *) buf) + sizeof(coreid_t) + sizeof(domainid_t);
 
         // Get length of string
         size_t string_len = strlen(string);
@@ -1022,7 +1035,7 @@ errval_t lmp_recv_spawn_from_msg(struct lmp_chan *lc, struct capref cap,
         
         // Handle spawn request by passing it on to the spawn server
         domainid_t pid = 0;
-        err = lmp_server_spawn_handler_func(*name, core, &pid);
+        err = lmp_server_spawn_handler_func(*name, core, terminal_pid, &pid);
         
         // Send result to client
         lmp_chan_send3(lc, LMP_SEND_FLAGS_DEFAULT, NULL_CAP, LMP_RequestType_SpawnLong, err, pid);
