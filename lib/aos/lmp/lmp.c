@@ -11,6 +11,8 @@
 #include <aos/domain.h>
 #include <aos/aos_rpc.h>
 
+#include <spawn/multiboot.h>
+
 #define MAX_ALLOCATION 100000000
 
 #define SHORT_BUF_SIZE 7
@@ -21,6 +23,12 @@
 /* MARK: - ========== Server ========== */
 
 extern struct ump_chan init_uc;
+
+static struct bootinfo *lmp_bi;
+
+void lmp_set_bootinfo(struct bootinfo *bi) {
+    lmp_bi = bi;
+}
 
 void lmp_server_dispatcher(void *arg) {
 
@@ -179,6 +187,32 @@ void lmp_server_dispatcher(void *arg) {
             
             break;
 
+        case LMP_RequestType_ModuleList:
+#if PRINT_DEBUG
+            debug_printf("Module Name List Message!\n");
+#endif
+            
+            // Get list of module names and send it back
+            err = lmp_server_module_list(lc);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+            }
+            
+            break;
+        
+        case LMP_RequestType_ModuleFrame:
+#if PRINT_DEBUG
+            debug_printf("Module Frame Message!\n");
+#endif
+            
+            // Get frame for module and send it back
+            err = lmp_server_module_frame(lc);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+            }
+            
+            break;
+            
         case LMP_RequestType_ProcessDeregister:
 #if PRINT_DEBUG
             debug_printf("Process Deregister Message!\n");
@@ -393,6 +427,101 @@ errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes
     
     return err;
     
+}
+
+errval_t lmp_server_module_list(struct lmp_chan *lc) {
+    
+    errval_t err = SYS_ERR_OK;
+    
+    // Buffer to save module names
+    char *buffer = calloc(1, sizeof(uint32_t));
+    
+    // Buffer size
+    size_t buffer_size = sizeof(uint32_t);
+    
+    // Module count
+    size_t module_count = 0;
+    
+    // Iterate through all module regions
+    for (int i = 0; i < lmp_bi->regions_length; i++) {
+        
+        if (lmp_bi->regions[i].mr_type == RegionType_Module) {
+            
+            // Get name of module using bootinfo
+            const char *name = multiboot_module_name(&lmp_bi->regions[i]);
+
+            // Reallocate buffer
+            buffer = realloc(buffer, buffer_size + strlen(name) + 1);
+            assert(buffer != NULL);
+            
+            // Copy module name into buffer
+            memcpy(buffer + buffer_size, name, strlen(name) + 1);
+            
+            // Increment buffer size
+            buffer_size += strlen(name) + 1;
+            
+            // Free module name string
+            free((char *) name);
+            
+            // Update module count
+            module_count++;
+            
+        }
+        
+    }
+    
+    // Copy in module count in the beginning
+    memcpy(buffer, &module_count, sizeof(uint32_t));
+    
+    // Send buffer with module names back to client
+    err = lmp_send_buffer(lc, buffer, buffer_size, LMP_RequestType_ModuleList);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
+    return err;
+    
+}
+
+
+
+errval_t lmp_server_module_frame(struct lmp_chan *lc) {
+    
+    errval_t err = SYS_ERR_OK;
+
+    // Module name
+    char *name;
+    
+    err = lmp_recv_string(lc, &name);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+    
+    struct mem_region *mem = multiboot_find_module(lmp_bi, name);
+    if (!mem) {
+        err = FS_ERR_NOTFOUND;
+    }
+    
+    // Constructing the capability for the frame containing the module name
+    struct capref module_frame = {
+        .cnode = cnode_module,
+        .slot = mem->mrmod_slot
+    };
+    
+    // Send back frame with error and size
+    err = lmp_chan_send3(lc,
+                         LMP_SEND_FLAGS_DEFAULT,
+                         module_frame,
+                         LMP_RequestType_ModuleFrame,
+                         err,
+                         mem->mrmod_size
+                         );
+    
+    // Free module name string
+    free(name);
+    
+    return err;
+
 }
 
 // List Helper Functions

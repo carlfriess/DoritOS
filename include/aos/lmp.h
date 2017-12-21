@@ -219,6 +219,8 @@ errval_t lmp_server_process_deregister_notify(struct lmp_chan *lc, domainid_t pi
 
 errval_t lmp_server_device_cap(struct lmp_chan *lc, lpaddr_t paddr, size_t bytes);
 
+void lmp_set_bootinfo(struct bootinfo *bi);
+
 errval_t lmp_server_module_list(struct lmp_chan *lc);
 
 errval_t lmp_server_module_frame(struct lmp_chan *lc);
