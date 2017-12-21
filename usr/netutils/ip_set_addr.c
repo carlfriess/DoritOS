@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     
     int a, b, c, d;
     
-    if (sscanf(argv[0], "%d.%d.%d.%d", &a, &b, &c, &d) != 4) {
+    if (sscanf(argv[1], "%d.%d.%d.%d", &a, &b, &c, &d) != 4) {
         usage();
         return 0;
     }

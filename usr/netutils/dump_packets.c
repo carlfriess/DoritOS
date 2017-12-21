@@ -31,10 +31,10 @@ int main(int argc, char *argv[]) {
     
     bool dump;
     
-    if (!strcmp(argv[0], "off")) {
+    if (!strcmp(argv[1], "off")) {
         dump = false;
     }
-    else if (!strcmp(argv[0], "on")) {
+    else if (!strcmp(argv[1], "on")) {
         dump = true;
     }
     else {
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     }
     
     err = urpc_send(&s.chan,
-                    (void *) dump,
+                    (void *) &dump,
                     sizeof(bool),
                     URPC_MessageType_DumpPackets);
     if (err_is_fail(err)) {
