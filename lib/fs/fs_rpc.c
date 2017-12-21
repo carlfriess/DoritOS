@@ -32,12 +32,13 @@ errval_t fs_rpc_init(void *state) {
     errval_t err;
     
     // Find mmchs's pid
-    domainid_t pid = 0;
-    err = aos_rpc_process_get_pid_by_name("mmchs", &pid);
-    if (err_is_fail(err)) {
-        return err;
-    }
-
+    //  FIX ME: Pid discovery gets weirdly stuck
+    domainid_t pid = 3;
+//    err = aos_rpc_process_get_pid_by_name("mmchs", &pid);
+//    if (err_is_fail(err)) {
+//        return err;
+//    }
+    
     // Try to bind to mmchs
     //  Use LMP when on core 0!
     err = urpc_bind(pid, &chan, !disp_get_core_id());

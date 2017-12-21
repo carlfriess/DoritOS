@@ -33,7 +33,7 @@ errval_t run_rpc_serv(void) {
     
     // Accept a binding request from a client
     struct urpc_chan chan;
-    err = urpc_accept(&chan);
+    err = urpc_accept_blocking(&chan);
     assert(err_is_ok(err));
     
     // Receive request message from client

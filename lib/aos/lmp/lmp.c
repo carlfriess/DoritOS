@@ -501,9 +501,9 @@ void lmp_client_recv_waitset(struct lmp_chan *lc, struct capref *cap, struct lmp
         debug_printf("%s\n", err_getstring(err));
     }
 
-    #if PRINT_DEBUG
-        debug_printf("Received LMP message with type %zu!\n", msg->words[0] & 0xFFFFFF);
-    #endif
+#if PRINT_DEBUG
+    debug_printf("Received LMP message with type %zu!\n", msg->words[0] & 0xFFFFFF);
+#endif
 
 }
 void lmp_client_wait(void *arg) {
