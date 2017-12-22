@@ -262,7 +262,6 @@ lmp_recv_short_buf_fast()  lmp_recv_buffer_from_msg()   lmp_recv_frame_fast()
 
 ## Virtual Memory and Paging
 
-Intro
 
 ### Initialising paging state
 
@@ -274,17 +273,34 @@ Since init spawns all processes, the initialisation of paging states (including 
 
 ...
 
+### Discussion of general structure
+
+For the structure in this project we intended to separate the vspace from the cspace. Therefore we introduced two different datastructures. A tree for the pagetable structure containing the mapping capabilities and an allocated and free list for the vspace.
+
+<center>![](paging_structure.jpg)</center>
+
+
 ### Structure of virtual memory management
 
-...
+For the structure of the virtual address space we chose to use two list. An list of allocated regions and a list of free regions. Furthermore do we have the variable `free_vspace_base` to indicate that anything passed this address is free virtual address space.
 
 ### Allocating virtual address space
 
-...
+Allocating a fixed region in the virtual address space uses the function ​`paging_alloc_fixed()`. We thereby allocate a fixed area in memory represented by the `struct vspace_node` and add it to the  head of the allocated list. This function is usually only called shortly after initialization. `paging_alloc_fixed_commit()` has to be called right after it to restore a consistent pair of allocated and free list data structures. This function is in it’s current implementation very inefficient. Though we created a more sophisticated and efficient version, we unfortunately could not change it, since we didn’t have the time to properly test and verify that it works.
 
-### Mapping virtual memory
+The more commonly used function `paging_alloc()` does not suffer from this problem, since it walks through the free list until it finds a big enough region and removes it from that list, with  eager coalescing happening. If it does not find a big enough region, it just increments the `paging_alloc_fixed()`. After that we insert it to the allocated list, and return the base address of region.
 
-...
+For `paging_free()` we remove the vspace node from the allocated list and insert it in the sorted free list, where we eagerly coalesc.
+
+### Mapping
+
+For the mapping we have implemented a two level tree structure with left, write and subtree pointers. The first level is thereby a binary three with l2 pagetable capability node. Each of these nodes has another subtree to keep track of their mapping capabilities.
+​
+In `paging_map_fixed_attr()` we search for the first level of the tree to find a potential l2 capability. If it does not find one it creates the node and l2 pagetable capability. 
+Next we allocate another node, add it to the subtree and map the frame to the appropriate slot in the l2 pagetable.
+
+Furthermore did we implement `paging_unmap_fixed()` which walks the l2 tree until it finds the node which has the offset `l1_offset`. If it has reached this node it will move to the second subtree to find the actual mapping capability. After we have found the mapping capability we call `vnode_unmap()` to unmap it from the l2 pagetable, destroy it and free the slot.
+
 
 ### Handling page faults
 
