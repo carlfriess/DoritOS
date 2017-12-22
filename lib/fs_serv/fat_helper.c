@@ -11,7 +11,8 @@
 
 #include <fs_serv/fat_helper.h>
 
-// TODO: Check for illegal filenames
+#define PRINT_DEBUG 0
+
 char *convert_to_fat_name(const char *name) {
     
     // Length of name (not including '\0')
@@ -42,9 +43,9 @@ char *convert_to_fat_name(const char *name) {
     size_t extension_size;
     
     if (dot_ptr == NULL) {
-        
+#if PRINT_DEBUG
         debug_printf("No dot found in filename\n");
-        
+#endif
         // Set prefix and extension size
         prefix_size = len;
         extension_size = 0;
@@ -62,7 +63,9 @@ char *convert_to_fat_name(const char *name) {
     
     // Check if extension size is small enough and otherwise shorten it to 3
     if (extension_size > 3) {
+#if PRINT_DEBUG
         debug_printf("Extension of filename is too long\n");
+#endif
         extension_size = 3;
     }
     
@@ -73,7 +76,9 @@ char *convert_to_fat_name(const char *name) {
     
     // Check if prefix_size size is small enough and otherwise shorten it to 8
     if (prefix_size > 8) {
+#if PRINT_DEBUG
         debug_printf("Prefix of filename is too long\n");
+#endif
         prefix_size = 8;
     }
     

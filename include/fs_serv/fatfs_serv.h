@@ -89,24 +89,15 @@ uint32_t getFATEntry(size_t n);
 
 errval_t setFATEntry(size_t n, uint32_t value);
 
- // TODO: Differentiate between fatfs_serv_open and fatfs_serv_opendir with wrapper function!!!
 
 errval_t fatfs_serv_open(void *st, char *path, struct fat_dirent **ret_dirent);
 
 errval_t fatfs_serv_create(void *st, char *path, struct fat_dirent **ret_dirent);
 
 
-// FIXME: Add flags
 errval_t fat_resolve_path(struct fat_dirent *root, char *path, struct fat_dirent **ret_dirent);
 
-// FIXME: char *name can be null terminated, but has to have the same first 11 bytes
 errval_t fat_find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_dirent **ret_dirent);
-
-// FIXME: Add flags
-//errval_t resolve_path(struct fat_dirent *root, char *path, struct fat_dirent **ret_dirent);
-
-// FIXME: char *name can be null terminated, but has to have the same first 11 bytes
-//errval_t find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_dirent **ret_dirent);
 
 
 errval_t init_root_dir(void *st);

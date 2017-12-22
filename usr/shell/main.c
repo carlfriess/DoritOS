@@ -113,16 +113,43 @@ static void cmd_cat(size_t argc, char *argv[]) {
         printf("File not found\n");
         return;
     }
-
-    int size = fseek(fd, 0, SEEK_END);
+    
+    fseek(fd, 0, SEEK_END);
+    
+    size_t size = ftell(fd);
+    //debug_printf("size: %zu\n", size);
     fseek(fd, 0, SEEK_SET);
-
-    void *buf = malloc(size);
-    size = fread(buf, 1, size, fd);
-
+    
+    char *buf = malloc(size + 1);
+    buf[size] = '\0';
+    
+    fread(buf, 1, size, fd);
+    
     printf("%s\n", buf);
-
+    
+/*
+    char buffer[512];
+    
+    size_t bytes_read = 512;
+    
+    while (true) {
+        
+        bytes_read = fread(buffer, 1, 512, fd);
+        if (bytes_read <= 0) {
+            break;
+        }
+        
+        for (size_t i = 0; i < bytes_read; i++) {
+            putchar(buffer[i]);
+        }
+        
+    }
+  */
+    
+    free(buf);
+    
     fclose(fd);
+    
 }
 
 static void cmd_mkdir(size_t argc, char *argv[]) {

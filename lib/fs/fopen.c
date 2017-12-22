@@ -25,6 +25,7 @@
 
 #include <fs/vfs.h>
 
+#define PRINT_DEBUG 0
 
 void *vfs_state;
 
@@ -95,8 +96,10 @@ static void fdtab_free(int fd)
 //XXX: flags are ignored... (FIXME: Are they though?)
 static int fs_libc_open(char *path, int flags)
 {
+#if PRINT_DEBUG
     debug_printf("fs_libc_open\n");
-    
+#endif
+
     vfs_handle_t vh;
     errval_t err;
 
@@ -161,8 +164,9 @@ static int fs_libc_open(char *path, int flags)
 
 static int fs_libc_read(int fd, void *buf, size_t len)
 {
-    debug_printf("fs_libc_reads\n");
-    
+#if PRINT_DEBUG
+    debug_printf("fs_libc_reads %zu\n", len);
+#endif
     errval_t err;
     
     struct fdtab_entry *e = fdtab_get(fd);
@@ -187,8 +191,9 @@ static int fs_libc_read(int fd, void *buf, size_t len)
 
 static int fs_libc_write(int fd, void *buf, size_t len)
 {
+#if PRINT_DEBUG
     debug_printf("fs_libc_write\n");
-    
+#endif
     struct fdtab_entry *e = fdtab_get(fd);
     if (e->type == FDTAB_TYPE_AVAILABLE) {
         return -1;
@@ -215,7 +220,9 @@ static int fs_libc_write(int fd, void *buf, size_t len)
 
 static int fs_libc_close(int fd)
 {
+#if PRINT_DEBUG
     debug_printf("fs_libc_close\n");
+#endif
     
     errval_t err;
     struct fdtab_entry *e = fdtab_get(fd);
@@ -241,7 +248,9 @@ static int fs_libc_close(int fd)
 
 static off_t fs_libc_lseek(int fd, off_t offset, int whence)
 {
+#if PRINT_DEBUG
     debug_printf("fs_libc_lseek\n");
+#endif
     
     struct fdtab_entry *e = fdtab_get(fd);
     vfs_handle_t fh = e->handle;
