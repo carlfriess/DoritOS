@@ -529,7 +529,7 @@ errval_t run_rpc_serv(void) {
 
     domainid_t pid;
     struct aos_rpc *init_chan = aos_rpc_get_init_channel();
-    err = aos_rpc_process_spawn(init_chan, "networkd", 0, &pid);
+    err = aos_rpc_process_spawn(init_chan, "shell", 0, &pid);
     if (err_is_fail(err)) {
 #if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));

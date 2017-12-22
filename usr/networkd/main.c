@@ -72,26 +72,27 @@ int main(int argc, char *argv[]) {
     
     // Initialite the UDP module
     udp_init();
-    
-    
-    // Set the IP address for this host
-    ip_set_ip_address(10, 0, 2, 1);
-    
-    
-    // MARK: - Message handling
-    
-    // Get default waitset
-    struct waitset *default_ws = get_default_waitset();
-    
-    // Register Event Queue for UDP
-    udp_register_event_queue(default_ws);
 
+
+    // Set the default IP address for this host
+    ip_set_ip_address(10, 0, 2, 1);
+
+    // Spawn next process
     domainid_t pid;
     struct aos_rpc *init_chan = aos_rpc_get_init_channel();
-    err = aos_rpc_process_spawn(init_chan, "shell", 0, &pid);
+    err = aos_rpc_process_spawn(init_chan, "mmchs", 0, &pid);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
+
+    // MARK: - Message handling
+
+    // Get default waitset
+    struct waitset *default_ws = get_default_waitset();
+
+    // Register Event Queue for UDP
+    udp_register_event_queue(default_ws);
+
 
     // Dispatch events
     while (true) {

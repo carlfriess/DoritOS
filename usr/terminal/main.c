@@ -49,7 +49,6 @@ static void serial_interrupt_handler(void *arg) {
 void terminal_ready(void) {
     domainid_t pid;
     aos_rpc_process_spawn(aos_rpc_get_init_channel(), "networkd", 0, &pid);
-    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "shell", 0, &pid);
 }
 
 void terminal_runloop_dispatch(void) {
