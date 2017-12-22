@@ -114,11 +114,11 @@ We were also provided with a slot pre-allocator. However, we weren't sure what w
 
 ## Spawning Processes
 
-The spawning provides the creation of new dispatchers in order to create schedulable processes for the system. It is subdivided into several smaller, more managable steps to give an easier overview.
+Spawning is the process of creating new dispatchers in order to create schedulable processes for the system. It is subdivided into several smaller, more managable steps to give an easier overview.
 
 ### CSpace
 
-The whole thing starts with creating a CSpace for the child process. First thing is to create an L1 CNode and provide a root L2 CNode to start storing the capabilities. Then the new dispatcher itself is initialized and the capability is copied over, as well as it being retyped to an Endpoint so that it has access to it's own Endpoint. 3 new L2 CNodes are then created to provide the initial slots for the process while it is doing setup and can't request additional ones. Another new L2 CNode is then allocated to store some initial RAM capabilities. The entire CNode is filled with these to make sure the new process has plenty of memory to get started. Finally, one last CNode is allocated so that there is room for the initial `paging_state` to be copied over at a well known location. One other thing of note is that the IRQ capability is also copied over. It is given to all processes, which is often unnecessary but also saves an additional RPC call to get the capability when children do need to register IRQs.
+We start by creating a CSpace for the child process. First thing is to create an L1 CNode and provide a L2 CNode to start storing the capabilities. Then the new dispatcher itself is initialized and the capability is copied over, as well as it being retyped to an Endpoint so that it has access to its own Endpoint. 3 new L2 CNodes are then created to provide the initial slots for the process while it is doing setup and can't allocate additional ones. Another new L2 CNode is then added to store some initial page-sized RAM capabilities. The entire CNode is filled to make sure the new process has plenty of memory to get started. Finally, one last CNode is allocated so that there is room for the initial `paging_state` to be copied over at a well known location. One other thing of note is that the IRQ capability is also copied over. It is given to all processes, which is often unnecessary but also saves an additional RPC call to get the capability when children do need to register IRQs.
 
 ### LMP
 
@@ -126,12 +126,12 @@ To allow IPC, the new process must have some way to communicate with `init`. Thi
 
 ### VSpace
 
-The VSpace is used to pass the `paging_state`. This entails allocating some space for it as well as some initial slab allocators for it to use. More about this is discussed in the `Virtual Memory and Paging` section.
+The VSpace is used to pass the `paging_state`. This entails allocating some memory for it as well as some initial slab allocators for it to use. More about this is discussed in the `Virtual Memory and Paging` section.
 
 
 ### ELF
 
-Spawning the elf is done with the provided elf library. The first step is to load the elf, which uses the `elf_allocator_callback`. This function lets the `elf_load` allocate the memory it needs to load the elf data. Then we find and store the location `.got` section so we can later notify the dispatcher about it. 
+Spawning the elf is done with the provided elf library. The first step is to load the elf, which uses the `elf_allocator_callback`. This function lets the `elf_load()` call allocate the memory it needs to load the elf data. Then we find and store the location of `.got` section so we can later notify the dispatcher about it. 
 
 
 ### Dispatcher
@@ -160,11 +160,11 @@ There is only one thing left to do before spawning the process and thats bookkee
 
 ### Cleanup
 
-Final bit of `init`'s side of spawning is doing some cleanup. This includes unmapping uneeded frames that were mapped to write data like paging state and such to the child as well as freeing the slots saved in the spawninfo.
+Final bit of `init`'s side of spawning is doing some cleanup. This includes unmapping unneeded frames that were mapped to write data like paging state and such to the child as well as freeing the slots saved in the spawninfo.
 
 ### Initialization
 
-Once the process is actually up and running, it needs to initialize itself. Just like `init` it will run through the initialization, including `paging_init`, `ram_alloc_init`, etc. but will additionally initialize the LMP and the RPC. To initialize the LMP, the process creates a new LMP channel and sends a registration message to `init`, along with it's endpoint capability. In the spawning process `init` registered itself to listen to incoming LMP messages and will therefore receive this message, register the process' endpoint and respond, finalizing the initialization. Only thing left is to initialize RPC and then the process can enter `main`.
+Once the process is actually up and running, it needs to initialize itself. Just like `init` it will run through the initialization, including `paging_init`, `ram_alloc_init`, etc. but will additionally initialize LMP and AOS RPC. To initialize LMP, the process creates a new LMP channel and sends a registration message to `init`, along with it's endpoint capability. In the spawning process `init` registered itself to listen to incoming LMP messages and will therefore receive this message, register the process' endpoint and respond, finalizing the initialization. Only thing left is to initialize AOS RPC and then the process can enter `main`.
 
 
 ## Lightweight Message Passing (LMP)
