@@ -322,7 +322,63 @@ Since init spawns all processes, the initialisation of paging states (including 
 
 ### Initialising paging
 
-...
+During the startup sequence of every process (including init) the `paging_init()` method is called. This will either initialise the paging state in the case of init or import the previously set up paging state.
+
+Next a temporary slot allocator is initialised, as we are about to allocate some memory for the exception handler's stack. The standard slot allocator requires page fault handling and paging to be working so we use this temporary slot allocator in the interim. We found that the slots in the `SLOT_ALLOC0` cNode are unused, so the temporary slot allocator just allocates these slots one at a time.
+
+Once the stack for the exception handler is set up, the handler can be registered and now we can start using the default slot allocator.
+
+### Moving the paging state
+
+As mentioned above, the paging state for new processes is initialised in init and needs to be moved or rather imported to the child process. Luckily we are using a slot allocator to allocate memory for the data structures describing the state. This means that we know exactly which memory is used to hold these data structures. By simply mapping the appropriate frames to the same addresses in the child's address space the child can retain access to the data structures.
+
+Now that the child can access the data, it just needs to know where it is. We solved this by just placing the `struct paging_state` at the well known address `VADDR_OFFSET`.
+
+Finally we need to ensure that the child process can modify the vNodes created by init on its behalf. The following function recursively walks the paging state and copies the necessary capabilities into the child's CSpace. Here we also use the `SLOT_ALLOC0` cNode mentioned in the previous section.
+
+```c
+static void spawn_recursive_child_l2_tree_walk(struct spawninfo *si,
+                                               struct pt_cap_tree_node *node,
+                                               int is_root) {
+    
+    static size_t next_slot = 0;
+    
+    // Reinitialise at root
+    if (is_root) {
+        next_slot = 0;
+    }
+    
+    // Recurse to the left
+    if (node->left != NULL) {
+        spawn_recursive_child_l2_tree_walk(si, node->left, 0);
+    }
+    
+    // Build next capref
+    struct capref next_cap;
+    next_cap.cnode = si->slot_alloc0_ref;
+    next_cap.slot = next_slot++;
+    
+    // Copy the capability
+    errval_t err = cap_copy(next_cap, node->cap);
+    if (err_is_fail(err)) {
+        debug_printf("spawn for %s: %s\n", si->binary_name, err_getstring(err));
+    }
+    assert(err_is_ok(err));
+    
+    // Mutate the capref to reference the child cspace
+    next_cap.cnode.croot = CPTR_ROOTCN;
+    node->cap = next_cap;
+    
+    // Recurse to the right
+    if (node->right != NULL) {
+        spawn_recursive_child_l2_tree_walk(si, node->right, 0);
+    }
+    
+}
+```
+<center>*Recursively copies vNode capabilities to child*</center>
+
+After these steps have completed, the child can import the paging state by simply setting the current paging state reference to the well known address named above and setting the L1 vNode capability reference to the well known location of the first slot in `cnode_page`.
 
 ### Structure of virtual memory management
 
@@ -338,9 +394,11 @@ Since init spawns all processes, the initialisation of paging states (including 
 
 ### Handling page faults
 
-...
+The process of handling page faults is somewhat trivial. Essentially the handler just requests a frame to fill the page which faulted and maps it. To support paging regions we also check if the address space where the fault occurred was previously allocated. If not, the address space is allocated to prevent attempts to map another frame into the same region.
 
+We also check for `NULL` dereferencing and stack overflows, as well as rejecting page faults in the part of the address space reserved for the kernel.
 
+Unfortunately, our handler uses `paging_alloc_fixed()` at every page fault outside of a paging region. As previously discussed, this implementation is inefficient and was only really intended for constant use. However, due to time constraints we could not fully improve on this.
 
 ## Multicore
 
