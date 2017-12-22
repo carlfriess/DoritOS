@@ -114,7 +114,57 @@ We were also provided with a slot pre-allocator. However, we weren't sure what w
 
 ## Spawning Processes
 
-Content.
+The spawning provides the creation of new dispatchers in order to create schedulable processes for the system. It is subdivided into several smaller, more managable steps to give an easier overview.
+
+### CSpace
+
+The whole thing starts with creating a CSpace for the child process. First thing is to create an L1 CNode and provide a root L2 CNode to start storing the capabilities. Then the new dispatcher itself is initialized and the capability is copied over, as well as it being retyped to an Endpoint so that it has access to it's own Endpoint. 3 new L2 CNodes are then created to provide the initial slots for the process while it is doing setup and can't request additional ones. Another new L2 CNode is then allocated to store some initial RAM capabilities. The entire CNode is filled with these to make sure the new process has plenty of memory to get started. Finally, one last CNode is allocated so that there is room for the initial `paging_state` to be copied over at a well known location. One other thing of note is that the IRQ capability is also copied over. It is given to all processes, which is often unnecessary but also saves an additional RPC call to get the capability when children do need to register IRQs.
+
+### LMP
+
+To allow IPC, the new process must have some way to communicate with `init`. This is done by preparing `init` to accept the new request. In order to make this request, the new process needs a capability to `init`'s endpoint. This is copied over here and a receive event is registered on the waitset to listen for the initial message.
+
+### VSpace
+
+The VSpace is used to pass the `paging_state`. This entails allocating some space for it as well as some initial slab allocators for it to use. More about this is discussed in the `Virtual Memory and Paging` section.
+
+
+### ELF
+
+Spawning the elf is done with the provided elf library. The first step is to load the elf, which uses the `elf_allocator_callback`. This function lets the `elf_load` allocate the memory it needs to load the elf data. Then we find and store the location `.got` section so we can later notify the dispatcher about it. 
+
+
+### Dispatcher
+
+First thing for the dispatcher creation is to allocate memory for it. After that, we can assign the various fields of the DCB to their predefined values and additionally assign some of the address locations from previous sections, like the `.got`.
+
+### Arguments
+
+Another crucial part of spawning processes is passing the arguments. For this, a frame is allocated where the parsed arguments are written to. The capability to this frame is then copied to the child's CSpace so it can call up the arguments. One thing to note here is that the address of the arguments has to be saved into register `r0` in order for it to work properly when booting the process.
+
+### Spawn and Process List
+
+```c
+struct process_info {
+    struct process_info *next;
+    domainid_t pid;
+    coreid_t core_id;
+    char *name;
+    struct capref *dispatcher_cap;
+    struct lmp_chan *lc;
+};
+```
+<center>*Process Info*</center>
+
+There is only one thing left to do before spawning the process and thats bookkeeping. Before spawning, the process' `process_info` is added to the list of all processes. Keeping track of processes allows for some crucial functionality such as arbitrary binding that comes into play later in the system. Last step is to invoke the dispatcher and we are off to the races!
+
+### Cleanup
+
+Final bit of `init`'s side of spawning is doing some cleanup. This includes unmapping uneeded frames that were mapped to write data like paging state and such to the child as well as freeing the slots saved in the spawninfo.
+
+### Initialization
+
+Once the process is actually up and running, it needs to initialize itself. Just like `init` it will run through the initialization, including `paging_init`, `ram_alloc_init`, etc. but will additionally initialize the LMP and the RPC. To initialize the LMP, the process creates a new LMP channel and sends a registration message to `init`, along with it's endpoint capability. In the spawning process `init` registered itself to listen to incoming LMP messages and will therefore receive this message, register the process' endpoint and respond, finalizing the initialization. Only thing left is to initialize RPC and then the process can enter `main`.
 
 
 ## Lightweight Message Passing (LMP)
@@ -294,7 +344,7 @@ Since init spawns all processes, the initialisation of paging states (including 
 
 ## Multicore
 
-Content.
+Our multicore booting is a multi-step process. First step is to allocate and map the memory for all the components needed for the second core. This includes the relocatable memory segment, `core data` segment, urpc channel and the KCB. The urpc channel is initialized to provide a simple communication channel and the current KCB is cloned to provide a baseline for the new KCB and initialize the `core_data`. Then the relocatable segment is loaded into our memory regions and all the kernel-virtual addresses to our regions are stored in the `core_data` to let the new core know where to find all of it's resources when it boots. Finally these locations are cache invalidated and cleaned to make sure the data is flushed and the new core can actually see all of our hard work! Additionally all of the regions are unmapped from our memory again except for the urpc channel, which we will need to do intercore communication.
 
 
 ## User-level Message Passing (UMP)
