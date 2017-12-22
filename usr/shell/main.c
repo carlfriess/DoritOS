@@ -72,21 +72,32 @@ static void cmd_echo(int argc, char *argv[]) {
 }
 
 static void cmd_ls(size_t argc, char *argv[]) {
-//    char *path;
-//
-//    switch (arg) {
-//        case 0:
-//            path = (char *) malloc(sizeof(char) * strlen(cwd));
-//            strcpy(path, cwd);
-//            break;
-//        case 1:
-//            path = (char *) malloc(sizeof(char) * (strlen(pwd) + strlen(argv[1])));
-//            break;
-//    }
-//
-//
-//    free
+    errval_t err;
 
+    if (argc < 2) {
+        printf("Invalid arguments!");
+        return;
+    }
+
+    fs_dirhandle_t handle;
+
+    err = opendir(argv[1], &handle);
+    if (err_is_fail(err)) {
+        printf("%s\n", err_getstring(err));
+        return;
+    }
+
+    char *name;
+
+    err = SYS_ERR_OK;
+
+    while (true) {
+        err = readdir(handle, &name);
+        if (err_is_fail(err)) break;
+        printf("%s\n", name);
+    }
+
+    closedir(handle);
 }
 
 static void cmd_cat(size_t argc, char *argv[]) {
@@ -94,11 +105,39 @@ static void cmd_cat(size_t argc, char *argv[]) {
 }
 
 static void cmd_mkdir(size_t argc, char *argv[]) {
+    if (argc < 2) {
+        printf("Invalid Arguments!\n");
+        return;
+    }
 
+    errval_t err = mkdir(argv[1]);
+    if (err_is_fail(err)) {
+        printf("%s\n", err_getstring(err));
+    }
 }
 
 static void cmd_rmdir(size_t argc, char *argv[]) {
+    if (argc < 2) {
+        printf("Invalid Arguments!\n");
+        return;
+    }
 
+    errval_t err = rmdir(argv[1]);
+    if (err_is_fail(err)) {
+        printf("%s\n", err_getstring(err));
+    }
+}
+
+static void cmd_rm(size_t argc, char *argv[]) {
+    if (argc < 2) {
+        printf("Invalid Arguments!\n");
+        return;
+    }
+
+    errval_t err = rm(argv[1]);
+    if (err_is_fail(err)) {
+        printf("%s\n", err_getstring(err));
+    }
 }
 
 static size_t get_input(char *buf, size_t len) {
@@ -147,48 +186,20 @@ int main(int argc, char *argv[]) {
     // Setup
     errval_t err;
 
-//
-//    lvaddr_t vaddr;
-//
-//    // Enable MUX
-//    err = map_device_register(OMAP44XX_MAP_L4_CFG_SYSCTRL_PADCONF_CORE, OMAP44XX_MAP_L4_CFG_SYSCTRL_PADCONF_CORE_SIZE, &vaddr);
+//    err = filesystem_init();
 //    if (err_is_fail(err)) {
-//        debug_printf(err_getstring(err));
+//        debug_printf("%s\n", err_getstring(err));
 //    }
-//    *((uint32_t *) vaddr + 0xF4) |= 0x30000;
 //
-//
-//    // Get and map LED device cap;
-//    err = map_device_register(OMAP44XX_MAP_L4_WKUP_GPIO1, OMAP44XX_MAP_L4_WKUP_GPIO1_SIZE, &vaddr);
+//    err = filesystem_mount("/sdcard", "mmchs://fat32/0");
 //    if (err_is_fail(err)) {
-//        debug_printf(err_getstring(err));
+//        debug_printf("%s\n", err_getstring(err));
 //    }
-//    led1 = (uint32_t *) vaddr + 0x13C;
 //
-//    // Enable LED1
-//    *((uint32_t *) vaddr + 0x134) &= 0xFFFFFEFF;
-//
-//    // Get and map LED device cap;
-//    err = map_device_register(OMAP44XX_MAP_L4_PER_GPIO4, OMAP44XX_MAP_L4_PER_GPIO4_SIZE, &vaddr);
+//    err = filesystem_mount("/bootinfo", "multiboot://0/0");
 //    if (err_is_fail(err)) {
-//        debug_printf(err_getstring(err));
+//        debug_printf("%s\n", err_getstring(err));
 //    }
-//    led2 = (uint32_t *) vaddr + 0x13C;
-//
-//    // Enable LED2
-//    *((uint32_t *) vaddr + 0x134) &= 0xFFFFBFFF;
-//
-//
-//    // Set LEDS off
-////    static bool led1_toggle = 0;
-////    static bool led2_toggle = 0;
-//
-////    cmd_led(1, 1);
-////    *led2 &= 0xFFFFBFFF;
-////    *led2 |= 0x4000;
-////    *led1 &= 0xFFFFFEFF;
-//    *led1 |= 0x100;
-//    cmd_led(2, 1);
 
     cwd = (char *) malloc(sizeof(char) * 2);
     assert(cwd != NULL);
@@ -251,6 +262,23 @@ int main(int argc, char *argv[]) {
                 cmd_mkdir(num_args, args);
             } else if (!strcmp(args[0], "rmdir")) {
                 cmd_rmdir(num_args, args);
+            } else if (!strcmp(args[0], "rm")) {
+                cmd_rm(num_args, args);
+            } else if (!strcmp(args[0], "fs_init")) {
+                err = filesystem_init();
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                }
+
+                err = filesystem_mount("/sdcard", "mmchs://fat32/0");
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                }
+
+                err = filesystem_mount("/bootinfo", "multiboot://0/0");
+                if (err_is_fail(err)) {
+                    debug_printf("%s\n", err_getstring(err));
+                }
             } else {
 
                 if (strlen(args[0]) != 0) {

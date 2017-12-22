@@ -10,6 +10,8 @@
 #include <aos/inthandler.h>
 #include <aos/urpc.h>
 
+#include <fs/fs.h>
+
 #define PRINT_DEBUG 0
 
 struct io_buffer {
@@ -72,11 +74,25 @@ static errval_t get_next_char(struct terminal_state *state, char *c) {
 }
 
 static void terminal_ready(void) {
+    errval_t err;
+
     domainid_t pid;
     struct aos_rpc *init_chan = aos_rpc_get_init_channel();
-    aos_rpc_process_spawn(init_chan, "networkd", 0, &pid);
-    aos_rpc_process_spawn(init_chan, "mmchs", 0, &pid);
-    aos_rpc_process_spawn(init_chan, "shell", 0, &pid);
+    err = aos_rpc_process_spawn(init_chan, "mmchs", 0, &pid);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+
+    err = aos_rpc_process_spawn(init_chan, "networkd", 0, &pid);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+
+    err = aos_rpc_process_spawn(init_chan, "shell", 0, &pid);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+
 }
 
 static void serial_interrupt_handler(void *arg) {

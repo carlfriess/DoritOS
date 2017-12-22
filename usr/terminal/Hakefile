@@ -14,7 +14,7 @@
   {
     target = "terminal",
     cFiles = [ "main.c" ],
-    addLibraries = [ "driverkit" ],
+    addLibraries = [ "driverkit", "fs" ],
     architectures = allArchitectures
   }
 ]
