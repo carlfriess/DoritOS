@@ -455,7 +455,13 @@ errval_t aos_rpc_init(struct aos_rpc *rpc, struct lmp_chan *lc)
 
     set_init_rpc(rpc);
     
-    err = urpc_bind(disp_get_terminal_pid(), rpc->uc, !disp_get_core_id());
+    domainid_t pid;
+    err = aos_rpc_process_get_pid_by_name("terminal", &pid);
+    assert(err_is_ok(err));
+    
+    err = urpc_bind(disp_get_terminal_pid(),
+                    rpc->uc,
+                    (pid != disp_get_terminal_pid() ? 1 : !disp_get_core_id()));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
