@@ -54,6 +54,7 @@ errval_t mbtfs_open(void *st, char *path, mbtfs_handle_t *ret_handle) {
     err = aos_rpc_get_module_frame(aos_rpc_get_init_channel(), &path[pos], &frame, &ret_bytes);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
+        return FS_ERR_NOTFOUND;
     }
     
     // Buffer for file data
@@ -121,18 +122,23 @@ errval_t mbtfs_read(void *st, mbtfs_handle_t handle, void *buffer, size_t bytes,
         
     }
     
+    size_t temp = bytes;
+    
     // Shorten bytes if requested file range is bigger than file
     if (start + bytes > file_size) {
         
-        bytes -= start + bytes - file_size;
+        temp = file_size - start;
         
     }
     
     // Copy requested amount of bytes from handle buffer to buffers
-    memcpy(buffer, h->buffer, start + bytes);
+    memcpy(buffer, h->buffer, start + temp);
+    
+    // Update handle
+    h->pos += temp;
     
     // Set return bytes read
-    *bytes_read = bytes;
+    *bytes_read = temp;
     
     return SYS_ERR_OK;
     
