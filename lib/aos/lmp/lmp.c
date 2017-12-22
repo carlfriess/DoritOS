@@ -508,16 +508,37 @@ errval_t lmp_server_module_frame(struct lmp_chan *lc, struct capref cap, uintptr
     // Initialize string as beginning of name
     char *name = (char *) buf;
     
+    // Module size
+    size_t module_size = 0;
+    
+    // Module frame
+    struct capref module_frame;
+    
     struct mem_region *mem = multiboot_find_module(lmp_bi, name);
     if (!mem) {
+        
+        // Set error
         err = FS_ERR_NOTFOUND;
+        
+        // Set module size
+        module_size = 0;
+        
+        // Constructing the capability for the frame containing the module name
+        module_frame = NULL_CAP;
+        
+    } else {
+        
+        // Set error
+        err = SYS_ERR_OK;
+        
+        // Set module size
+        module_size = mem->mrmod_size;
+        
+        // Constructing the capability for the frame containing the module name
+        module_frame.cnode = cnode_module;
+        module_frame.slot = mem->mrmod_slot;
+        
     }
-    
-    // Constructing the capability for the frame containing the module name
-    struct capref module_frame = {
-        .cnode = cnode_module,
-        .slot = mem->mrmod_slot
-    };
     
     // Send back frame with error and size
     err = lmp_chan_send3(lc,
@@ -525,7 +546,7 @@ errval_t lmp_server_module_frame(struct lmp_chan *lc, struct capref cap, uintptr
                          module_frame,
                          LMP_RequestType_ModuleFrame,
                          err,
-                         mem->mrmod_size
+                         module_size
                          );
     
     // Clean up the frame
