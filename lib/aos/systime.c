@@ -15,7 +15,7 @@
 #include <aos/systime.h>
 
 /// Number of system ticks per one millisecond
-systime_t systime_frequency = 1;
+systime_t systime_frequency = 300000000;
 
 /// Convert nanoseconds to system ticks
 systime_t ns_to_systime(uint64_t nanoseconds)

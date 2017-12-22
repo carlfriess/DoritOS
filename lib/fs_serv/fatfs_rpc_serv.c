@@ -467,6 +467,13 @@ errval_t run_rpc_serv(void) {
     struct urpc_chan *new_chan = malloc(sizeof(struct urpc_chan));
     assert(new_chan);
 
+    domainid_t pid;
+    struct aos_rpc *init_chan = aos_rpc_get_init_channel();
+    err = aos_rpc_process_spawn(init_chan, "networkd", 0, &pid);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+
     while (true) {
         
         // Accept a binding request from a client

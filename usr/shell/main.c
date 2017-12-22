@@ -6,6 +6,7 @@
 #include <aos/aos_rpc.h>
 #include <aos/urpc.h>
 #include <aos/terminal.h>
+#include <aos/systime.h>
 #include <spawn/spawn.h>
 #include <fs/dirent.h>
 #include <fs/fs.h>
@@ -75,7 +76,7 @@ static void cmd_ls(size_t argc, char *argv[]) {
     errval_t err;
 
     if (argc < 2) {
-        printf("Invalid arguments!");
+        printf("Invalid arguments!\n");
         return;
     }
 
@@ -101,7 +102,27 @@ static void cmd_ls(size_t argc, char *argv[]) {
 }
 
 static void cmd_cat(size_t argc, char *argv[]) {
+    if (argc < 2) {
+        printf("Invalid Arguments!\n");
+        return;
+    }
 
+    FILE *fd = fopen(argv[1], "r");
+
+    if (fd == NULL) {
+        printf("File not found\n");
+        return;
+    }
+
+    int size = fseek(fd, 0, SEEK_END);
+    fseek(fd, 0, SEEK_SET);
+
+    void *buf = malloc(size);
+    size = fread(buf, 1, size, fd);
+
+    printf("%s\n", buf);
+
+    fclose(fd);
 }
 
 static void cmd_mkdir(size_t argc, char *argv[]) {
@@ -138,6 +159,56 @@ static void cmd_rm(size_t argc, char *argv[]) {
     if (err_is_fail(err)) {
         printf("%s\n", err_getstring(err));
     }
+}
+
+static void cmd_touch(size_t argc, char *argv[]) {
+    if (argc < 2) {
+        printf("Invalid Arguments!\n");
+    }
+
+    FILE *fd = fopen(argv[2], "w");
+    fclose(fd);
+}
+
+static void cmd_oncore(size_t argc, char *argv[], char *buf, bool wait) {
+    if (argc < 3) {
+        printf("Invalid Arguments!\n");
+        return;
+    }
+
+    int core = atoi(argv[1]);
+
+    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+
+    // Spawn process
+    domainid_t pid;
+    errval_t err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), buf + 9, core, &pid);
+    if (err_is_fail(err)) {
+        printf("%s: command not found\n", argv[2]);
+    } else if (wait) {
+        aos_rpc_process_deregister_notify(pid);
+    }
+
+    // Free spawninfo
+    free(si);
+}
+
+static void cmd_time(size_t argc, char *argv[], char *buf) {
+    struct spawninfo *si = (struct spawninfo *) malloc(sizeof(struct spawninfo));
+
+    // Spawn process
+    domainid_t pid;
+    errval_t err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), buf + 5, 1, &pid);
+    if (err_is_fail(err)) {
+        printf("%s: command not found\n", argv[1]);
+    } else {
+        systime_t time = systime_now();
+        aos_rpc_process_deregister_notify(pid);
+        printf("TIME: %" PRIu64 " ns\n", systime_to_ns(systime_now() - time));
+    }
+
+    // Free spawninfo
+    free(si);
 }
 
 static size_t get_input(char *buf, size_t len) {
@@ -185,21 +256,6 @@ static size_t get_input(char *buf, size_t len) {
 int main(int argc, char *argv[]) {
     // Setup
     errval_t err;
-
-//    err = filesystem_init();
-//    if (err_is_fail(err)) {
-//        debug_printf("%s\n", err_getstring(err));
-//    }
-//
-//    err = filesystem_mount("/sdcard", "mmchs://fat32/0");
-//    if (err_is_fail(err)) {
-//        debug_printf("%s\n", err_getstring(err));
-//    }
-//
-//    err = filesystem_mount("/bootinfo", "multiboot://0/0");
-//    if (err_is_fail(err)) {
-//        debug_printf("%s\n", err_getstring(err));
-//    }
 
     cwd = (char *) malloc(sizeof(char) * 2);
     assert(cwd != NULL);
@@ -264,6 +320,12 @@ int main(int argc, char *argv[]) {
                 cmd_rmdir(num_args, args);
             } else if (!strcmp(args[0], "rm")) {
                 cmd_rm(num_args, args);
+            } else if (!strcmp(args[0], "touch")) {
+                cmd_touch(num_args, args);
+            } else if (!strcmp(args[0], "oncore")) {
+                cmd_oncore(num_args, args, buf, wait);
+            } else if (!strcmp(args[0], "time")) {
+                cmd_time(num_args, args, buf);
             } else if (!strcmp(args[0], "fs_init")) {
                 err = filesystem_init();
                 if (err_is_fail(err)) {

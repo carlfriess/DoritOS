@@ -83,16 +83,6 @@ static void terminal_ready(void) {
         debug_printf("%s\n", err_getstring(err));
     }
 
-    err = aos_rpc_process_spawn(init_chan, "networkd", 0, &pid);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-    }
-
-    err = aos_rpc_process_spawn(init_chan, "shell", 0, &pid);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-    }
-
 }
 
 static void serial_interrupt_handler(void *arg) {
