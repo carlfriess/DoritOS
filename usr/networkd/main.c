@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
     // Spawn next process
     domainid_t pid;
     struct aos_rpc *init_chan = aos_rpc_get_init_channel();
-    err = aos_rpc_process_spawn(init_chan, "mmchs", 0, &pid);
+    err = aos_rpc_process_spawn(init_chan, "shell", 0, &pid);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
