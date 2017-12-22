@@ -476,7 +476,6 @@ errval_t fat_resolve_path(struct fat_dirent *root, char *path, struct fat_dirent
     
 }
 
-// FIXME: char *name can be null terminated, but has to have the same first 11 bytes
 errval_t fat_find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_dirent **ret_dirent) {
     
     errval_t err;
@@ -647,9 +646,6 @@ errval_t remove_dirent(struct fat_dirent *dirent) {
     return err;
     
 }
-
-
-
 
 // Inclusive . and ..
 errval_t get_dir_entries_count(size_t cluster_nr, size_t *ret_count) {
@@ -2276,9 +2272,6 @@ static void get_dot_dot_dir_data(size_t cluster_nr, struct DIR_Entry *dir_data) 
     
 }
 
-
-
-
 static void data_to_dir_data(struct DIR_Entry *dest, void *src) {
     
     // Source data buffer
@@ -2320,6 +2313,28 @@ static void dir_data_to_data(void *dest, struct DIR_Entry *src) {
     memcpy(&data[24], &dir_data->WrtDate, 2);
     memcpy(&data[26], &dir_data->FstClus, 2);                       // Low bits
     memcpy(&data[28], &dir_data->FileSize, 2);
+    
+}
+
+errval_t update_dirent_size(struct fat_dirent *dirent) {
+    
+    errval_t err;
+    
+    // Return size of dirent
+    size_t ret_size = 0;
+    
+    // Get dirent size
+    err = get_dir_entry_size(dirent->parent_cluster_nr, dirent->parent_pos, &ret_size);
+    if (err_is_fail(err)) {
+#if PRINT_DEBUG
+        debug_printf("%s\n", err_getstring(err));
+#endif
+    }
+    
+    // Update dirent size
+    dirent->size = ret_size;
+    
+    return err;
     
 }
 
