@@ -122,7 +122,7 @@ We start by creating a CSpace for the child process. First thing is to create an
 
 ### LMP
 
-To allow IPC, the new process must have some way to communicate with `init`. This is done by preparing `init` to accept the new request. In order to make this request, the new process needs a capability to `init`'s endpoint. This is copied over here and a receive event is registered on the waitset to listen for the initial message.
+To allow IPC, the new process must have some way to communicate with `init`. First, the capability for `init`'s endpoint is copied over to a well known location. This means the new process can send to `init`'s endpoint at any time. Since the child's endpoint does not exist yet, `init` listens to all incoming messages and waits on a registration message. This message will then hold the capability to the child's endpoint which `init` can then use to finalize the bi-directional channel.
 
 ### VSpace
 
@@ -344,7 +344,7 @@ Since init spawns all processes, the initialisation of paging states (including 
 
 ## Multicore
 
-Our multicore booting is a multi-step process. First step is to allocate and map the memory for all the components needed for the second core. This includes the relocatable memory segment, `core_data` segment, UMP channel and the KCB. The UMP channel is initialized to provide a simple communication channel and the current KCB is cloned to provide a baseline for the new KCB and initialize the `core_data`. Then the relocatable segment is loaded into our memory regions and all the kernel-virtual addresses to our regions are stored in the `core_data` to let the new core know where to find all of it's resources when it boots. Finally these locations are cache invalidated and cleaned to make sure the data is flushed and the new core can actually see all of our hard work! Additionally all of the regions are unmapped from our memory again except for the UMP channel, which we will need to do inter-core communication.
+Our multicore booting is a multi-step process. First step is to allocate and map the memory for all the components needed for the second core. This includes the relocatable memory segment, `core_data` segment, UMP channel and the KCB. The UMP channel is initialized to provide a simple communication channel and the current KCB is cloned to provide a baseline for the new KCB and initialize the `core_data`. Then the relocatable segment is loaded into our memory regions and all the addresses to our regions are stored in the `core_data` to let the new core know where to find all of it's resources when it boots. Note that these addresses all have to be kernel-virtual so that the new core can forge the capabilities to these frames. Finally these locations are cache invalidated and cleaned to make sure the data is flushed and the new core can actually see all of our hard work! Additionally all of the regions are unmapped from our memory again except for the UMP channel, which we will need to do inter-core communication. Also, since we have 2 cores, we decided it would be sufficient to split the memory even among both cores.
 
 
 ## User-level Message Passing (UMP)
