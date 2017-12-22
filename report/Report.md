@@ -357,7 +357,223 @@ On the other hand, the API does not support sending capabilities in any way. Thi
 
 ## TurtleSHELL (Sven Knobloch)
 
-Content.
+// Something introductory
+
+The shell implementation (nicknamed "TurtleSHELL") 
+
+### State
+
+```c
+struct io_buffer {
+    char *buf;
+    size_t pos;
+    struct io_buffer *next;
+};
+```
+<center>*IO Buffer*</center>
+
+```c
+struct terminal_event {
+    urpc_msg_type_t type;
+    struct urpc_chan *chan;
+    struct terminal_msg msg;
+};
+```
+<center>*Terminal Event*</center>
+
+```c
+struct terminal_state {
+    void *write_lock;
+    void *read_lock;
+    struct io_buffer *buffer;
+    collections_listnode *urpc_chan_list;
+    collections_listnode *terminal_event_queue;
+};
+```
+<center>*Terminal State*</center>
+
+The core of the terminal driver is stored in it's state object. The `read_lock` and `write_lock` pointers are pointers to the respective channel that currently holds the lock on the terminal. Since the terminal is single-threaded there is no need for a complicated lock and therefore provides a simple solution to interleaved writing and reading. The `io_buffer` is a linked list of buffers that holds the buffered input characters read via the serial interrupts. The `urpc_chan_list` contains a linked list of URPC channels that have registered with the terminal driver. Finally, the `terminal_event_queue` holds a linked list of `terminal_event`s which can be traversed to either handle or defer the events. This state is initialized at the start of the terminal process and passed around to the list predicates and the interrupt handler to maintain a consistent state without relying on statics or globals.
+
+
+### Userspace Serial Driver
+
+```c
+// Get and map Serial device cap;
+lvaddr_t vaddr;
+err = map_device_register(OMAP44XX_MAP_L4_PER_UART3, OMAP44XX_MAP_L4_PER_UART3_SIZE, &vaddr);
+if (err_is_fail(err)) {
+    debug_printf(err_getstring(err));
+}
+
+mem = (char *) vaddr;
+flag = (char *) vaddr + 0x14;
+```
+<center>*Serial Address Mapping*</center>
+
+```c
+void put_char(char c) {
+    while (!(*flag & 0x20));
+    *mem = c;
+}
+
+static char get_char(void) {
+    while (!(*flag & 0x1));
+    return *mem;
+}
+
+```
+<center>*IO Functions*</center>
+
+The serial driver uses device capabilities to run in the userspace. It starts by requesting these capabilities from the kernel via the `map_device_register` helper function which also maps the addresses into the virtual address space. The two IO functions, `get_char` and `put_char`. These functions are extremely similar to the ones from the Milestone 0 assignment, but provide much better performance as the interrupt eliminates the need to constantly spin on the flag.
+
+
+### Interrupt Handler
+
+
+```c
+static void serial_interrupt_handler(void *arg) {
+    struct terminal_state *state = (struct terminal_state *) arg;
+
+    char c = get_char();
+
+    // Iterate to tail
+    struct io_buffer *current;
+    for (current = state->buffer; current->next != NULL; current = current->next);
+
+    // Set char and inc
+    current->buf[current->pos++] = c;
+
+    // Alloc new list if full
+    if (current->pos == IO_BUFFER_SIZE) {
+        io_buffer_init(&current->next);
+    }
+}
+```
+
+The interrupt handler is set directly after the `terminal_state` and `io_buffer` are initialized. The state's `io_buffer` stores the sequence of characters entered into the picocom terminal and is structured as a linked list so that additional buffer space can easily be appended. This allows for virtually infinite buffering. The interrupt handler then has an extremely easy job of just inserting the new characters as they become available. Only downside is that it runs on the same thread as the terminal polling and therefore has occasional latency.
+
+### Terminal Driver
+
+```c
+static int terminal_event_dispatch(void *data, void *arg) {
+        
+    // Trivial assignments, casts and error handling are removed
+    
+    switch (event->type) {
+        case URPC_MessageType_TerminalReadLock:
+            if (st->read_lock == NULL || st->read_lock == event->chan) {
+                st->read_lock = event->chan;
+                err = urpc_send(event->chan, (void *) &msg,
+                		sizeof(struct terminal_msg), event->type);
+                return 1;
+            }
+            break;
+        case URPC_MessageType_TerminalRead:
+            if (st->read_lock == NULL || st->read_lock == event->chan) {
+                msg.err = get_next_char(st, &msg.c);
+                if (msg.err == SYS_ERR_OK) {
+                    err = urpc_send(event->chan, (void *) &msg,
+                    		sizeof(struct terminal_msg), event->type);
+                    return 1;
+                }
+            }
+            break;
+        case URPC_MessageType_TerminalReadUnlock:
+            if (st->read_lock == NULL || st->read_lock == event->chan) {
+                st->read_lock = NULL;
+            }
+            err = urpc_send(event->chan, (void *) &msg,
+            		sizeof(struct terminal_msg), event->type);
+            return 1;
+        case URPC_MessageType_TerminalWriteLock:
+            if (st->write_lock == NULL || st->write_lock == event->chan) {
+                st->write_lock = event->chan;
+                err = urpc_send(event->chan, (void *) &msg, 
+                		sizeof(struct terminal_msg), event->type);
+                return 1;
+            }
+            break;
+        case URPC_MessageType_TerminalWrite:
+            if (st->write_lock == NULL || st->write_lock == event->chan) {
+                put_char(event->msg.c);
+                err = urpc_send(event->chan, (void *) &msg,
+                		sizeof(struct terminal_msg), event->type);
+                return 1;
+            }
+            break;
+        case URPC_MessageType_TerminalWriteUnlock:
+            if (st->write_lock == NULL || st->write_lock == event->chan) {
+                st->write_lock = NULL;
+            }
+            err = urpc_send(event->chan, (void *) &msg,
+            		sizeof(struct terminal_msg), event->type);
+            return 1;
+        case URPC_MessageType_TerminalDeregister:
+            collections_list_remove_if(st->urpc_chan_list,
+            		urpc_chan_list_remove, event->chan);
+            err = urpc_send(event->chan, (void *) &msg,
+            		sizeof(struct terminal_msg), event->type);
+            return 1;
+            break;
+    }
+    
+    return 0;
+}
+
+```
+<center>*Terminal Event Handling*</center>
+
+```c
+struct terminal_event {
+    urpc_msg_type_t type;
+    struct urpc_chan *chan;
+    struct terminal_msg msg;
+};
+```
+<center>*Terminal Event*</center>
+
+The terminal driver is set up as a new process to prevent it from bogging down `init`. It acts as a server that clients can bind to with several different functionalities. These functionalities are provided as a URPC calls that push the request into an event queue. The events encapsulate the message contents, type and sender. The queue is then polled using a predicate function that will try to resolve the event and remove itself from the queue. The queue implementation enables the processes to block on the call instead of spinning on the URPC calls, which is a large performance boost.
+
+#### Registration
+
+In order to use the terminal server, any process must first bind with it over URPC. This is done in the `aos_rpc_init` call (except for terminal itself since a process can't bind to itself) and the `urpc_chan` to the terminal is then saved in the `aos_rpc_chan` state. Once registered the terminal driver will continuously poll the channel for new messages.
+
+#### Locking/Unlocking
+
+When using the terminal server, processes have the ability to lock/unlock the terminal to prevent output from interleaving. The processes must make the URPC call and then the terminal prevents all other channels from reading/writing until the owning process unlocks it with the corresponding URPC call. 
+
+#### Read/Write
+
+Reading and writing is the core feature and allows the processes to communicate. Processes can read and write single characters as long as they own or no one owns the lock. 
+
+#### Deregistration
+
+In order to prevent the terminal server from spinning on dead processes, processes will deregister themselves upon executing the `exit` function. They are then removed from the list of active channels and will no longer be able to use the terminal.
+
+### Shell
+
+The shell implementation is a bit rudimentary. It features a somewhat sophisticated argument parsing as well as a select list of implemented commands and tracking of the current directory. The shell also will print all input it receives back to the console.
+
+#### Argument parsing
+
+The argument parsing is done with two buffers. The raw input is read into the first buffer and is then parsed into the second. The parsing supports escaped characters and both single and double quotes.
+
+#### Commands
+
+The following commands are supported by the system, along with a short description of what they do:
+
+* help - Prints a help menu for all available commands
+* echo [string] - Prints string
+* ls (path) - Lists all files in the given directory or the current directory
+* cat [filename] - Prints contents of file
+* mkdir [path] - Makes directory at path
+* rmdir [path] - Deletes directory at path
+* touch [filename] - Makes file at path
+* rm [filename] - Deletes file at path
+* ps - Prints list of all processes
+* time [cmd] \(args...) - Measure the time in ns it takes to execute a command 
+* exit - Exit the shell
+* [elf name] \(args...) - Run a program with the given name and arguments
 
 
 ## Filesystem (Sebastian Winberg)
