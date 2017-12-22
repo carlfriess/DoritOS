@@ -9,15 +9,28 @@
 
 static struct ump_chan *ump_chan;
 
-static errval_t request_remote_spawn(char *name, coreid_t coreid, domainid_t *pid) {
+static errval_t request_remote_spawn(char *name, coreid_t coreid,
+                                     domainid_t terminal_pid, domainid_t *pid) {
     
     errval_t err = SYS_ERR_OK;
     
+    // Build message
+    size_t msg_size = sizeof(domainid_t) + strlen(name) + 1;
+    char *msg = malloc(msg_size);
+    if (!msg) {
+        return LIB_ERR_MALLOC_FAIL;
+    }
+    *(domainid_t *) msg = terminal_pid;
+    strcpy((char *) msg + sizeof(domainid_t), name);
+    
     // Send request to spawn server on other core
-    err = ump_send(ump_chan, name, strlen(name) + 1, UMP_MessageType_Spawn);
+    err = ump_send(ump_chan, msg, msg_size, UMP_MessageType_Spawn);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
+    
+    // Free the message
+    free(msg);
     
     // Waiting for response
     size_t retsize;
@@ -69,13 +82,14 @@ static errval_t request_remote_spawn(char *name, coreid_t coreid, domainid_t *pi
     
 }
 
-errval_t spawn_serv_handler(char *name, coreid_t coreid, domainid_t *pid) {
+errval_t spawn_serv_handler(char *name, coreid_t coreid,
+                            domainid_t terminal_pid, domainid_t *pid) {
     errval_t err;
     
     // Check if spawn request for this core
     if (coreid != disp_get_core_id()) {
         
-        return request_remote_spawn(name, coreid, pid);
+        return request_remote_spawn(name, coreid, terminal_pid, pid);
     
     }
     
@@ -88,7 +102,7 @@ errval_t spawn_serv_handler(char *name, coreid_t coreid, domainid_t *pid) {
     }
     
     // Spawn memeater
-    err = spawn_load_by_name(name, si);
+    err = spawn_load_by_name(name, si, terminal_pid);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
         // Free spawn info
