@@ -622,8 +622,6 @@ errval_t init_root_dir(void *st) {
 
 // ADD AND REMOVE FOR DIRENT
 
-//errval_t add_dirent(struct fat_dirent *dirent) { }
-
 errval_t remove_dirent(struct fat_dirent *dirent) {
     
     errval_t err;
@@ -891,13 +889,55 @@ errval_t add_dir_entry(size_t cluster_nr, struct DIR_Entry *dir_data, size_t *re
     
 }
 
+errval_t fatfs_rm_serv(void *st, char *path) {
+    
+    errval_t err;
+    
+    struct fatfs_serv_mount *mount = st;
+    
+    struct fat_dirent *dirent = calloc(1, sizeof(struct fat_dirent));
+    
+    // Resolve path to get
+    err = fat_resolve_path(mount->root, path, &dirent);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    if (dirent == NULL) {
+        debug_printf("%s\n", FS_ERR_NOTFOUND);
+        return FS_ERR_NOTFOUND;
+    }
+    
+    if (dirent->is_dir) {
+        debug_printf("%s\n", FS_ERR_NOTFILE);
+        return FS_ERR_NOTFILE;
+    }
+
+    // Remove dirent from directory and set FAT entries to zero
+    err = remove_dirent(dirent);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return err;
+    }
+    
+    // Free dirent
+    free(dirent);
+    
+    return err;
+    
+}
+
 
 errval_t remove_dir_entry(size_t cluster_nr, size_t pos) {
     
     errval_t err;
     
+    debug_printf("remove dir entry %zu %zu\n", cluster_nr, pos);
+    
     // Set directory entry region [0, 10] to indicate free entry
     uint8_t empty_name_buffer[11];
+    memset(empty_name_buffer, 0, 11);
     empty_name_buffer[0] = 0xE5;
     
     err = write_cluster_chain(cluster_nr, empty_name_buffer, pos * 32, 11);

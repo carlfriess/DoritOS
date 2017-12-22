@@ -219,15 +219,15 @@ errval_t fs_rpc_remove(void *st, char *path)
 {
     errval_t err;
     
+    // Length of string path (including '\0')
+    size_t path_size = strlen(path) + 1;
+    
     struct fs_message send_msg = {
-        .arg1 = 0,
+        .arg1 = path_size,
         .arg2 = 0,
         .arg3 = 0,
         .arg4 = 0
     };
-    
-    // Length of string path (including '\0')
-    size_t path_size = strlen(path) + 1;
     
     // Size of send buffer
     size_t send_size = sizeof(struct fs_message) + path_size;

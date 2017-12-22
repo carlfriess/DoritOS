@@ -111,6 +111,8 @@ errval_t fat_find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_
 
 errval_t init_root_dir(void *st);
 
+errval_t fatfs_rm_serv(void *st, char *path);
+
 errval_t remove_dirent(struct fat_dirent *dirent);
 
 

@@ -260,13 +260,21 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             
             debug_printf("URPC Message Remove Request!\n");
             
-            memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
+            // Get path size (including '\0')
+            size_t path_size = recv_msg->arg1;
+        
+            // Allocate and copy path
+            path = calloc(path_size, sizeof(char));
+            memcpy(path, recv_buffer + sizeof(struct fs_message), path_size);
             
-            // Remove dirent from directory and set FAT entries to zero
-            err = remove_dirent(dirent);
+            // Remove file dirent
+            err = fatfs_rm_serv((void *) mt, path);
             if (err_is_fail(err)) {
                 debug_printf("%s\n", err_getstring(err));
             }
+            
+            // Free path
+            free(path);
             
             // Size of send buffer
             send_size = sizeof(struct fs_message);
