@@ -378,7 +378,7 @@ int main(int argc, char *argv[]) {
                     debug_printf("%s\n", err_getstring(err));
                 }
 
-                err = filesystem_mount("/bootinfo", "multiboot://0/0");
+                err = filesystem_mount("/multiboot", "multiboot://0/0");
                 if (err_is_fail(err)) {
                     debug_printf("%s\n", err_getstring(err));
                 }

@@ -32,7 +32,6 @@ errval_t fs_rpc_init(void *state) {
     errval_t err;
     
     // Find mmchs's pid
-    //  FIXME: Pid discovery gets weirdly stuck
     domainid_t pid;
     err = aos_rpc_process_get_pid_by_name("mmchs", &pid);
     if (err_is_fail(err)) {
@@ -86,7 +85,8 @@ errval_t fs_rpc_open(void *st, char *path, fat32fs_handle_t *ret_handle) {
     // Send request message to server
     urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Open);
 
-    // TODO: Free send buffer?
+    // Free send buffer
+    free(send_buffer);
     
     // Receive response message from server
     size_t recv_size;
@@ -109,9 +109,6 @@ errval_t fs_rpc_open(void *st, char *path, fat32fs_handle_t *ret_handle) {
     // Allocate and copy in dirent from receive buffer
     struct fat_dirent *dirent = calloc(1, sizeof(struct fat_dirent));
     memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
-
-    // Not necessary since constant size
-    //dirent->name = strdup(dirent->name);
     
     // Construct/open handle
     struct fat32fs_handle *handle = handle_open(dirent);
@@ -165,6 +162,7 @@ errval_t fs_rpc_create(void *st, char *path, fat32fs_handle_t *ret_handle) {
     urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Create);
     
     // TODO: Free send buffer?
+    free(send_buffer);
     
     // Receive response message from server
     size_t recv_size;
@@ -188,19 +186,11 @@ errval_t fs_rpc_create(void *st, char *path, fat32fs_handle_t *ret_handle) {
     struct fat_dirent *dirent = calloc(1, sizeof(struct fat_dirent));
     memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
     
-    // Not necessary since constant size
-    //dirent->name = strdup(dirent->name);
-    
     // Construct/open handle
     struct fat32fs_handle *handle = handle_open(dirent);
     
     // Copy in path string
     handle->path = strdup(path);
-
-    
-    // Construct handle LEGACY
-    //struct fat32fs_handle *handle = calloc(1, sizeof(struct fat32fs_handle));
-    //handle->common = NULL;
     
     // Set return handle
     *ret_handle = handle;
@@ -244,6 +234,9 @@ errval_t fs_rpc_remove(void *st, char *path)
     // Send request message to server
     urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Remove);
     
+    // Free send buffer
+    free(send_buffer);
+    
     // Receive response message from server
     size_t recv_size;
     urpc_msg_type_t recv_msg_type;
@@ -283,8 +276,6 @@ errval_t fs_rpc_read(void *st, fat32fs_handle_t handle, void *buffer, size_t byt
 
     assert(handle != NULL);
     
-    //struct fat32_handle *h = handle;
-    
     if (h->isdir) {
         return FS_ERR_NOTFILE;
     }
@@ -312,6 +303,9 @@ errval_t fs_rpc_read(void *st, fat32fs_handle_t handle, void *buffer, size_t byt
     
     // Send request message to server
     urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Read);
+    
+    // Free send buffer
+    free(send_buffer);
     
     // Receive response message from server
     size_t recv_size;
@@ -399,6 +393,9 @@ errval_t fs_rpc_write(void *st, fat32fs_handle_t handle, const void *buffer,
     // Send request message to server
     urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Write);
     
+    // Free send buffer
+    free(send_buffer);
+    
     // Receive response message from server
     size_t recv_size;
     urpc_msg_type_t recv_msg_type;
@@ -464,6 +461,9 @@ errval_t fs_rpc_truncate(void *st, fat32fs_handle_t handle, size_t bytes) {
     // Send request message to server
     urpc_send(&chan, send_buffer, send_size, URPC_MessageType_Truncate);
     
+    // Free send buffer
+    free(send_buffer);
+    
     // Receive response message from server
     size_t recv_size;
     urpc_msg_type_t recv_msg_type;
@@ -492,7 +492,6 @@ errval_t fs_rpc_truncate(void *st, fat32fs_handle_t handle, size_t bytes) {
 
 
 
-// TODO: handle void pointer?
 errval_t fs_rpc_tell(void *st, fat32fs_handle_t handle, size_t *ret_pos) {
     
     assert(handle != NULL);
@@ -500,14 +499,12 @@ errval_t fs_rpc_tell(void *st, fat32fs_handle_t handle, size_t *ret_pos) {
     
     struct fat32fs_handle *h = handle;
     
-    //struct fat32_handle *h = handle;
-    
     // Check if handle is directory or file
     if (h->isdir) {
         
         // Set pos to 0
         *ret_pos = 0;
-        //*pos = handle->pos;       // TODO: Why not?
+        //*pos = handle->pos;
 
     
     } else {
@@ -521,12 +518,9 @@ errval_t fs_rpc_tell(void *st, fat32fs_handle_t handle, size_t *ret_pos) {
 
 }
 
-// TODO: inhandle void pointer?
 errval_t fs_rpc_stat(void *st, fat32fs_handle_t inhandle, struct fs_fileinfo *info) {
     
     struct fat32fs_handle *h = inhandle;
-    
-    // FIXME: MAKE RPC CALL!!!
     
     assert(h != NULL);
     
@@ -538,7 +532,6 @@ errval_t fs_rpc_stat(void *st, fat32fs_handle_t inhandle, struct fs_fileinfo *in
     
 }
 
-// TODO: handle void pointer?
 errval_t fs_rpc_seek(void *st, fat32fs_handle_t handle, enum fs_seekpos whence, off_t offset) {
 
     errval_t err = SYS_ERR_OK;
@@ -584,7 +577,6 @@ errval_t fs_rpc_seek(void *st, fat32fs_handle_t handle, enum fs_seekpos whence, 
     
 }
 
-// TODO: inhandle void pointer?
 errval_t fs_rpc_close(void *st, fat32fs_handle_t inhandle)
 {
     
@@ -606,8 +598,6 @@ errval_t fs_rpc_close(void *st, fat32fs_handle_t inhandle)
 errval_t fs_rpc_opendir(void *st, char *path, fs_dirhandle_t *ret_dirhandle) {
     
     errval_t err;
-    
-    //struct ramfs_mount *mount = st;
     
     struct fs_message send_msg = {
         .arg1 = 0,
@@ -634,7 +624,8 @@ errval_t fs_rpc_opendir(void *st, char *path, fs_dirhandle_t *ret_dirhandle) {
     // Send request message to server
     urpc_send(&chan, send_buffer, send_size, URPC_MessageType_OpenDir);
     
-    // TODO: Free send buffer?
+    // Free send buffer
+    free(send_buffer);
     
     // Receive response message from server
     size_t recv_size;
@@ -758,8 +749,6 @@ errval_t fs_rpc_readdir(void *st, fs_dirhandle_t dirhandle, char **ret_name,
     // Update directory index
     handle->pos += 1;
     
-    // FIXME: Maybe make dirent not calloc
-    
     // Allocate and copy in dirent from receive buffer
     struct fat_dirent *dirent = calloc(1, sizeof(struct fat_dirent));
     
@@ -836,7 +825,8 @@ errval_t fs_rpc_mkdir(void *st, char *path) {
     // Send request message to server
     urpc_send(&chan, send_buffer, send_size, URPC_MessageType_MakeDir);
     
-    // TODO: Free send buffer?
+    // Free send buffer
+    free(send_buffer);
 
     // Receive response message from server
     size_t recv_size;
@@ -872,8 +862,6 @@ errval_t fs_rpc_rmdir(void *st, char *path) {
     
     errval_t err;
     
-    //struct ramfs_mount *mount = st;
-    
     struct fs_message send_msg = {
         .arg1 = 0,
         .arg2 = 0,
@@ -899,7 +887,8 @@ errval_t fs_rpc_rmdir(void *st, char *path) {
     // Send request message to server
     urpc_send(&chan, send_buffer, send_size, URPC_MessageType_RemoveDir);
     
-    // TODO: Free send buffer?
+    // Free send buffer
+    free(send_buffer);
     
     // Receive response message from server
     size_t recv_size;
@@ -925,10 +914,6 @@ errval_t fs_rpc_rmdir(void *st, char *path) {
     return err;
     
 }
-
-
-
-
 
 static struct fat32fs_handle *handle_open(struct fat_dirent *dirent)
 {
