@@ -33,6 +33,7 @@
 #include "m1_test.h"
 #include "m2_test.h"
 
+void print_logo(void);
 
 coreid_t my_core_id;
 struct bootinfo *bi;
@@ -241,6 +242,9 @@ int main(int argc, char *argv[])
 
         // Free spawninfo
         free(terminal);
+    }
+    else {
+        print_logo();
     }
     
     

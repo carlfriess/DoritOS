@@ -17,6 +17,7 @@
                         "multicore.c",
                         "m1_test.c",
                         "m2_test.c",
+                        "logo.c",
                         "distops/caplock.c",
                         "distops/capqueue.c",
                         "distops/deletestep.c",
