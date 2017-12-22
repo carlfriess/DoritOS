@@ -24,23 +24,20 @@ static void get_dot_dot_dir_data(size_t cluster_nr, struct DIR_Entry *dir_data);
 static void data_to_dir_data(struct DIR_Entry *dest, void *src);
 static void dir_data_to_data(void *dest, struct DIR_Entry *src);
 
-
-
 errval_t init_BPB(void) {
     
     // Boot Sector and BPB Structure
     
     errval_t err;
     
-    uint8_t data[512];
+    uint8_t *data = calloc(512, sizeof(uint8_t));
     
     err = mmchs_read_block(0, data);
     if (err_is_fail(err)) {
+        assert(err_is_ok(err));
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
-
-    //struct boot_sector *bs = buf;
     
     BPB_BytsPerSec = GET_BYTES2(data, 11);
     debug_printf("BPB_BytsPerSec: %d\n", BPB_BytsPerSec);
@@ -136,6 +133,8 @@ errval_t init_BPB(void) {
     // Calculating start of data region (first sector of cluster 2)
     FirstDataSector = BPB_ResvdSecCnt + (BPB_NumFATs * FATSz) + RootDirSectors;
  
+    free(data);
+    
     return err;
     
 }
@@ -165,7 +164,9 @@ uint32_t getFATEntry(size_t n) {
     // Read FAT sector
     err = mmchs_read_block(ThisFATSecNum, buffer);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -194,7 +195,9 @@ errval_t setFATEntry(size_t n, uint32_t value) {
     // Read FAT sector of SD card
     err = mmchs_read_block(ThisFATSecNum, buffer);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
  
@@ -205,7 +208,9 @@ errval_t setFATEntry(size_t n, uint32_t value) {
     // Write FAT sector back to SD card
     err = mmchs_write_block(ThisFATSecNum, buffer);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
  
@@ -229,7 +234,9 @@ errval_t fatfs_serv_open(void *st, char *path, struct fat_dirent **ret_dirent) {
     // Resolve path to find file dirent
     err = fat_resolve_path(mount->root, path, &file_dirent);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -243,9 +250,11 @@ errval_t fatfs_serv_open(void *st, char *path, struct fat_dirent **ret_dirent) {
 
 
 errval_t fatfs_serv_create(void *st, char *path, struct fat_dirent **ret_dirent) {
-    
-    debug_printf("Creating file: -%s-\n", path);
 
+#if PRINT_DEBUG
+    debug_printf("Creating file: -%s-\n", path);
+#endif
+    
     errval_t err;
     
     assert(ret_dirent != NULL);
@@ -259,7 +268,9 @@ errval_t fatfs_serv_create(void *st, char *path, struct fat_dirent **ret_dirent)
     if (err_is_ok(err)) {
         // Free file dirent
         free(file_dirent);
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(FS_ERR_EXISTS));
+#endif
         return FS_ERR_EXISTS;
     }
     
@@ -286,10 +297,14 @@ errval_t fatfs_serv_create(void *st, char *path, struct fat_dirent **ret_dirent)
         // Resolve parent directory
         err = fat_resolve_path(mount->root, pathbuf, &parent);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         } else if (parent != NULL && !parent->is_dir) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(FS_ERR_NOTDIR));
+#endif
             return FS_ERR_NOTDIR; // parent is not a directory
         }
         
@@ -306,8 +321,10 @@ errval_t fatfs_serv_create(void *st, char *path, struct fat_dirent **ret_dirent)
     
     // Search for a free FAT entry and claim it
     size_t file_cluster_nr = find_free_fat_entry_and_set(0, 0x0FFFFFFF);
-    
+
+#if PRINT_DEBUG
     debug_printf("file_cluster_nr: %zu\n", file_cluster_nr);
+#endif
     
     // Convert name to fat name
     char *fat_name = convert_to_fat_name(childname);
@@ -350,7 +367,9 @@ errval_t fatfs_serv_create(void *st, char *path, struct fat_dirent **ret_dirent)
     // Add directory entry to parent directory
     err = add_dir_entry(parent_cluster_nr, dir_data, &parent_pos);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -368,9 +387,9 @@ errval_t fatfs_serv_create(void *st, char *path, struct fat_dirent **ret_dirent)
 errval_t fat_resolve_path(struct fat_dirent *root, char *path, struct fat_dirent **ret_dirent) {
     
     errval_t err = SYS_ERR_OK;
-    
+#if PRINT_DEBUG
     debug_printf("Resolve %s path\n", path);
-    
+#endif
     assert(ret_dirent != NULL);
     
     // Skip leading '/'
@@ -405,6 +424,9 @@ errval_t fat_resolve_path(struct fat_dirent *root, char *path, struct fat_dirent
         char pathbuf[nextlen + 1];
         memcpy(pathbuf, &path[pos], nextlen);
         pathbuf[nextlen] = '\0';
+#if PRINT_DEBUG
+        debug_printf("PATHBUF %s\n", pathbuf);
+#endif
         
         // Find directory entry with same name as in pathbuf
         err = fat_find_dirent(curr_dirent, pathbuf, &next_dirent);
@@ -416,7 +438,9 @@ errval_t fat_resolve_path(struct fat_dirent *root, char *path, struct fat_dirent
             if (next_dirent != NULL) {
                 free(next_dirent);
             }
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
         
@@ -425,7 +449,9 @@ errval_t fat_resolve_path(struct fat_dirent *root, char *path, struct fat_dirent
             // Free both current and next dirent
             free(curr_dirent);
             free(next_dirent);
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(FS_ERR_NOTDIR));
+#endif
             return FS_ERR_NOTDIR;
         }
         
@@ -483,7 +509,9 @@ errval_t fat_find_dirent(struct fat_dirent *curr_dirent, char *name, struct fat_
             // Free data buffer
             free(data);
             
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
         
@@ -569,33 +597,6 @@ struct fat_dirent *create_dirent(char *name, size_t first_cluster_nr, size_t siz
     
 }
 
-/* UNUSED
-static void delete_dirent(struct fat_dirent *dirent) {
-    
-    assert(dirent != NULL);
-     
-    dirent->size = 0;
-    
-    //if (dirent->name != NULL) {
-    //    free(dirent->name);
-    //    dirent->name = NULL;
-    //}
- 
-    dirent->parent_cluster_nr = 0;;
-    
-    dirent->parent_pos = 0;
-    
-    dirent->is_dir = false;
-    
-    dirent->first_cluster_nr = 0;
-    
-    //free(dirent);
-    
-    dirent = NULL;
-    
-}
-*/
-
 
 errval_t init_root_dir(void *st) {
     
@@ -603,9 +604,7 @@ errval_t init_root_dir(void *st) {
     
     struct fatfs_serv_mount *mt = st;
     
-    mt->root = create_dirent("/", BPB_RootClus, 0, true, 0, 0);
-    
-    //open_dirent(mount->root);
+    mt->root = create_dirent("/", 2, 0, true, 0, 0);
     
     size_t count = 0;
     
@@ -614,8 +613,9 @@ errval_t init_root_dir(void *st) {
         debug_printf("%s\n", err_getstring(err));
     }
     
+#if PRINT_DEBUG
     debug_printf("Amount of entries in the root directory: %zu\n", count);
-    
+#endif
     return SYS_ERR_OK;
     
 }
@@ -638,7 +638,9 @@ errval_t remove_dirent(struct fat_dirent *dirent) {
     // Zeros out all FAT entries of dirent's cluster chain
     err = remove_fat_entries(dirent->first_cluster_nr);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -679,7 +681,9 @@ errval_t get_dir_entries_count(size_t cluster_nr, size_t *ret_count) {
         // Read data from cluster[temp_nr] in data section
         err = read_cluster(temp_nr , (void *) data);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
         
@@ -752,7 +756,9 @@ errval_t find_free_dir_entry(size_t cluster_nr, size_t *ret_pos) {
         // Read data from cluster[temp_nr] in data section
         err = read_cluster(temp_nr , (void *) data);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
         
@@ -806,7 +812,9 @@ errval_t get_dir_entry(size_t cluster_nr, size_t pos, struct DIR_Entry **ret_dir
     // Read directory data from [pos * 32, pos * 32 + 31]
     err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -826,7 +834,9 @@ errval_t set_dir_entry(size_t cluster_nr, size_t pos, struct DIR_Entry *dir_data
     // Read directory data from [pos * 32, pos * 32 + 31]
     err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -836,7 +846,9 @@ errval_t set_dir_entry(size_t cluster_nr, size_t pos, struct DIR_Entry *dir_data
     // Write modified directory data buffer back
     err = write_cluster_chain(cluster_nr, data, pos * 32, 32);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -864,12 +876,16 @@ errval_t add_dir_entry(size_t cluster_nr, struct DIR_Entry *dir_data, size_t *re
                 // Append cluster chain by one cluster
                 err = append_cluster_chain(cluster_nr, 1);
                 if (err_is_fail(err)) {
+#if PRINT_DEBUG
                     debug_printf("%s\n", err_getstring(err));
+#endif
                     return err;
                 }
                 break;
             default:
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
                 return err;
         }
         
@@ -878,7 +894,9 @@ errval_t add_dir_entry(size_t cluster_nr, struct DIR_Entry *dir_data, size_t *re
     // Set directory entry to data at certain position
     err = set_dir_entry(cluster_nr, pos, dir_data);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -900,24 +918,32 @@ errval_t fatfs_rm_serv(void *st, char *path) {
     // Resolve path to get
     err = fat_resolve_path(mount->root, path, &dirent);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
     if (dirent == NULL) {
+#if PRINT_DEBUG
         debug_printf("%s\n", FS_ERR_NOTFOUND);
+#endif
         return FS_ERR_NOTFOUND;
     }
     
     if (dirent->is_dir) {
+#if PRINT_DEBUG
         debug_printf("%s\n", FS_ERR_NOTFILE);
+#endif
         return FS_ERR_NOTFILE;
     }
 
     // Remove dirent from directory and set FAT entries to zero
     err = remove_dirent(dirent);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -932,9 +958,9 @@ errval_t fatfs_rm_serv(void *st, char *path) {
 errval_t remove_dir_entry(size_t cluster_nr, size_t pos) {
     
     errval_t err;
-    
+#if PRINT_DEBUG
     debug_printf("remove dir entry %zu %zu\n", cluster_nr, pos);
-    
+#endif
     // Set directory entry region [0, 10] to indicate free entry
     uint8_t empty_name_buffer[11];
     memset(empty_name_buffer, 0, 11);
@@ -945,13 +971,18 @@ errval_t remove_dir_entry(size_t cluster_nr, size_t pos) {
         debug_printf("%s\n", err_getstring(err));
         return err;
     }
-    
+#if PRINT_DEBUG
+    debug_printf("Done empty name part\n");
+#endif
     // Set directory entry region [20, 31] zero
     uint8_t empty_rest_buffer[12];
+    memset(empty_rest_buffer, 0, 12);
     
     err = write_cluster_chain(cluster_nr, empty_rest_buffer, pos * 32 + 20, 12);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -971,7 +1002,9 @@ errval_t get_dir_entry_size(size_t cluster_nr, size_t pos, size_t *ret_size) {
     // Read directory data from [pos * 32, pos * 32 + 31]
     err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -992,7 +1025,9 @@ errval_t set_dir_entry_size(size_t cluster_nr, size_t pos, size_t file_size) {
     // Read directory data from [pos * 32, pos * 32 + 31]
     err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1002,7 +1037,9 @@ errval_t set_dir_entry_size(size_t cluster_nr, size_t pos, size_t file_size) {
     // Write directory data with modified file size back
     err = write_cluster_chain(cluster_nr, data, pos * 32, 32);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1022,7 +1059,9 @@ errval_t add_dir_entry_size(size_t cluster_nr, size_t pos, int delta, size_t *re
     // Read directory data from [pos * 32, pos * 32 + 31]
     err = read_cluster_chain(cluster_nr, data, pos * 32, 32);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1038,7 +1077,9 @@ errval_t add_dir_entry_size(size_t cluster_nr, size_t pos, int delta, size_t *re
     // Write directory data with modified file size back
     err = write_cluster_chain(cluster_nr, data, pos * 32, 32);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1052,7 +1093,7 @@ errval_t add_dir_entry_size(size_t cluster_nr, size_t pos, int delta, size_t *re
 
 errval_t remove_fat_entries(size_t cluster_nr) {
     
-    errval_t err = FAT_ERR_CLUSTER_BOUNDS;
+    errval_t err = SYS_ERR_OK;
     
     // Current cluster number
     size_t curr_nr = cluster_nr;
@@ -1073,7 +1114,9 @@ errval_t remove_fat_entries(size_t cluster_nr) {
         
         // Check that current cluster number is not one of the first two special FAT entries
         if (curr_nr < 2) {
+#if PRINT_DEBUG
             debug_printf("Current cluster number is in first two special FAT entries\n");
+#endif
             break;
         }
         
@@ -1116,7 +1159,9 @@ errval_t remove_fat_entries_from(size_t cluster_nr, size_t start_index) {
         
         // Check that current cluster number is not one of the first two special FAT entries
         if (curr_nr < 2) {
+#if PRINT_DEBUG
             debug_printf("Current cluster number is in first two special FAT entries\n");
+#endif
             break;
         }
         
@@ -1126,7 +1171,9 @@ errval_t remove_fat_entries_from(size_t cluster_nr, size_t start_index) {
             // Set current cluster number FAT entry to zero
             err = setFATEntry(curr_nr, 0);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
                 return err;
             }
 
@@ -1158,7 +1205,9 @@ errval_t read_dirent(struct fat_dirent *dirent, void *buffer, size_t start, size
     // Get the current file size from parent directory entry
     err = get_dir_entry_size(dirent->parent_cluster_nr, dirent->parent_pos, &file_size);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1178,7 +1227,9 @@ errval_t read_dirent(struct fat_dirent *dirent, void *buffer, size_t start, size
     // Read cluster chain with appropriate region
     err = read_cluster_chain(dirent->first_cluster_nr, buffer, start, bytes);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1202,7 +1253,9 @@ errval_t write_dirent(struct fat_dirent *dirent, void *buffer, size_t start, siz
     // Get the current file size from parent directory entry
     err = get_dir_entry_size(dirent->parent_cluster_nr, dirent->parent_pos, &file_size);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1249,7 +1302,9 @@ errval_t write_dirent(struct fat_dirent *dirent, void *buffer, size_t start, siz
     // Write data to cluster chain region
     err = write_cluster_chain(dirent->first_cluster_nr, data, start, bytes);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1259,7 +1314,9 @@ errval_t write_dirent(struct fat_dirent *dirent, void *buffer, size_t start, siz
     // Set new file size in parent directory entry
     err = set_dir_entry_size(dirent->parent_cluster_nr, dirent->parent_pos, file_size);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1276,7 +1333,9 @@ errval_t truncate_dirent(struct fat_dirent *dirent, size_t bytes) {
     
     err = set_dir_entry_size(dirent->parent_cluster_nr, dirent->parent_pos, bytes);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1294,7 +1353,9 @@ errval_t truncate_dirent(struct fat_dirent *dirent, size_t bytes) {
     
         err = append_cluster_chain(dirent->first_cluster_nr, new_cluster_count - old_cluster_count);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
         
@@ -1303,7 +1364,9 @@ errval_t truncate_dirent(struct fat_dirent *dirent, size_t bytes) {
         // Remove all FAT entries from index new_cluster_count (starting with 0)
         remove_fat_entries_from(dirent->first_cluster_nr, new_cluster_count);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
         
@@ -1332,7 +1395,9 @@ errval_t read_cluster(size_t cluster_nr, void *buffer) {
         // Read part of cluster and write it to buffer
         err = mmchs_read_block(sector_nr + i, temp_buffer);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
         
@@ -1360,7 +1425,9 @@ errval_t write_cluster(size_t cluster_nr, void *buffer) {
         // Write back part of buffer
         err = mmchs_write_block(sector_nr + i, temp_buffer);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
         
@@ -1455,20 +1522,20 @@ errval_t read_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size_
             debug_printf("is EOF\n");
             isEOF = true;
         }
-        
+#if PRINT_DEBUG
         debug_printf("temp_nr: %zu\n", temp_nr);
-        
+#endif
     }
     
     if (isEOF && !(cluster_index > end_index)) {
-        
+#if PRINT_DEBUG
         debug_printf("Input range was too big for file\n");
         return FAT_ERR_CLUSTER_BOUNDS;
-        
+#endif
     } else {
-        
+#if PRINT_DEBUG
         debug_printf("Successfully read file with starting cluster %zu in range [%zu,%zu]\n", cluster_nr, start, start + bytes - 1);
-        
+#endif
     }
     
     return err;
@@ -1534,13 +1601,16 @@ errval_t write_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size
                 // Read data from cluster[temp_nr] in data section
                 err = read_cluster(temp_nr, (void *) data);
                 if (err_is_fail(err)) {
+#if PRINT_DEBUG
                     debug_printf("%s\n", err_getstring(err));
+#endif
                     return err;
                 }
                 
             }
-            
+#if PRINT_DEBUG
             debug_printf("offset: %zu carryover: %zu copy_size: %zu\n", offset, carryover, copy_size);
+#endif
             
             // Copy data from temp_buf into data (with offset)
             memcpy(data + offset, temp_buf, copy_size);
@@ -1550,7 +1620,9 @@ errval_t write_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size
             if (err_is_fail(err)) {
                 // Free data
                 free(data);
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
                 return err;
             }
             
@@ -1566,15 +1638,16 @@ errval_t write_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size
         
     }
     
-    if (isEOF && !(cluster_index > end_index)) {
-        
+    if (isEOF && cluster_index < end_index) {
+#if PRINT_DEBUG
         debug_printf("Input range was too big for file\n");
+#endif
         return FAT_ERR_CLUSTER_BOUNDS;
         
     } else {
-        
+#if PRINT_DEBUG
         debug_printf("Successfully write file with starting cluster %zu in range [%zu,%zu]\n", cluster_nr, start, start + bytes - 1);
-        
+#endif
     }
     
     // Free data
@@ -1608,7 +1681,9 @@ uint32_t find_free_fat_entry_and_set(size_t start_search_entry, uint32_t value) 
     // Read new FAT sector into buffer
     err = mmchs_read_block(ThisFATSecNum, buffer);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return -1;
     }
     
@@ -1625,7 +1700,9 @@ uint32_t find_free_fat_entry_and_set(size_t start_search_entry, uint32_t value) 
             // Read new FAT sector into buffer
             err = mmchs_read_block(ThisFATSecNum, buffer);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
                 return -1;
             }
             
@@ -1643,7 +1720,9 @@ uint32_t find_free_fat_entry_and_set(size_t start_search_entry, uint32_t value) 
             // Write new FAT sector with changed free entry back
             err = mmchs_write_block(ThisFATSecNum, buffer);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
                 return -1;
             }
             
@@ -1684,14 +1763,18 @@ errval_t append_cluster_chain(size_t cluster_nr, size_t cluster_count) {
         
         // Check that current cluster number is not one of the first two special FAT entries
         if (next_nr < 2) {
+#if PRINT_DEBUG
             debug_printf("Current cluster number is in first two special FAT entries\n");
+#endif
             break;
         }
         
         // Set current cluster number FAT entry to zero
         err = setFATEntry(curr_nr, 0);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
         
@@ -1709,7 +1792,9 @@ errval_t append_cluster_chain(size_t cluster_nr, size_t cluster_count) {
         // Find a free FAT entry and set it to value 0x0FFFFFFF
         next_nr = find_free_fat_entry_and_set(free_entry, 0x0FFFFFFF);
         if (next_nr == -1) {
+#if PRINT_DEBUG
             debug_printf("FAT full! Couldn't find a free entry...\n");
+#endif
             return FAT_ERR_FAT_LOOKUP;
         }
         
@@ -1728,7 +1813,9 @@ errval_t append_cluster_chain(size_t cluster_nr, size_t cluster_count) {
         // Let current FAT entry point to next (previously free) FAT entry
         err = setFATEntry(curr_nr, next_nr);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
         
@@ -1744,9 +1831,10 @@ errval_t append_cluster_chain(size_t cluster_nr, size_t cluster_count) {
 
 
 errval_t fatfs_serv_opendir(void *st, char *path, struct fat_dirent **ret_dirent) {
-    
+
+#if PRINT_DEBUG
     debug_printf("Opening directory: -%s-\n", path);
-    
+#endif
     errval_t err;
     
     assert(ret_dirent != NULL);
@@ -1759,7 +1847,9 @@ errval_t fatfs_serv_opendir(void *st, char *path, struct fat_dirent **ret_dirent
     // Resolve path to find dirent
     err = fat_resolve_path(mount->root, path, &dirent);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1768,7 +1858,9 @@ errval_t fatfs_serv_opendir(void *st, char *path, struct fat_dirent **ret_dirent
         
         // Check that dirent is a directory
         if (!dirent->is_dir) {
-            debug_printf("%s\b", FS_ERR_NOTDIR);
+#if PRINT_DEBUG
+            debug_printf("%s\n", err_getstrinf(FS_ERR_NOTDIR));
+#endif
             return FS_ERR_NOTDIR;
         }
         
@@ -1796,7 +1888,9 @@ errval_t fatfs_serv_readdir(size_t cluster_nr, size_t dir_index, struct fat_dire
     
     err = get_dir_entries_count(cluster_nr, &ret_count);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -1839,7 +1933,9 @@ errval_t fatfs_serv_readdir(size_t cluster_nr, size_t dir_index, struct fat_dire
         if (err_is_fail(err)) {
             // Free data buffer
             free(data);
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         }
 
@@ -1862,9 +1958,9 @@ errval_t fatfs_serv_readdir(size_t cluster_nr, size_t dir_index, struct fat_dire
                     
                     // Convert data to directory data
                     data_to_dir_data(dir_data, &data[pos_index * 32]);
-                    
+#if PRINT_DEBUG
                     debug_printf("%s %zu\n", dir_data->Name, count_index);
-                    
+#endif
                     /*
                     for (int j = 0; j < 10; j++) {
                         for (int i = 0; i < 32; i+=8) {
@@ -1930,7 +2026,9 @@ errval_t fatfs_serv_mkdir(void *st, char *path) {
     if (err_is_ok(err)) {
         // Free  dirent
         free(dirent);
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(FS_ERR_EXISTS));
+#endif
         return FS_ERR_EXISTS;
     }
     
@@ -1959,10 +2057,14 @@ errval_t fatfs_serv_mkdir(void *st, char *path) {
         // Resolve parent directory
         err = fat_resolve_path(mount->root, pathbuf, &parent);
         if (err_is_fail(err)) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(err));
+#endif
             return err;
         } else if (parent != NULL && !parent->is_dir) {
+#if PRINT_DEBUG
             debug_printf("%s\n", err_getstring(FS_ERR_NOTDIR));
+#endif
             return FS_ERR_NOTDIR; // parent is not a directory
         }
         
@@ -1979,7 +2081,9 @@ errval_t fatfs_serv_mkdir(void *st, char *path) {
     // Search for a free FAT entry and claim it
     size_t dir_cluster_nr = find_free_fat_entry_and_set(0, 0x0FFFFFFF);
     
+#if PRINT_DEBUG
     debug_printf("dir_cluster_nr: %zu\n", dir_cluster_nr);
+#endif
     
     // Convert name to fat name
     char *fat_name = convert_to_fat_name(childname);
@@ -2040,7 +2144,9 @@ errval_t fatfs_serv_mkdir(void *st, char *path) {
     // Add directory entry to parent directory
     err = add_dir_entry(parent_cluster_nr, dir_data, &parent_pos);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -2063,7 +2169,9 @@ errval_t fatfs_serv_rmdir(void *st, char *path) {
     // Resolve path to find file dirent
     err = fat_resolve_path(mount->root, path, &dirent);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
@@ -2079,7 +2187,9 @@ errval_t fatfs_serv_rmdir(void *st, char *path) {
     
     // Check if dirent is a directory
     if (!dirent->is_dir) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(FS_ERR_NOTDIR));
+#endif
         return FS_ERR_NOTDIR;
     }
     
@@ -2089,29 +2199,39 @@ errval_t fatfs_serv_rmdir(void *st, char *path) {
     // Get total count of directory entries
     err = get_dir_entries_count(dirent->first_cluster_nr, &dir_count);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
+#if PRINT_DEBUG
     debug_printf("dir_count: %zu", dir_count);
+#endif
     
     // Check if directory has more than 2 ("." and "..") and return a not empty error
     if (dir_count > 2) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(FS_ERR_NOTEMPTY));
+#endif
         return FS_ERR_NOTEMPTY;
     }
     
     // Remove the directory entry in parent
     err = remove_dir_entry(dirent->parent_cluster_nr, dirent->parent_pos);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
     // Zeros out all FAT entries of dirent's cluster chain
     err = remove_fat_entries(dirent->first_cluster_nr);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
         return err;
     }
     
