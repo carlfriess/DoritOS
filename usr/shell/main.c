@@ -197,11 +197,11 @@ int main(int argc, char *argv[]) {
 
 
     // Boot
-    printf("  ______    ____\n");
+    printf("\033[32m  ______    ____\n");
     printf(" /      \\  |  o |\n");
     printf("|        |/ ___\\|\n");
     printf("|_________/\n");
-    printf("|_|_| |_|_|\n");
+    printf("|_|_| |_|_|\n\033[0m");
     printf("Welcome to TurtleSHELL\n");
     printf("\n");
 
@@ -234,6 +234,7 @@ int main(int argc, char *argv[]) {
             if (!strcmp(args[num_args - 1], "&")) {
                 wait = false;
                 num_args--;
+                buf[len - 2] = '\0';
             }
 
             if (!strcmp(args[0], "help")) {
@@ -259,7 +260,7 @@ int main(int argc, char *argv[]) {
 
                     // Spawn process
                     domainid_t pid;
-                    err = aos_rpc_process_spawn(aos_rpc_get_init_channel(), buf, 1, &pid);
+                    err = aos_rpc_process_spawn_with_terminal(aos_rpc_get_init_channel(), buf, 1, disp_get_terminal_pid(), &pid);
                     if (err_is_fail(err)) {
                         printf("%s: command not found\n", args[0]);
                     } else if (wait) {
