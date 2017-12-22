@@ -25,6 +25,8 @@ int main(int argc, char *argv[])
     
     printf("Hello, world! from userspace\n");
     
+    printf("My PID is %d\n", disp_get_domain_id());
+
     for (int i = 0; i < argc; i++) {
         printf("Argument %d: %s\n", i, argv[i]);
     }

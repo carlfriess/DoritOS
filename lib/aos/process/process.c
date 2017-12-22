@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <aos/aos.h>
 #include <aos/urpc.h>
 #include <aos/process.h>
@@ -55,6 +57,16 @@ struct process_info *process_info_for_pid(domainid_t pid) {
 domainid_t process_pid_for_lmp_chan(struct lmp_chan *lc) {
     for (struct process_info *node = process_list; node != NULL; node = node->next) {
         if (node->lc == lc) {
+            return node->pid;
+        }
+    }
+    return 0;
+}
+
+// Returns the PID for a given LMP channel
+domainid_t process_pid_for_name(char *name) {
+    for (struct process_info *node = process_list; node != NULL; node = node->next) {
+        if (!strcmp(node->name, name)) {
             return node->pid;
         }
     }

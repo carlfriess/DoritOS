@@ -198,10 +198,21 @@ errval_t aos_rpc_process_spawn(struct aos_rpc *chan, char *name,
                                coreid_t core, domainid_t *newpid)
 {
     
+    return aos_rpc_process_spawn_with_terminal(chan, name, core, 0, newpid);
+    
+}
+
+errval_t aos_rpc_process_spawn_with_terminal(struct aos_rpc *chan,
+                                             char *name,
+                                             coreid_t core,
+                                             domainid_t terminal_pid,
+                                             domainid_t *newpid)
+{
+    
     errval_t err;
 
     // Send spawn request with send_short_buf() or send_frame() depending on size of name
-    err = lmp_send_spawn(chan->lc, name, core);
+    err = lmp_send_spawn(chan->lc, name, core, terminal_pid);
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }
@@ -331,7 +342,7 @@ errval_t aos_rpc_process_get_pid_by_name(const char *name, domainid_t *pid) {
         free(process_name);
     }
     
-    // Make sure bind_server was found
+    // Make sure the process was found
     if (*pid == 0) {
         return LIB_ERR_PID_NOT_FOUND;
     }
@@ -591,13 +602,14 @@ errval_t aos_rpc_init(struct aos_rpc *rpc, struct lmp_chan *lc)
     assert(rpc->uc != NULL);
 
     set_init_rpc(rpc);
-
+    
     domainid_t pid;
-
     err = aos_rpc_process_get_pid_by_name("terminal", &pid);
     assert(err_is_ok(err));
-
-    err = urpc_bind(pid, rpc->uc, !disp_get_core_id());
+    
+    err = urpc_bind(disp_get_terminal_pid(),
+                    rpc->uc,
+                    (pid != disp_get_terminal_pid() ? 1 : !disp_get_core_id()));
     if (err_is_fail(err)) {
         debug_printf("%s\n", err_getstring(err));
     }

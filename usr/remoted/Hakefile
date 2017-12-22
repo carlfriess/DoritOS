@@ -12,9 +12,9 @@
 
 [ build application
   {
-    target = "terminal",
+    target = "remoted",
     cFiles = [ "main.c" ],
-    addLibraries = [ "driverkit", "fs", "term" ],
+    addLibraries = [ "net", "term" ],
     architectures = allArchitectures
   }
 ]

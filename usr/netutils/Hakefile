@@ -22,5 +22,11 @@
                             "dump_packets.c"
                         ],
                         addLibraries = [ "net" ]
+    },
+    build application { target = "udp_send",
+                        cFiles = [
+                            "udp_send.c"
+                        ],
+                        addLibraries = [ "net" ]
     }
 ]

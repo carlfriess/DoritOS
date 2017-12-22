@@ -1,32 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <collections/list.h>
+#include <aos/aos_rpc.h>
+#include <aos/inthandler.h>
+
+#include <fs/fs.h>
 #include <driverkit/driverkit.h>
 #include <maps/omap44xx_map.h>
 
-#include <aos/terminal.h>
-#include <aos/aos_rpc.h>
-#include <aos/inthandler.h>
-#include <aos/urpc.h>
+#include <term/term.h>
 
-#include <fs/fs.h>
-
-#define PRINT_DEBUG 0
-
-struct io_buffer {
-    char *buf;
-    size_t pos;
-    struct io_buffer *next;
-};
-
-struct terminal_state {
-    void *write_lock;
-    void *read_lock;
-    struct io_buffer *buffer;
-    collections_listnode *urpc_chan_list;
-    collections_listnode *terminal_event_queue;
-};
 
 // Memory location to read/write from
 volatile char *mem;
@@ -34,17 +17,8 @@ volatile char *mem;
 // Flag byte to check for read/write
 volatile char *flag;
 
-const size_t IO_BUFFER_SIZE = 256;
 
-static void io_buffer_init(struct io_buffer **buf) {
-    *buf = (struct io_buffer *) malloc(sizeof(struct io_buffer));
-    (*buf)->buf = (char *) malloc(IO_BUFFER_SIZE);
-    (*buf)->pos = 0;
-    (*buf)->next = NULL;
-    memset((*buf)->buf, 0, IO_BUFFER_SIZE);
-}
-
-static void put_char(char c) {
+void put_char(char c) {
     while (!(*flag & 0x20));
     *mem = c;
 }
@@ -54,45 +28,14 @@ static char get_char(void) {
     return *mem;
 }
 
-static errval_t get_next_char(struct terminal_state *state, char *c) {
-    static size_t i = 0;
-
-    if (i >= state->buffer->pos) {
-        return TERM_ERR_BUFFER_EMPTY;
-    }
-
-    *c = state->buffer->buf[i++];
-
-    if (i == IO_BUFFER_SIZE) {
-        struct io_buffer *temp = state->buffer->next;
-        free(state->buffer);
-        state->buffer = temp;
-        i = 0;
-    }
-
-    return SYS_ERR_OK;
-}
-
-static void terminal_ready(void) {
-    errval_t err;
-
-    domainid_t pid;
-    struct aos_rpc *init_chan = aos_rpc_get_init_channel();
-    err = aos_rpc_process_spawn(init_chan, "mmchs", 0, &pid);
-    if (err_is_fail(err)) {
-        debug_printf("%s\n", err_getstring(err));
-    }
-
-}
-
 static void serial_interrupt_handler(void *arg) {
-    struct terminal_state *state = (struct terminal_state *) arg;
+    struct terminal_state *st = (struct terminal_state *) arg;
 
     char c = get_char();
 
     // Iterate to tail
     struct io_buffer *current;
-    for (current = state->buffer; current->next != NULL; current = current->next);
+    for (current = st->buffer; current->next != NULL; current = current->next);
 
     // Set char and inc
     current->buf[current->pos++] = c;
@@ -103,137 +46,24 @@ static void serial_interrupt_handler(void *arg) {
     }
 }
 
-
-struct terminal_event {
-    urpc_msg_type_t type;
-    struct urpc_chan *chan;
-    struct terminal_msg msg;
-};
-
-static int urpc_chan_list_remove(void *data, void *arg) {
-    return data == arg;
+void terminal_ready(void) {
+    domainid_t pid;
+    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "networkd", 0, &pid);
+    aos_rpc_process_spawn(aos_rpc_get_init_channel(), "shell", 0, &pid);
 }
 
-static int terminal_event_dispatch(void *data, void *arg) {
-    errval_t err = SYS_ERR_OK;
-
-    struct terminal_state *state = (struct terminal_state *) arg;
-
-    struct terminal_event *event = (struct terminal_event *) data;
-
-    struct terminal_msg msg = {
-        .err = SYS_ERR_OK
-    };
-
-    switch (event->type) {
-        case URPC_MessageType_TerminalReadLock:
-#if PRINT_DEBUG
-            debug_printf("EVENT: READ LOCK!\n");
-#endif
-            if (state->read_lock == NULL || state->read_lock == event->chan) {
-                state->read_lock = event->chan;
-                err = urpc_send(event->chan, (void *) &msg, sizeof(struct terminal_msg), event->type);
-                if (err_is_fail(err)) {
-                    debug_printf("%s\n", err_getstring(err));
-                }
-                return 1;
-            }
-            break;
-        case URPC_MessageType_TerminalRead:
-#if PRINT_DEBUG
-            debug_printf("EVENT: READ!\n");
-#endif
-            if (state->read_lock == NULL || state->read_lock == event->chan) {
-                msg.err = get_next_char(state, &msg.c);
-                if (msg.err == SYS_ERR_OK) {
-                    err = urpc_send(event->chan, (void *) &msg, sizeof(struct terminal_msg), event->type);
-                    if (err_is_fail(err)) {
-                        debug_printf("%s\n", err_getstring(err));
-                    }
-                    return 1;
-                }
-            }
-            break;
-        case URPC_MessageType_TerminalReadUnlock:
-#if PRINT_DEBUG
-            debug_printf("EVENT: READ UNLOCK!\n");
-#endif
-            if (state->read_lock == NULL || state->read_lock == event->chan) {
-                state->read_lock = NULL;
-            }
-            err = urpc_send(event->chan, (void *) &msg, sizeof(struct terminal_msg), event->type);
-            if (err_is_fail(err)) {
-                debug_printf("%s\n", err_getstring(err));
-            }
-            return 1;
-        case URPC_MessageType_TerminalWriteLock:
-#if PRINT_DEBUG
-            debug_printf("EVENT: WRITE LOCK!\n");
-#endif
-            if (state->write_lock == NULL || state->write_lock == event->chan) {
-                state->write_lock = event->chan;
-                err = urpc_send(event->chan, (void *) &msg, sizeof(struct terminal_msg), event->type);
-                if (err_is_fail(err)) {
-                    debug_printf("%s\n", err_getstring(err));
-                }
-                return 1;
-            }
-            break;
-        case URPC_MessageType_TerminalWrite:
-#if PRINT_DEBUG
-            debug_printf("EVENT: WRITE!\n");
-#endif
-            if (state->write_lock == NULL || state->write_lock == event->chan) {
-                put_char(event->msg.c);
-                err = urpc_send(event->chan, (void *) &msg, sizeof(struct terminal_msg), event->type);
-                if (err_is_fail(err)) {
-                    debug_printf("%s\n", err_getstring(err));
-                }
-                return 1;
-            }
-            break;
-        case URPC_MessageType_TerminalWriteUnlock:
-#if PRINT_DEBUG
-            debug_printf("EVENT: WRITE UNLOCK!\n");
-#endif
-            if (state->write_lock == NULL || state->write_lock == event->chan) {
-                state->write_lock = NULL;
-            }
-            err = urpc_send(event->chan, (void *) &msg, sizeof(struct terminal_msg), event->type);
-            if (err_is_fail(err)) {
-                debug_printf("%s\n", err_getstring(err));
-            }
-            return 1;
-        case URPC_MessageType_TerminalDeregister:
-#if PRINT_DEBUG
-            debug_printf("EVENT: Deregister!\n");
-#endif
-            collections_list_remove_if(state->urpc_chan_list, urpc_chan_list_remove, event->chan);
-            err = urpc_send(event->chan, (void *) &msg, sizeof(struct terminal_msg), event->type);
-            if (err_is_fail(err)) {
-                debug_printf("%s\n", err_getstring(err));
-            }
-#if PRINT_DEBUG
-            debug_printf("Registered Processes: %d", collections_list_size(state->urpc_chan_list));
-#endif
-
-            return 1;
-            break;
-    }
-
-    return 0;
+void terminal_runloop_dispatch(void) {
+    
+    event_dispatch_non_block(get_default_waitset());
+    
 }
+
 
 int main(int argc, char *argv[]) {
     errval_t err;
-
-    struct terminal_state state = {
-        .write_lock = NULL,
-        .read_lock = NULL,
-        .buffer = NULL,
-    };
-
-    io_buffer_init(&state.buffer);
+    
+    // Initilize the terminal state
+    struct terminal_state state = TERMINAL_STATE_INIT;
 
     // Register Serial Interrupt Handler
     err = inthandler_setup_arm(serial_interrupt_handler, &state, 106);
@@ -252,44 +82,7 @@ int main(int argc, char *argv[]) {
     mem = (char *) vaddr;
     flag = (char *) vaddr + 0x14;
 
-    collections_list_create(&state.urpc_chan_list, free);
-
-    collections_list_create(&state.terminal_event_queue, free);
-
-    terminal_ready();
-
-    void *chan = malloc(sizeof(struct urpc_chan));
-    while (true) {
-        while (collections_list_remove_if(state.terminal_event_queue, terminal_event_dispatch, &state) != NULL);
-
-        err = urpc_accept((struct urpc_chan *) chan);
-        if (err != LIB_ERR_NO_URPC_BIND_REQ) {
-            collections_list_insert(state.urpc_chan_list, chan);
-            chan = malloc(sizeof(struct urpc_chan));
-        }
-
-        void *node;
-        struct terminal_msg *msg;
-        size_t size;
-        urpc_msg_type_t msg_type;
-
-        collections_list_traverse_start(state.urpc_chan_list);
-        while ((node = collections_list_traverse_next(state.urpc_chan_list)) != NULL) {
-            err = urpc_recv(node, (void *) &msg, &size, &msg_type);
-
-            if (err == SYS_ERR_OK) {
-                struct terminal_event *event = (struct terminal_event *) malloc(sizeof(struct terminal_event));
-
-                event->chan = node;
-                event->type = msg_type;
-                event->msg = *msg;
-                collections_list_insert_tail(state.terminal_event_queue, event);
-
-                free((void *) msg);
-            }
-        }
-        collections_list_traverse_end(state.urpc_chan_list);
-
-        event_dispatch_non_block(get_default_waitset());
-    }
+    // Run the terminal main loop
+    terminal_runloop(&state);
+    
 }

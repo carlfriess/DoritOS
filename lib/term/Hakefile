@@ -1,20 +1,13 @@
 --------------------------------------------------------------------------
--- Copyright (c) 2007-2010, ETH Zurich.
+-- Copyright (c) 2007-2009, ETH Zurich.
 -- All rights reserved.
 --
 -- This file is distributed under the terms in the attached LICENSE file.
 -- If you do not find this file, copies can be found by writing to:
 -- ETH Zurich D-INFK, Haldeneggsteig 4, CH-8092 Zurich. Attn: Systems Group.
 --
--- Hakefile for /usr/terminal
+-- Hakefile for lib/mm
 --
 --------------------------------------------------------------------------
 
-[ build application
-  {
-    target = "terminal",
-    cFiles = [ "main.c" ],
-    addLibraries = [ "driverkit", "fs", "term" ],
-    architectures = allArchitectures
-  }
-]
+[ build library { target = "term", cFiles = [ "term.c" ] } ]

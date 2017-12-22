@@ -358,7 +358,8 @@ static errval_t spawn_parse_elf(struct spawninfo *si, void *elf, size_t elf_size
 }
 
 // Set up the dispatcher
-static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
+static errval_t spawn_setup_dispatcher(struct spawninfo *si,
+                                       domainid_t terminal_pid) {
     
     errval_t err = SYS_ERR_OK;
     
@@ -400,6 +401,7 @@ static errval_t spawn_setup_dispatcher(struct spawninfo *si) {
     
     // Set dispatcher information
     disp_gen->core_id = disp_get_core_id();     // Core id of the dispatcher
+    disp_gen->terminal_pid = terminal_pid;      // PID of the terminal to be used
     disp->udisp = (lvaddr_t) dcb_addr_child;    // Address of dispatcher frame in child's vspace
     disp->disabled = 1;     // Start the dispatcher in disabled mode
     disp->fpu_trap = 1;     // Trap on fpr instructions
@@ -581,6 +583,11 @@ static errval_t spawn_invoke_dispatcher(struct spawninfo *si) {
 
     // Register the process
     process_register(si->pi);
+    
+    // Set the process PID
+    dispatcher_handle_t dcb_addr_parent_handle = (dispatcher_handle_t) si->dcb_addr_parent;
+    struct dispatcher_generic *disp_gen = get_dispatcher_generic(dcb_addr_parent_handle);
+    disp_gen->domain_id = si->pi->pid;
 
     // Invoking the dispatcher
     err = invoke_dispatcher(si->child_dispatcher_cap,
@@ -617,7 +624,10 @@ static errval_t spawn_cleanup(struct spawninfo *si) {
 
 // TODO(M2): Implement this function such that it starts a new process
 // TODO(M4): Build and pass a messaging channel to your child process
-errval_t spawn_load_by_name(void * cmd, struct spawninfo * si) {
+errval_t spawn_load_by_name(void *cmd,
+                            struct spawninfo *si,
+                            domainid_t terminal_pid) {
+    //printf("spawn start_child: starting: %s\n", binary_name);
 
     errval_t err = SYS_ERR_OK;
 
@@ -704,8 +714,14 @@ errval_t spawn_load_by_name(void * cmd, struct spawninfo * si) {
         return err;
     }
     
+    // Check terminal PID
+    if (terminal_pid == 0) {
+        // Use default terminal
+        terminal_pid = process_pid_for_name("terminal");
+    }
+    
     // Set up the child's dispatcher
-    err = spawn_setup_dispatcher(si);
+    err = spawn_setup_dispatcher(si, terminal_pid);
     if (err_is_fail(err)) {
         debug_printf("spawn: Failed setting up the dispatcher: %s\n", err_getstring(err));
         return err;
