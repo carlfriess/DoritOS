@@ -57,9 +57,8 @@ void init_service(void)
         debug_printf("%s\n", err_getstring(err));
     }
     
+    // Run the service in a while loop
     run_rpc_serv();
-    
-    
 
     //USER_PANIC("NYI: Implement RPC service!");
 }

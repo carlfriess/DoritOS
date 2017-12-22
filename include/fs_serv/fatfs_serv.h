@@ -184,6 +184,7 @@ errval_t write_cluster(size_t cluster_nr, void *buffer);
 errval_t read_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size_t bytes);
 errval_t write_cluster_chain(size_t cluster_nr, void *buffer, size_t start, size_t bytes);
 
+errval_t update_dirent_size(struct fat_dirent *dirent);
 
 struct fat_dirent *create_dirent(char *name, size_t first_cluster_nr, size_t size, bool is_dir,
                                  size_t parent_cluster_nr, size_t parent_pos);

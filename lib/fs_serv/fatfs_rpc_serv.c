@@ -17,6 +17,7 @@
 
 #include <collections/list.h>
 
+#define PRINT_DEBUG 0
 
 // List of bound channels
 static collections_listnode *chan_list;
@@ -61,9 +62,9 @@ static void handle_urpc_msg(struct urpc_chan *chan,
     switch (recv_msg_type) {
             
         case URPC_MessageType_Open:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Open Request!\n");
-            
+#endif
             // Copy path string from recieve buffer
             path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
             //int flags = recv_msg->arg1;
@@ -101,9 +102,9 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             break;
             
         case URPC_MessageType_Create:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Creates Request!\n");
-            
+#endif
             path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
             //int flags = recv_msg->arg1;
             
@@ -140,23 +141,30 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             break;
             
         case URPC_MessageType_Close:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Close Request!\n");
-            
-            debug_printf("NOT IMPLEMENTED YET\n");
-            
+#endif
             break;
             
         case URPC_MessageType_Read:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Read Request!\n");
-            
+#endif
             // Set start and bytes
             start = recv_msg->arg1;
             bytes = recv_msg->arg2;
             
+            // Copy from buffer into dirents
             memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
             
+            // Update dirent size
+            err = update_dirent_size(dirent);
+            if (err_is_fail(err)) {
+#if PRINT_DEBUG
+                debug_printf("%s\n", err_getstring(err));
+#endif
+            }
+            // Setup bytes that will be read
             size_t bytes_read = 0;
             
             // Size of send buffer
@@ -168,7 +176,9 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             // Read dirent data into buffer part of send buffer
             err = read_dirent(dirent, send_buffer + sizeof(struct fs_message), start, bytes, &bytes_read);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
             }
             
             // Set error
@@ -186,20 +196,33 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             break;
             
         case URPC_MessageType_Write:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Write Request!\n");
-            
+#endif
+            // Get start and bytes from arguments
             start = recv_msg->arg1;
             bytes = recv_msg->arg2;
             
+            // Copy from receive buffer into dirent
             memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
             
+            // Update dirent size
+            err = update_dirent_size(dirent);
+            if (err_is_fail(err)) {
+#if PRINT_DEBUG
+                debug_printf("%s\n", err_getstring(err));
+#endif
+            }
+            
+            // Setup bytes that will be written
             size_t bytes_written = 0;
             
             // Write buffer part of receive buffer to dirent
             err = write_dirent(dirent, recv_buffer + sizeof(struct fs_message) + sizeof(struct fat_dirent), start, bytes, &bytes_written);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
             }
             
             // Size of send buffer
@@ -223,17 +246,30 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             break;
             
         case URPC_MessageType_Truncate:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Truncate Request!\n");
-            
+#endif
+
+            // Get bytes to be truncated from arguments
             bytes = recv_msg->arg1;
             
+            // Copy from receive buffer into dirents
             memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
+      
+            // Update dirent size
+            err = update_dirent_size(dirent);
+            if (err_is_fail(err)) {
+#if PRINT_DEBUG
+                debug_printf("%s\n", err_getstring(err));
+#endif
+            }
             
             // Truncate dirent to size bytes
             err = truncate_dirent(dirent, bytes);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
             }
             
             // Size of send buffer
@@ -253,24 +289,21 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             
             break;
             
-            
-            break;
-            
         case URPC_MessageType_Remove:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Remove Request!\n");
-            
-            // Get path size (including '\0')
-            size_t path_size = recv_msg->arg1;
+#endif
         
-            // Allocate and copy path
-            path = calloc(path_size, sizeof(char));
-            memcpy(path, recv_buffer + sizeof(struct fs_message), path_size);
+            // Allocate and copy path (with '\0')
+            path = calloc(recv_msg->arg1, sizeof(char));
+            memcpy(path, recv_buffer + sizeof(struct fs_message), recv_msg->arg1);
             
             // Remove file dirent
             err = fatfs_rm_serv((void *) mt, path);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
             }
             
             // Free path
@@ -294,16 +327,18 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             break;
             
         case URPC_MessageType_OpenDir:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Open Directory Request!\n");
-            
+#endif
             // Copy path string from recieve buffer
             path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
             
             // Open directory
             err = fatfs_serv_opendir((void *) mt, path, &dirent);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
             }
             
             // Free path string
@@ -333,13 +368,22 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             break;
             
         case URPC_MessageType_ReadDir:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Read Directory Request!\n");
-            
+#endif
             // Set directory index
             dir_index = recv_msg->arg1;
             
+            // Copy from receive buffer into dirents
             memcpy(dirent, recv_buffer + sizeof(struct fs_message), sizeof(struct fat_dirent));
+            
+            // Update dirent size
+            err = update_dirent_size(dirent);
+            if (err_is_fail(err)) {
+#if PRINT_DEBUG
+                debug_printf("%s\n", err_getstring(err));
+#endif
+            }
             
             // Size of send buffer
             send_size = sizeof(struct fs_message) + sizeof(struct fat_dirent);
@@ -353,7 +397,9 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             // Find dirent data
             err = fatfs_serv_readdir(dirent->first_cluster_nr, dir_index, &ret_dirent);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
             }
             
             // Set error
@@ -376,16 +422,18 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             break;
             
         case URPC_MessageType_MakeDir:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Make Directory Request!\n");
-            
+#endif
             // Copy path string from recieve buffer
             path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
             
             // Make directory
             err = fatfs_serv_mkdir((void *) mt, path);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
             }
             
             // Size of send buffer
@@ -406,16 +454,18 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             break;
             
         case URPC_MessageType_RemoveDir:
-            
+#if PRINT_DEBUG
             debug_printf("URPC Message Remove Directory Request!\n");
-            
+#endif
             // Copy path string from recieve buffer
             path = strdup((char *) (recv_buffer + sizeof(struct fs_message)));
             
             // Make directory
             err = fatfs_serv_rmdir((void *) mt, path);
             if (err_is_fail(err)) {
+#if PRINT_DEBUG
                 debug_printf("%s\n", err_getstring(err));
+#endif
             }
             
             // Size of send buffer
@@ -436,11 +486,11 @@ static void handle_urpc_msg(struct urpc_chan *chan,
             break;
             
         default:
-            
+#if PRINT_DEBUG
             debug_printf("Unknown URPC Message!\n");
             
             debug_printf("Received Message Type: %d", recv_msg_type);
-            
+#endif
             break;
     }
     
@@ -458,7 +508,9 @@ errval_t run_rpc_serv(void) {
     // Initialize root directory for fatfs_serv
     err = init_root_dir((void *) &mt);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
     }
     
     // Initialize channel list
@@ -479,7 +531,9 @@ errval_t run_rpc_serv(void) {
     struct aos_rpc *init_chan = aos_rpc_get_init_channel();
     err = aos_rpc_process_spawn(init_chan, "networkd", 0, &pid);
     if (err_is_fail(err)) {
+#if PRINT_DEBUG
         debug_printf("%s\n", err_getstring(err));
+#endif
     }
 
     while (true) {
@@ -492,7 +546,9 @@ errval_t run_rpc_serv(void) {
             assert(new_chan);
         }
         else if (err != LIB_ERR_NO_URPC_BIND_REQ) {
+#if PRINT_DEBUG
             debug_printf("Error in urpc_accept(): %s\n", err_getstring(err));
+#endif
         }
         
         // Iterate all bound URPC channels
@@ -515,7 +571,9 @@ errval_t run_rpc_serv(void) {
                 
             }
             else if (err != LIB_ERR_NO_URPC_MSG) {
+#if PRINT_DEBUG
                 debug_printf("Error in urpc_recv(): %s\n", err_getstring(err));
+#endif
             }
             
         }
