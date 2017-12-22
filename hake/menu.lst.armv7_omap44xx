@@ -34,6 +34,7 @@ module /armv7/sbin/shell
 module /armv7/sbin/networkd
 module /armv7/sbin/ip_set_addr
 module /armv7/sbin/dump_packets
+module /armv7/sbin/udp_send
 module /armv7/sbin/udp_echo
 module /armv7/sbin/remoted
 
