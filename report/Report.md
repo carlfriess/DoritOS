@@ -119,12 +119,177 @@ Content.
 
 ## Lightweight Message Passing (LMP)
 
-Content.
+Lightweight Message Passing is a key protocol in establishing  inter-process communication. With the involvement of the scheduler, it allows fundamental functionalities to be implemented efficiently. In particular, it is the only protocol in our system, which allows capabilities to be natively sent between processes.
+
+### Communication protocol
+
+LMP communication runs over channels. We will be using the same channels to send many different messages and therefore need a uniform protocol to allow effective networking. The complete protocol specification is listed in `include/aos/lmp.h`.
+
+To simplify the distinction of message types we decided to dedicate the first argument of every LMP message to the message type (described by `enum lmp_request_type`). The following arguments are defined based on the message type. In some cases we use two consecutive messages to make use of general protocol implementations, such as `lmp_send_string()` and `lmp_recv_string()`. In the case of LMP channels used in the URPC API, the first argument is composed of the standard message type (`enum lmp_request_type`) and the 6 bit URPC message type.
+
+### AOS RPC
+
+We used LMP to implement (almost) the full set of `aos_rpc` functions. We decided to consolidate the memory manager, spawn server and process management in the init process, while the terminal server is later removed from init. We therefore absolutely need an LMP channel with init, which is constructed during spawning.
+
+When a process is spawned, init also registers an LMP request handler function in a closure with the LMP channel on the default waitset. The handler is called for all incoming messages from the process on init. Thanks to the closure the handler receives a reference to the LMP channel. After being called the handler reregisters itself to receive future messages. A reference to the LMP channel established during spawning is also stored in process management, so an LMP channel can be used to retrieve further information about a process.
+
+To service AOS RPC requests, the first step in the handler function is a switch statement to differentiate between the request types based on the message type sent in the first argument. Init then executes the necessary steps to (hopefully) satisfy the  request and sends the appropriate reply. On the other side, the client process waits for a response using a blocking call to `lmp_client_recv()`, which is implemented using the default waitset similarly to how init waits for incoming messages.
+
+```c
+// Blocking call for receiving messages
+void lmp_client_recv(struct lmp_chan *lc, struct capref *cap,
+                     struct lmp_recv_msg *msg) {
+
+    // Use default waitset
+    lmp_client_recv_waitset(lc, cap, msg, get_default_waitset());
+
+}
+
+// Blocking call for receiving messages on a specific waitset
+void lmp_client_recv_waitset(struct lmp_chan *lc, struct capref *cap,
+                             struct lmp_recv_msg *msg, struct waitset *ws) {
+
+    int done = 0;
+    errval_t err;
+
+    err = lmp_chan_register_recv(lc, ws, MKCLOSURE(lmp_client_wait, &done));
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+        return;
+    }
+    
+    while (!done) {
+        event_dispatch(ws);
+    }
+    
+    err = lmp_chan_recv(lc, msg, cap);
+    if (err_is_fail(err)) {
+        debug_printf("%s\n", err_getstring(err));
+    }
+
+}
+void lmp_client_wait(void *arg) {
+    *(int *)arg = 1;
+}
+```
+<center>*Blocking LMP receive implementation*</center>
+
+An important assumption is made here. Namely, that init only handles one request at a time and requests do not interleave. This assumption holds true with one exception: RAM capability requests. Unlike all other RPC calls, these requests can occur at any time due to demand paging. On init's side this isn't an issue. Init will finish treating the initial request and then service the memory request. However, the client process might receive a completely different message when waiting for the reply to the memory request.
+
+We fixed this issue by checking for the message type of the received response and requesting a resend from init using the message type `LMP_RequestType_Echo`. A cleaner implementation would probably be to store the received message in the client until the memory request has been handled. However, in our case this proved to be a much simpler solution.
+
+```c
+// [ ... ]
+
+// Initializing message
+struct lmp_recv_msg msg = LMP_RECV_MSG_INIT;
+
+do {
+
+    // Receive the response
+    lmp_client_recv_waitset(chan->lc, retcap, &msg, &chan->mem_ws);
+    
+    // Check if we got the message we wanted
+    if (msg.words[0] != LMP_RequestType_MemoryAlloc) {
+        
+        // Allocate a new slot if necessary
+        if (!capref_is_null(*retcap)) {
+            err = lmp_chan_alloc_recv_slot(chan->lc);
+            if (err_is_fail(err)) {
+                debug_printf("%s\n", err_getstring(err));
+                return err;
+            }
+        }
+    
+        // Request resend
+        err = lmp_chan_send9(chan->lc, LMP_SEND_FLAGS_DEFAULT, *retcap, LMP_RequestType_Echo, msg.words[0], msg.words[1], msg.words[2], msg.words[3], msg.words[4], msg.words[5], msg.words[6], msg.words[7]);
+        if (err_is_fail(err)) {
+            debug_printf("%s\n", err_getstring(err));
+            return err;
+        }
+        
+    }
+
+} while (msg.words[0] != LMP_RequestType_MemoryAlloc);
+
+// [ ... ]
+```
+<center>*Receive sequence for LMP RAM request responses*</center>
+
+We also use a separate waitset (`chan->mem_ws` above) to wait on memory request responses. This is due to issues with some sequences of RPC calls causing the responses to be delivered to the wrong handler function.
+
+### Sending strings and buffers
+
+Beyond simple RPC requests, we decided to implement a framework for sending  more complex data. We also decided we wanted to support "zero-copy" sending of strings (and later buffers). This framework powers AOS RPC calls such as `aos_rpc_send_string()`, `aos_rpc_process_get_all_pids()` and `aos_rpc_process_spawn()`. We came up with a system of functions with heretical dependancies to making it easy to implement high-level functionality easily.
+
+```c
+                               lmp_send_string()
+                               /               \
+             lmp_send_short_buf()             lmp_send_frame()
+
+
+                               lmp_recv_string()
+                                       |
+lmp_recv_short_buf()      lmp_recv_string_from_msg()        lmp_recv_frame()
+            \                 /                \                   /
+   lmp_recv_short_buf_from_msg()              lmp_recv_frame_from_msg()
+```
+<center>*Framework for sending buffers and strings*</center>
+
+The `*_short_buf*` family of functions sends short buffers (up to 28 bytes) by encoding them in the arguments of an LMP message. The `*_frame*` family on the other hand use frame capabilities and can be used for "zero-copy" sending. The functions with the suffixes `_from_msg` take a previously received message and handle it, whereas those without first blockingly receive an LMP message and pass it to their counterparts with the suffix. The receive functions `lmp_recv_short_buf_from_msg()` and `lmp_recv_frame_from_msg()` both send acknowledgments and their sending counterparts wait for these using `lmp_client_recv()`.
+
+The high-level functions `lmp_send_string()`,  `lmp_recv_string()` and `lmp_recv_string_from_msg()` are designed to automatically switch between the short and long buffer implementations based on the length of the string. This framework made the implementation of many RPC calls more uniform and intuitive.
+
+We also implemented a second set of functions for the URPC API (discussed later). These do not use acknowledgements and are designed specifically for generic buffers. This decision mainly comes down to performance reasons. The acknowledgments significantly slow down the protocol and are usually (when necessary) already part of the application layer built on the URPC API.
+
+```c
+                               lmp_send_buffer()
+                               /               \
+        lmp_send_short_buf_fast()             lmp_send_frame_fast()
+
+
+                               lmp_recv_buffer()
+                                       |
+lmp_recv_short_buf_fast()  lmp_recv_buffer_from_msg()   lmp_recv_frame_fast()
+            \                 /                \                   /
+  lmp_recv_short_buf_from_msg_fast()       lmp_recv_frame_from_msg_fast()
+```
+<center>*Framework implementation optimised for URPC*</center>
+
+
+
 
 
 ## Virtual Memory and Paging
 
-Content.
+Intro
+
+### Initialising paging state
+
+The paging state contains all the information about which ranges in the virtual address space are allocated and which page mappings (page table entries) have been made. Beyond this, the paging state contains the state for two slab allocators, which are used to provide memory for the data structures containing the just mentioned information. A reference to a slot allocator is also stored for reasons we will discuss in the next section.
+
+Since init spawns all processes, the initialisation of paging states (including its own) is always carried on init. This is necessary because init needs to set up the virtual memory of new processes to contain mappings to the executable code of the new process among other things. When initialising its own paging state, it uses a static buffer as initial storage for the slab allocators until RAM from the memory manager can be mapped and used. For child processes this is not necessary, since its own paging state is already set up, so `frame_alloc()` is used instead.
+
+### Initialising paging
+
+...
+
+### Structure of virtual memory management
+
+...
+
+### Allocating virtual address space
+
+...
+
+### Mapping virtual memory
+
+...
+
+### Handling page faults
+
+...
+
 
 
 ## Multicore
