@@ -342,7 +342,7 @@ errval_t aos_rpc_process_get_pid_by_name(const char *name, domainid_t *pid) {
         free(process_name);
     }
     
-    // Make sure bind_server was found
+    // Make sure the process was found
     if (*pid == 0) {
         return LIB_ERR_PID_NOT_FOUND;
     }

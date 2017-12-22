@@ -94,10 +94,50 @@ static void cmd_cat(size_t argc, char *argv[]) {
 }
 
 static void cmd_mkdir(size_t argc, char *argv[]) {
-
+    
 }
 
 static void cmd_rmdir(size_t argc, char *argv[]) {
+    
+}
+
+static void cmd_ps(size_t argc, char *argv[]) {
+    
+    errval_t err;
+    
+    struct aos_rpc *rpc_chan = aos_rpc_get_init_channel();
+    
+    // Request the pids of all running processes
+    domainid_t *pids;
+    size_t num_pids;
+    err = aos_rpc_process_get_all_pids(rpc_chan, &pids, &num_pids);
+    if(err_is_fail(err)) {
+        printf("Failed to retreive the list of PIDs! :/\n");
+        return;
+    }
+    
+    printf("\nPID\tName\n-----------------------------\n");
+
+    // Iterate pids and compare names
+    for (int i = 0; i < num_pids; i++) {
+        
+        // Get the process name
+        char *process_name;
+        err = aos_rpc_process_get_name(rpc_chan, pids[i], &process_name);
+        if(err_is_fail(err)) {
+            printf("%3d\t%s\n", pids[i], "<ERROR>");
+            continue;
+        }
+        
+        // Print the process
+        printf("%3d\t%s\n", pids[i], process_name);
+        
+        // Free the name buffer
+        free(process_name);
+    
+    }
+    
+    printf("-----------------------------\nTotal number of processes: %zu\n\n", num_pids);
 
 }
 
@@ -252,6 +292,8 @@ int main(int argc, char *argv[]) {
                 cmd_mkdir(num_args, args);
             } else if (!strcmp(args[0], "rmdir")) {
                 cmd_rmdir(num_args, args);
+            } else if (!strcmp(args[0], "ps")) {
+                cmd_ps(num_args, args);
             } else {
 
                 if (strlen(args[0]) != 0) {
