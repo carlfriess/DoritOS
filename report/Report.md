@@ -140,11 +140,11 @@ Since LMP does not work between cores, we implemented User-level Message Passing
 
 Our initial goal was to establish message passing between the two init processes running on each core. To achieve this we allocate a shared frame (consisting of two pages) while booting the second core. The capability to this frame is then placed in a well known slot in the new init's cspace.
 
-When booting on the second core (APP) init will map this frame and initialise a UMP channel with it. This channel is then used to receive the additional information about capabilities it needs to forge from the init running on the bootstrap processor (BSP).
+When booting on the second core (APP), init will map this frame and initialise a UMP channel with it. This channel is then used to receive additional information  from the init running on the bootstrap processor (BSP) about the capabilities it needs to forge in order to access modules for example.
 
 ### Communication using ring buffers
 
-Every UMP channel uses two pages of shared memory, one for each direction of communication. Each page contains 64 slots consisting of 64 bytes. We were able to implement the protocol without any other share variables.
+Every UMP channel uses two pages of shared memory, one for each direction of communication. Each page contains 64 slots consisting of 64 bytes. We were able to implement the protocol without any other shared variables.
 
 ```c
 struct ump_chan {
@@ -251,17 +251,17 @@ errval_t ump_send_one(struct ump_chan *chan, void *buf, size_t size,
 
 To send a message, the sender checks the `valid` bit of the next slot in the ring buffer and waits until it is cleared. When the slot becomes invalid the message is written. This is separated  by a memory barrier to prevent the message from being written to a valid slot. Once the message is fully written, which is guaranteed by another memory barrier, the `valid` bit is finally set and the `tx_counter` incremented.
 
-Clearing the `last` notifies the recipient that subsequent messages should be concatenated until the last bit is set. Currently this is implemented using a call to `realloc()` for every subsequent message, which is probably rather inefficient. Ideally, we would use a more sophisticated mechanism to reduce memory management costs. A possibility would be to use the `msg_type` field to encode the number of remaining messages and only send the message type in the final message.
+Clearing the `last` bit notifies the recipient that subsequent messages should be concatenated until the last bit is set. Currently this is implemented using a call to `realloc()` for every subsequent message, which is probably rather inefficient. Ideally, we would use a more sophisticated mechanism to reduce memory management costs. A possibility would be to use the `msg_type` field to encode the number of remaining messages and only send the message type in the final message.
 
 The `msg_type` field is for use by "application layer" to differentiate between messages without the need to encode the message type in the payload, as is done with LMP. Like this we can maximise the payload size of each message and thereby the efficiency of UMP when sending large amounts of data.
 
 ### Forwarding RPC calls between instances of init
 
-Now that we have an open channel between both instances of init we can allow for example RPC requests to spawn a process on another core.
+Now that we have an open channel between both instances of init, we can allow RPC requests to spawn a process on another core for example.
 
-First however, we need init to listen for both LMP and UMP messages. We achieved this by registering an additional `event_queue` on the default waitset. We then add a callback to the event queue, which then checks for UMP messages.
+First however, we need init to listen for both LMP and UMP messages. We achieved this by registering an additional `event_queue` on the default waitset. We then added a callback to the event queue, which then checks for UMP messages.
 
-Now we can forward requests, which is how we handle requests such as spawning on a foreign core, process registration and URPC binding.
+Now we can forward requests, which is how we handle spawning on a foreign core, process registration and URPC binding.
 
 ### Spawning on a foreign core
 
