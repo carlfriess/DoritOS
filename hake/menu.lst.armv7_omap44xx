@@ -35,6 +35,7 @@ module /armv7/sbin/networkd
 module /armv7/sbin/ip_set_addr
 module /armv7/sbin/dump_packets
 module /armv7/sbin/udp_echo
+module /armv7/sbin/remoted
 
 # For pandaboard, use following values.
 mmap map 0x40000000 0x40000000 13 # Devices

@@ -11,7 +11,7 @@
 --------------------------------------------------------------------------
 
 let    -- Default list of modules to build/install
-    modules_common = [ "init", "hello", "memeater", "bind_client", "bind_server",  "really_long_module_name_such_that_it_will_use_spawn_long", "filereader", "mmchs", "terminal", "shell", "networkd", "udp_echo", "ip_set_addr", "dump_packets" ]
+    modules_common = [ "init", "hello", "memeater", "bind_client", "bind_server",  "really_long_module_name_such_that_it_will_use_spawn_long", "filereader", "mmchs", "terminal", "shell", "networkd", "udp_echo", "ip_set_addr", "dump_packets", "remoted" ]
 
     -- ARMv7-a Pandaboard modules: ADd
     pandaModules = [ "/sbin/" ++ f | f <- [
