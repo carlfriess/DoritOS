@@ -49,7 +49,6 @@ void terminal_runloop(struct terminal_state *st);
 // Need to be implemented:
 void terminal_ready(void);
 void put_char(char c);
-char get_char(void);
 void terminal_runloop_dispatch(void);
 
 #endif /* lib_terminal_h */

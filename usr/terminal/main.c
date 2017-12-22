@@ -22,7 +22,7 @@ void put_char(char c) {
     *mem = c;
 }
 
-char get_char(void) {
+static char get_char(void) {
     while (!(*flag & 0x1));
     return *mem;
 }
@@ -61,7 +61,7 @@ void terminal_runloop_dispatch(void) {
 int main(int argc, char *argv[]) {
     errval_t err;
     
-    // Initilize the state
+    // Initilize the terminal state
     struct terminal_state state = TERMINAL_STATE_INIT;
 
     // Register Serial Interrupt Handler
@@ -81,6 +81,7 @@ int main(int argc, char *argv[]) {
     mem = (char *) vaddr;
     flag = (char *) vaddr + 0x14;
 
+    // Run the terminal main loop
     terminal_runloop(&state);
     
 }
