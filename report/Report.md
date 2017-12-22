@@ -578,7 +578,225 @@ The following commands are supported by the system, along with a short descripti
 
 ## Filesystem (Sebastian Winberg)
 
-Content.
+### Introduction
+
+The implementation of the FAT filesystem is based on a service structure. User-level processes initially bind with the mmchs service using URPC and send RPC request to the service. The service thereby constantly non-blockingly accepts requests, processes them and then sends the some information about the file back to the client. Due to this structure write atomicity, can be guaranteed, since the service is only working on one directory or file change at a time.
+
+### Device capability 
+
+In order for the SD block driver to work we had to implement the following AOS RPC call:
+
+```c
+errval_t aos_rpc_get_device_cap(struct aos_rpc *chan, lpaddr_t paddr, size_t bytes,
+                                struct capref *frame);
+```
+
+This call is supposed to give back a device frame that covers a special physical address region where certain device registers are located. To interact with the device registers, one must only map the devframe into virtual address space. It thereby has to be mapped *non-cachable* since we are not dealing with memory, but with device registers that could change their values between two consecutive reads. 
+
+We handle this AOS RPC call using `LMP_RequestType_DeviceCap`. Init thereby receives a range for which the user process requests a device capability. Init then gets the device capabitity through `cap_devices` (with slot `TASKCN_SLOT_DEVCAP`) that was initialized on startup and then invokes the frame_identity to get the devframe capability base and bytes (size). 
+
+After some checking that the requested paddr and bytes are sufficient and lie in the overall device frame range, the device capability is retypes with the requested range of [paddr, paddr + bytes - 1] to the capability type `ObjType_DevFrame`. The LMP server then send back this newly retyped capability to the client and afterwards deletes the capability and frees the slot. 
+
+With this AOS RPC call implemented the mmchs block device driver for the SD card works, unless you forget to put a SD card into your PandaBoard, in which case a non-descriptive assertion is triggered.
+
+### Block Driver Benchmark
+
+For the SD card block device driver *mmchs* we have the following benchmarking results:
+
+<center>![](fs_block_driver_plot.png)</center>
+
+*the time has been obtained using the aos/systime.h library* 
+
+Read and write performance of the mmchs block functions is rather inefficient. This is due to polling (waiting) for the block to be read/written. `mmchs_write_block()` thereby takes approximately twice as long with 66.27ms as the `mmchs_read_block()` with 32.18ms.
+Furthermore is the blocksize of 512 bytes an additional delimiting factor.  
+
+As one can see in the graphs is the mmchs driver mostly busy identifying the card. As noted by some students does SD card driver have quite a lot of issues in general. While working on the project I used my own 16 GB SD card, that I formatted the following way:
+
+```
+$ mkfs.vfat -I -F 32 -S 512 -s 8 /dev/sdX 
+```
+
+I did not have any issues with the SD card driver, but when my fellow team mates tried to use the SD cards given by the AOS assistance, the driver returned zeroed out blocks, even though the SD card was formatted the same way.
+
+### Library Code Structure
+
+The code for the filesystem implementation is structured in two libraries: 
+
+* A client side library `lib/fs` responsible for:
+    * mounting of ramfs, fatfs and mbtfs
+    * initial service binding and client communication to mmchs
+    * virtual file system multiplexing (VFS)
+
+* A service side library `lib/fs_serv` responsible for:
+    * mmchs FAT filesystem service
+    * non-blocking accepting of different RPC requests using URPC
+    * actual read and writing from FAT blocks/sectors and clusters
+
+Due to the size of the libraries we present an overall structure of the files used in these two libraries.
+
+The following files thereby contain different parts of the libraries:
+
+| Files for client | Description                  | Example functions   |
+| :--------------- | :--------------------------- | ------------------: |
+| `vfs.c`          | Virtual file system layer    | `vfs_open()`        |
+| `ramfs.c`        | Ram file system              | `ramfs_open()`      |
+| `mbtfs.c`        | Bootinfo file system         | `bfsfs_open()`      |
+| `fs_rpc.c`       | FAT file system (RPC calls)  | `fs_rpc_open()`     |
+| `fopen.c`        | File functions (fs_libc)     | `fs_libc()`         |
+| `dirent.c`       | Directory functions          | `diropen()`         |
+| `fs.c`           | Filesystem init and mounting | `filesystem_init()` |
+
+| Files for service  | Description               |
+| :----------------- |:------------------------- |
+| `fatfs_rpc_serv.c` | FAT file system service   |
+| `fatfs_serv.c`     | FAT cluster read/writing  |
+| `fat_helper.c`     | Name convertion functions |
+
+
+### FAT filesystem service
+
+The FAT filesystem service has to be spawned in the shell using the following command:
+
+```
+ DoritOS $USER: oncore 0 mmchs &
+```
+
+In order for the shell to be able to use the filesystem we implemented the call 
+
+```
+ DoritOS $USER: fs_init
+```
+
+to mount the SD card in the directory `/sdcard`, the multiboot modules in `/multiboot` and ramfs in the root directory `/`. The actual command thereby calls the `filesystem_init()` in `fs/fs.c` which mounts the different filesystems and sets up the VFS state. Note that each process has to mount it for themselves. The gool with the filesystem service was to make it as stateless as possible. Therefore all mounting and file descriptor handling is done by the process in the `fs` library.   
+
+The RPC calls for both service and client are send over a buffer using URPC
+Thereby any arguments passed in a wrapper `struct fs_message` which is stored in the beginning of the buffer. Any additional information, like a string path or directory entry `struct dirent` is passed right after the four arguments in the same buffer.
+
+### Virtual File System Layer
+
+The filesystem implementation has a VFS layer to support multiple different file system implementations with different mounting directories. The VFS abstraction layer thereby is between `fopen.c` with the `fs_libc` functions, that handle the file descriptor table and the file descriptors respectively, and the filesystem specific implementation of these functions, being for example `ramfs_open()` (for ramfs) or `fs_rpc_open()` (for fatfs). 
+
+The VFS handle thereby stores a void pointer to the filesystem specific handle together with the filesystem specific type for multiplexing.
+
+We thereby implement the special VFS state structure:
+
+```c
+struct vfs_mount {
+    void *ram_mount;
+    void *fat_mount;
+    void *mbt_mount;
+    struct mount_node *head;
+};
+```
+It contains pointers to all specific filesystem states that will be passed on to the filesystem specific implementation of the respective function. Furthermore does it include a header to the mounting structure. 
+The mounting datastructure is in our case a in decreasing lexicographically order sorted linked list of all mounted directories. Due to the fact that it is sorted this particular way, we can easily compare the node name with the path prefix. 
+
+If we look at the example mounting linked list:
+
+```[t1, “/sdcard/folder“] -> [t2, “/sdcard”] -> [t3, “/”]```
+
+One can see that iterating the list and taking the *first* node with a fully matching name is a sufficient implementation due to the ordering property. The search throught the list will be done in $O(n)$, with $n$ being the number of mounted directories. Given the fact that most used cases have only a small constant amount of mounted directories, this is a reasonable asymptotic complexity.
+
+For each `open`/`opendir` the VFS layer looks up which mount node name has the longest matching prefix with the given path. The specific implementation of the longest matching prefix algorithm can be seen in the following code snippet:
+
+```c
+enum fs_type find_mount_type(struct mount_node *head, const char *path, 
+                             char **ret_path) {
+    assert(ret_path != NULL);
+    
+    // Set temp to head of mount linked list
+    struct mount_node *temp = head;
+    
+    // Set default type to RAMFS
+    enum fs_type ret_type = RAMFS;
+    
+    while(temp != NULL) {
+    
+        // Check if prefix of path matches temp's name
+        if (strncmp(path, temp->name, temp->len) == 0) {
+            
+            // Set return mount type
+            ret_type = temp->type;
+            
+            // Set return path to suffix
+            *ret_path = strdup(path + temp->len);
+            
+            return ret_type;
+        } 
+        // Update temp
+        temp = temp->next;
+    }
+    
+    // Set return path to duplicate of path
+    *ret_path = strdup(path);
+    
+    return ret_type;
+}
+```
+<center>*Mounting longest matching prefix function*</center>
+
+
+The function thereby returns the path relative to the mounted directory, which is passed on to the filesystem specific function together with the filesystem specific state in `vfs_mount`.
+
+### Bootinfo mounting
+
+After the VFS layer was properly structured we were now able to properly multiplex `fs_libc_open` with either `ramfs_open` or `fs_rpc_open`. 
+To further widen the possibility for this abstraction layer I implemented the read only file functions for the multiboot modules. In mbtfs.c we have fairly straight forward implementation of the basic file functions like `fopen` or `fread`. 
+
+On the filesystem initialization it thereby requests a list of all module names from init using the newly created request: 
+
+```c
+errval_t aos_rpc_get_module_list(struct aos_rpc *chan,
+                                 char ***modules,
+                                 size_t *module_count);
+
+```
+
+This request returns an array of module names and a count of all modules, which are then saved in the filesystem state `struct mbtfs_mount` for later reference. 
+Behind the scene this call requests the module name list inside a buffer using using LMP to init. Keep in mind that both init’s (on core 0 and 1) are aware of all multiboot modules since they are passed in the bootinfo structure, which allows us to ask the init on our core.
+
+
+If we now want to open a multiboot filesystem file another AOS RPC call is called: 
+
+```c
+errval_t aos_rpc_get_module_frame(struct aos_rpc *chan, char *name,
+                                  struct capref *frame, size_t *ret_bytes);
+```
+
+This call requests the frame capability for the module with given name from init using LMP. On receiving on the server side init looks up the mem_region using `multiboot_module_name()`. It then creates a capref out of that and sends it back to the client using LMP.
+
+The client side can then map the received module frame to virtual address space and saves the frame and buffer alongside some other information like the current position and size in the `struct mbtfs_handle`.
+
+
+### ELF Loading
+
+Due to time constraints and design decisions we have made earlier on, that caused problem arising with URPC, I was unfortunately not able to implement ELF loading of files from the SD card. 
+
+The problem arised with sending over the data to the spawn service. In an earlier milestone we implemented the spawn service as part of the init process. This came to our disadvantage when approaching the ELF loading, since  you are unable to bind with init using the URPC message passing. 
+
+Therefore the mmchs filesystem service is not able to directly send over the data in order for init to load and spawn the ELF, unless we differentiate between LMP and UMP. 
+
+Furthermore did the problem arise that copying over big chunks of data like an ELF file is a rather costly and time consuming operation. 
+
+Because of this we also thought about passing init a frame identity, with which it would then be able to forge, map the file, load the ELF and then spawn the process. 
+Unfortunately we did not have enought time to implement this.
+
+### Benchmark of filesystem
+
+We tried to use the omap timer given in the filereaderto make benchmarkings for the filesystem, but every time we used it, the entire OS got stuck. As we found out one day before the deadline, this is due to a more recent change in barrelfish, where the scheduler uses this timer. Setting initializing it will therefore stop the scheduler from working. 
+
+Due to this rather late discovery of the bug and no knowledge of the aos/systime.h library prior to that, I was unfortunately not able to do a benchmark on my filesystem.
+
+Some more general marks regarding the performance are the following:
+Since my filesystem implementation is always reading from the SD card and writing through the changes back, the system is rather slow. Furthermore is a lot of memory allocation and copying done which further slows down the process.  
+
+Future improvements would be to store the used region of the file allocation table in main memory. Emphasis is thereby put on used, since loading the entire FAT table into main memory took more than 10 minutes, when I tried it. The `FSI_Nxt_Free` value in the `FAT FSInfo Sector Structure` is thereby a good indicator, on how much of the file allocation table *actually* has to saved in main memory.
+
+### Conclusion
+
+Writing a working filesystem implementation is a lot of work and involves quite a lot of indepth knowledge about the internals of both the operating system you are implementing it in, and the file system specifications (in this case FAT32). Especially the walking of the file allocation table and the consideration of all corner cases makes part of the code very extensive. 
+
+Overall was this project one of the most challenging tasks I have worked on.
 
 
 ## Network Stack (Carl Friess)
