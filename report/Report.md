@@ -266,7 +266,9 @@ Intro
 
 ### Initialising paging state
 
-...
+The paging state contains all the information about which ranges in the virtual address space are allocated and which page mappings (page table entries) have been made. Beyond this, the paging state contains the state for two slab allocators, which are used to provide memory for the data structures containing the just mentioned information. A reference to a slot allocator is also stored for reasons we will discuss in the next section.
+
+Since init spawns all processes, the initialisation of paging states (including its own) is always carried on init. This is necessary because init needs to set up the virtual memory of new processes to contain mappings to the executable code of the new process among other things. When initialising its own paging state, it uses a static buffer as initial storage for the slab allocators until RAM from the memory manager can be mapped and used. For child processes this is not necessary, since its own paging state is already set up, so `frame_alloc()` is used instead.
 
 ### Initialising paging
 
