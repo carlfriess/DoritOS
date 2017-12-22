@@ -68,9 +68,9 @@ static void cmd_help(void) {
     printf("\t• touch [filename] - Makes file at path\n");
     printf("\t• rm [filename] - Deletes file at path\n");
     printf("\t• ps - Prints list of all processes\n");
-    printf("\t• time [cmd] \(args...) - Measure the time in ns it takes to execute a command\n");
+    printf("\t• time [cmd] (args...) - Measure the time in ns it takes to execute a command\n");
     printf("\t• exit - Exit the shell\n");
-    printf("\t• [elf name] \(args...) - Run a program with the given name and arguments\n");
+    printf("\t• [elf name] (args...) - Run a program with the given name and arguments\n");
 
 }
 
@@ -284,6 +284,8 @@ static size_t get_input(char *buf, size_t len) {
 
             if (c == 0x04 || c == 0x0A || c == 0x0D) {
                 break;
+            } else if (c == 0x03) {
+                return 0;
             }
             n = i + 1;
             buf[i] = c;
