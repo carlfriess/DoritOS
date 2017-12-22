@@ -1803,7 +1803,7 @@ errval_t fatfs_serv_readdir(size_t cluster_nr, size_t dir_index, struct fat_dire
             return err;
         }
 
-        for (pos_index = 0; pos_index < EntriesPerClus && count_index != dir_index; pos_index++) {
+        for (pos_index = 0; pos_index < EntriesPerClus; pos_index++) {
             
             uint8_t first_letter = data[pos_index * 32];
             
@@ -1814,47 +1814,51 @@ errval_t fatfs_serv_readdir(size_t cluster_nr, size_t dir_index, struct fat_dire
                 // Free entry but can be smore entries after this one
                 
             } else {
+                
+                // Check if we have the
+                if (count_index == dir_index) {
+                    
+                    struct DIR_Entry *dir_data = calloc(1, sizeof(struct DIR_Entry));
+                    
+                    // Convert data to directory data
+                    data_to_dir_data(dir_data, &data[pos_index * 32]);
+                    
+                    debug_printf("%s %zu\n", dir_data->Name, count_index);
+                    
+                    /*
+                    for (int j = 0; j < 10; j++) {
+                        for (int i = 0; i < 32; i+=8) {
+                            debug_printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
+                                         data[j*32 + i], data[j*32 + i + 1],
+                                         data[j*32 + i + 2], data[j*32 + i + 3],
+                                         data[j*32 + i + 4], data[j*32 + i + 5],
+                                         data[j*32 + i + 6], data[j*32 + i + 7]
+                                         );
+                        }
+                    }
+                    */
+                    
+                    // Create and return dirent from dir_data
+                    *ret_dirent = create_dirent(dir_data->Name,
+                                                dir_data->FstClus,
+                                                dir_data->FileSize,
+                                                dir_data->Attr & 0x10,
+                                                cluster_nr,
+                                                (cluster_index * EntriesPerClus) + pos_index);
+                    
+                    // Free directory data
+                    free(dir_data);
+                    
+                    // Free data buffer
+                    free(data);
+                    
+                    return err;
+                    
+                }
+                
                 // Taken entry
                 count_index++;
             }
-            
-        }
-        
-        // Check if we have the
-        if (count_index == dir_index) {
-            
-            struct DIR_Entry *dir_data = calloc(1, sizeof(struct DIR_Entry));
-            
-            // Convert data to directory data
-            data_to_dir_data(dir_data, &data[pos_index * 32]);
-            
-            /*
-            for (int j = 0; j < 3; j++) {
-            for (int i = 0; i < 32; i+=8) {
-                debug_printf("%02X %02X %02X %02X %02X %02X %02X %02X\n",
-                             data[j*32 + i], data[j*32 + i + 1],
-                             data[j*32 + i + 2], data[j*32 + i + 3],
-                             data[j*32 + i + 4], data[j*32 + i + 5],
-                             data[j*32 + i + 6], data[j*32 + i + 7]
-                             );
-            }
-            }
-            */
-            // Create and return dirent from dir_data
-            *ret_dirent = create_dirent(dir_data->Name,
-                                        dir_data->FstClus,
-                                        dir_data->FileSize,
-                                        dir_data->Attr & 0x10,
-                                        cluster_nr,
-                                        (cluster_index * EntriesPerClus) + pos_index);
-            
-            // Free directory data
-            free(dir_data);
-            
-            // Free data buffer
-            free(data);
-            
-            return err;
             
         }
         
