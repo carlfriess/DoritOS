@@ -747,3 +747,55 @@ Similar to the previous utility this application sends a `URPC_MessageType_DumpP
 #### udp\_send
 
 This is a very simple program which opens a socket, sends the message passed as an argument to the address and port specified in the arguments, closes the socket and terminates.
+
+
+## Remote Shell
+
+We implemented a basic version of a remote shell by essentially redirecting the stdin and stdout of processes over UDP packets to an instance of netcat on the remote host.
+
+### Redirecting stdin and stdout
+
+Rather than implement a system similar to the TTY subsystem in Unix, we decided to leverage the versatility of our URPC API. Our idea was to simply have multiple processes implement the functionality of the terminal server. Processes then bind to the appropriate process depending on how their stdin and stdout should be routed.
+
+We started by adding a `terminal_pid` field to the Dispatcher Control Block (DCB) and introducing an aos_rpc spawn call which allows the PID of the terminal server for the new process to be specified.
+
+```c
+/**
+ * \brief Request process manager to start a new process
+ * \arg name the name of the process that needs to be spawned (without a
+ *           path prefix)
+ * \arg terminal_pid the process id of the terminal process to be used by the
+                     new process
+ * \arg newpid the process id of the newly spawned process
+ */
+errval_t aos_rpc_process_spawn_with_terminal(struct aos_rpc *chan,
+                                             char *name,
+                                             coreid_t core,
+                                             domainid_t terminal_pid,
+                                             domainid_t *newpid);
+```
+<center>*AOS RPC spawn call with specific terminal PID*</center>
+
+When set to 0, init will choose the PID of the default terminal server. However in the case of the shell, it can simply pass on its own terminal's PID. This way  a newly spawned process will "inherit" the shell's terminal.
+
+```c
+// Spawn process
+domainid_t pid;
+err = aos_rpc_process_spawn_with_terminal(aos_rpc_get_init_channel(), buf, 1,
+                                          disp_get_terminal_pid(), &pid);
+```
+<center>*Terminal PID inheritance as done in the shell*</center>
+
+### Adding another terminal server
+
+To simplify achieving multiple terminal servers, we decided to move the core terminal functionality into a library (`libterm`). The implementation of the terminal application now mostly consists of the serial driver.
+
+We are now ready to add a new route for the stdin and stdout of processes. To achieve a remote shell, we added `remoted` (not spawned at startup). This application also uses `libterm` but implements a UDP layer to forward input and output over the network. When it first receives a UDP packet, it spawns a new shell process with itself as the terminal server.
+
+We now have a very basic remote shell.
+
+### Limitations
+
+While this implementation provides sufficient access to a shell to perform most tasks, the current implementation of `remoted` does not support multiple simultaneous client. This would require some form of multiplexing in the terminal implementation. However, multiple instances of `remoted` can easily be spawned on different ports, allowing multiple remote clients.
+
+To prevent there from being too much overhead in printing over the network, the implementation of `remoted` buffers characters and uses well chosen criteria to flush the buffer every now and then.
