@@ -1,8 +1,15 @@
-AOS Handout milestone 0
-=======================
+<p align="center"><img alt="Logo" src="report/DoritOS%20Logo.png" /></p>
 
-This is the handout for the first introductory milestone of the AOS project.
+<h1 align="center">DoritOS</h1>
 
-Future handouts will appear as branches labelled "weekX" for handouts provided
-in the X'th week of semester. For example, the handout for the second week of
-semester will be provided in branch "week2".
+<p align="center"><b> A micro-kernel operating system based on the Barrelfish CPU-driver. </b></p>
+
+<br />
+
+DoritOS is an operating system developed during the Advanced Operating Systems course at ETH Zurich in Fall 2018. It implements Virtual Memory Management, Process Management, Lightweight Message Passig, User-level Message Passing, a Shell, a Filesystem and a Network Stack. DoritOS is capable of running on multiple cores and was developed for the ARM Cortex A9 on the OMAP4460 processor using the PandaBoard ES.
+
+<p align="center"><b> <a href="report/report.pdf">Report</a> </b></p>
+
+<br />
+
+<p align="center"><img alt="Screenshot" src="report/Screenshot.png" /></p>
